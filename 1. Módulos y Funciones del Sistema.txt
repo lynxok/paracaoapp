@@ -1,0 +1,157 @@
+1. Módulos y Funciones del Sistema
+El sistema es una plataforma integral de tipo ERP/CRM diseñada específicamente para la administración de ópticas, integrando la parte clínica (recetas y pedidos) con la administrativa (proveedores, stock) y la financiera (cajas, bancos y cuentas corrientes).
+1.1. Panel de Control (Dashboard)
+Visión General Instantánea: Indicadores clave de rendimiento (KPIs) de ventas diarias, pedidos activos en taller, saldos pendientes y nivel de facturación.
+Accesos Rápidos: Accesos directos para iniciar ventas rápidas (no recetados), crear pedidos clínicos o realizar arqueos de caja rápida.
+1.2. Gestión de Clientes
+Ficha Integral de Cliente: Registro de datos personales, DNI, teléfono, dirección completa (calle, número, piso, dpto), obra social o cobertura médica (Particular, OSDE, Swiss Medical, PAMI, etc.) y edad con cálculo automático.
+Modificación de Datos: Formulario dinámico para mantener la base de datos actualizada.
+Cuenta Corriente (C.C.): Panel dedicado por cliente que consolida el saldo financiero histórico (saldos a favor o deudas pendientes) y permite la emisión y registro de pagos manuales.
+Historial de Pedidos: Vista detallada de todos los trabajos realizados por el cliente (Monofocales, Multifocales, Lentes de Contacto o Ventas directas), su estado de producción actual ("En Taller", "Para Retirar", "Completado"), y el balance de pago de cada uno.
+1.3. Directorio de Proveedores y Módulo de Compras
+Ficha de Proveedor: Registro de Códigos internos, CUIT, CBU de transferencia, Categoría del rubro (ej. Cristales, Armazones, Lentes de Contacto) y Condición de Pago Predeterminada (ej. "Contado", "30 días", "60 días").
+Módulo de Compras:
+Carga unificada de comprobantes de compras (Facturas, Notas de Débito/Crédito).
+Asignación directa a la Cuenta Corriente del proveedor seleccionado.
+Ingreso manualizado de Fecha de Emisión, Fecha de Vencimiento y Condiciones de Pago específicas por comprobante.
+Historial cronológico de todos los comprobantes cargados en el mes y su estado de pago.
+Módulo de Facturas Pendientes:
+Consolida en una única interfaz todas las facturas cargadas en el sistema de cualquier proveedor que aún se encuentren en estado Pendiente (sin Orden de Pago definitiva asociada).
+Permite visualizar rápidamente cuáles de ellas se encuentran vencidas o próximas a vencer según su fecha de vencimiento límite.
+1.4. Gestión de Pedidos y Recetas (Óptica)
+Venta No Recetados (Venta Rápida): Interfaz para despachar productos de stock directo (lentes de sol, accesorios, líquidos de limpieza) sin receta médica asociada.
+Nuevo Pedido: Flujograma de selección según la patología y la solución visual del cliente:
+Monofocales: Carga de refracción esférica, cilíndrica, eje, adición y distancias pupilares para visión de cerca y lejos.
+Multifocales: Carga técnica especializada más altura y tipo de pasillo.
+Lentes de Contacto: Parámetros adicionales como curva base, diámetro y tipo de lente (blanda, gas permeable, etc.).
+Seguimiento Excluyente de Trabajo: Envío automático del pedido a estado "En Taller" para interactuar con ópticos y laboratorios de calibrado.
+1.5. Control de Stock e Inventario
+Catálogo de SKUs: Control de existencias clasificado por tipo (marcos, cristales base, lentes de sol, lentes de contacto).
+Recepción de Mercadería: Módulo de actualización masiva de inventario al recibir paquetes físicos de distribuidores.
+1.6. Liquidación de Laboratorios
+Gestión de Trabajos Externos: Control y liquidación de deudas generadas por el tallado de cristales con laboratorios ópticos contratados.
+1.7. Finanzas, Caja y Conciliación Bancaria
+Arqueo de Cajas Físicas: Gestión de efectivo ("Caja Chica", "Caja Principal") mediante ingresos y egresos manuales de caja diarios.
+Conciliación Bancaria (Módulo Avanzado):
+Filtro por Cuentas: Selección específica de la cuenta bancaria o billetera digital a conciliar.
+Filtro Temporal Dinámico: Selector exacto de fechas (Desde / Hasta) que sincroniza los movimientos bancarios registrados en el sistema para ese periodo específico.
+Cálculo de Cierre: Visualización del saldo del último cierre contra el saldo del extracto actual para calcular variaciones de caja.
+Gastos Bancarios: Campo directo para asimilar comisiones bancarias, impuestos al cheque o cargos de mantenimiento dentro de la conciliación sin descuadrar los movimientos operativos.
+Verificación Manual (Tildado): Listado dinámico de movimientos donde el administrador tilda de manera interactiva las transacciones confirmadas en su homebanking, actualizando inmediatamente el contador interactivo de ítems conciliados.
+2. Flujo de Trabajo Operativo
+El éxito en la utilización de la herramienta se basa en mantener una secuencia lógica de carga de datos para garantizar que la contabilidad y el stock estén perfectamente sincronizados.
+code
+Code
+[ CLIENTE EN ÓPTICA ] ──> Cita / Elección del Producto
+                 │
+                 ▼
+       [ CREACIÓN DE PEDIDO ]
+         Carga de datos de receta
+         Cobro de Seña o Pago Total
+                 │
+                 ▼
+     ┌───────────┴───────────┐
+     ▼                       ▼
+[ CAJA FISICA ]        [ LABS / TALLER ] ──> Calibración y Entrega
+Ingreso de dinero      Registra deuda con lab
+
+──────────────────────────────────────────────────────────────────────────
+
+       [ PROVEEDOR ENVÍA ] ──> Mercadería + Factura
+                 │
+                 ▼
+       [ MODULO DE COMPRAS ]
+         Cargar factura: Proveedor + Monto + Condición de pago + Vencimiento
+                 │
+                 ▼
+       [ CUENTA CORRIENTE ] ──> Aumenta Deuda con Proveedor
+                 │
+                 ▼
+   [ FACTURAS PENDIENTES ] ──> Control de vencimientos
+                 │
+                 ▼
+         [ ORDEN DE PAGO ] ──> Egreso de Caja/Banco (Disminuye deuda)
+2.1. Flujo Clínico y CRM de Pacientes
+Recepción del Paciente: Se busca al cliente por DNI o Nombre. Si no existe, se procede al alta ingresando todos sus datos personales (incluyendo obra social y domicilio).
+Diagnóstico y Venta: Se configuran los parámetros de la receta médica en el gestor de Nuevo Pedido y se selecciona el armazón del inventario.
+Sección Financiera: Se estipula el valor del armazón y los cristales. El cliente puede realizar un pago parcial (Seña) o total. El sistema asienta el cobro directamente como un Ingreso de Caja (Caja Física o Banco) e impacta la diferencia en la Cuenta Corriente del cliente si resta saldo.
+Logística: El pedido viaja analógicamente a los laboratorios externos de tallado/montaje. El trabajo cambia de estado a "En Taller" y luego de finalizado a "Para Retirar".
+Entrega y Cierre: El cliente retira el lente de la sucursal, salda lo pendiente (si correspondía) y el pedido se marca como "Completado".
+2.2. Flujo de Compras y Cuentas Corrientes con Proveedores
+Ingreso y Recepción de Compras: Cuando se adquieren armazones o insumos, se ingresa al Módulo de Compras para registrar el comprobante.
+Carga de Datos de la Factura: Se asienta el comprobante seleccionando al proveedor emisor, detallando el número de factura, el monto correspondiente, la fecha de emisión, la fecha de vencimiento y su condición de pago.
+Impacto de Saldo: La carga del comprobante suma de forma automática el monto de la compra a la deuda en la Cuenta Corriente de Proveedores.
+Monitoreo Financiero: A través del panel de Facturas Pendientes, Tesorería consulta de forma regular el listado de facturas sin orden de pago asociadas, organizando su agenda de vencimientos cronológicamente a fin de evitar recargos o cortes de crédito por parte del proveedor.
+Pago de la Obligación: Al emitir el pago al proveedor, se genera la orden de pago pertinente, restando saldo de las deudas en su ficha de Cuenta Corriente y registrando el egreso de fondos de la caja o banco correspondiente.
+2.3. Flujo Diario de Control Financiero y Caja
+Inicio de Jornada: El cajero verifica el saldo de apertura de las cajas de efectivo físicas.
+Movimientos del Día: Todas las ventas de mostrador y señas de pedidos ingresan a la caja activa de la sucursal. Los gastos menores (ej. papelería) se registran como egresos desde la misma.
+Cierre de Caja: Al terminar el día, se efectúa el arqueo de caja física comparando el conteo de billetes en mano contra los registros del software.
+Conciliación Periódica: Al final de la semana o de forma mensual, el administrador financiero abre el módulo de Conciliación Bancaria, filtra el periodo que figura en su extracto de Homebanking físico, y efectúa el tildado interactivo de las transacciones para asegurar que las finanzas reflejadas en el sistema sean 100% reales.
+3. Manual de Usuario (Guía Paso a Paso)
+3.1. Cómo Modificar un Cliente, Ver su Cuenta Corriente y sus Pedidos
+Paso 1: Encontrar al Cliente
+Diríjase al menú lateral izquierdo y acceda al módulo Clientes.
+Utilice la barra superior de Búsqueda para ingresar el Nombre del cliente, su número de DNI o su Teléfono.
+Paso 2: Editar Datos del Cliente
+En la fila del cliente correspondiente, haga clic en el botón azul de edición (icono de Lápiz).
+Se desplegará el formulario flotante con los datos actuales. Realice las modificaciones oportunas (ej: cambio de número de teléfono o cambio de dirección en Calle, Número o Piso/Depto).
+Presione el botón Confirmar Cambios para guardar los datos actualizados.
+Paso 3: Consultar la Cuenta Corriente (C.C.) del Cliente
+En la fila del cliente, haga clic en el botón verde con el icono de Recibo/Ticket (o haga clic en "Cuenta Corriente" desde el menú de opciones secundario).
+Se abrirá una ventana emergente que le mostrará de forma exclusiva el estado financiero del cliente:
+Saldo Actual: Indica si tiene saldo a favor (en verde) o si posee deudas pendientes (en rojo).
+Listado de Transacciones financieras: El registro ordenado de todos los cobros asociados, señas aportadas y notas de venta imputadas a su cuenta.
+Paso 4: Consultar el Historial de Pedidos Realizados
+En la tabla principal de clientes, haga clic en el botón morado con el icono de Caja/Paquete (o haga clic en "Ver Pedidos" desde el menú secundario si corresponde).
+Se abrirá la interfaz de Pedidos Realizados. Aquí se listan cronológicamente todas las recetas ópticas o productos comprados por el cliente, indicando:
+El Identificador Único del pedido (ej. ORD-2458).
+El Tipo de Receta (Monofocal / Multifocal / Lente de Contacto / Venta Común).
+El Estado del lente ("En Taller", "Para Retirar" o "Completado").
+El Monto total y cuánto saldo pendiente resta para abonar la totalidad.
+Cuenta con un botón rápido de "Ver Detalle" que lo redirigirá a la orden detallada con la graduación de cristales asignada.
+3.2. Cómo Registrar una Compra a un Proveedor e Impactar su C.C.
+Paso 1: Ir al Panel de Proveedores / Compras
+Diríjase al menú lateral izquierdo y seleccione el módulo de Proveedores.
+En la barra superior, seleccione la pestaña "Compras".
+Paso 2: Ingresar una Factura de Compra
+Desde la pestaña de Compras, haga clic en la opción "Cargar Nueva Compra / Iniciar Carga".
+En la pantalla emergente, asiente la información:
+Seleccionar Proveedor: Despliegue el cuadro de selección y elija el distribuidor (ej. Essilor Argentina o Bausch & Lomb).
+Tipo de Comprobante: Asegúrese de que esté marcada la opción "Factura / Débito".
+Fecha de Carga y Número de Comprobante: Registre el número de factura de su proveedor (ej: FC-A-0001-00124233).
+Monto: Transcriba el monto total facturado por el proveedor.
+Condición de Pago: Coloque el acuerdo de financiamiento pactado (ej: 30 días, 60 días o Contado).
+Fecha de Vencimiento: Especifique el día exacto en que caduca la factura comercial para alertar a pagos.
+Receta / Descripción: Ingrese un concepto breve aclaratorio (ej: "Compra de armazones colección otoño").
+Haga clic en Confirmar Impacto en C.C. El sistema procesará la operación de forma inmediata agregando el valor correspondiente a la deuda corriente de ese proveedor.
+3.3. Cómo Monitorear Facturas Pendientes de Pago
+Paso 1: Ingresar a Facturas Pendientes
+En el módulo de Proveedores, localice la barra superior táctil con tres opciones de navegación.
+Haga clic sobre la pestaña "Facturas Pendientes" (identificada en color rojo).
+Paso 2: Inspeccionar el Tablero
+Verá una tarjeta principal que calcula de manera consolidada la Deuda Total Consolidada (la suma del balance pendiente con todos sus proveedores).
+En la tabla inferior se listarán estrictamente, en orden de vencimiento, todos los comprobantes ingresados que aún se mantienen pendientes de asentar una orden de pago.
+Puede monitorear la columna Vencimiento / Fecha para identificar de inmediato qué comprobante corre riesgo de mora.
+Para realizar la cancelación directa de la obligación, interactúe con el botón Pagar Factura disponible sobre la fila de la transacción.
+3.4. Cómo Realizar una Conciliación Bancaria Paso a Paso
+El módulo de conciliación le permite asegurar que cada centavo asentado en las cuentas virtuales del sistema coincida rigurosamente con su cuenta bancaria externa oficial.
+Paso 1: Acceder al Módulo
+Vaya a la barra lateral de su pantalla y seleccione el botón de Finanzas (Arqueo de Caja).
+En las secciones superiores, diríjase a la pestaña Conciliación.
+Paso 2: Configurar Parámetros del Extracto
+En la columna de configuración izquierda, seleccione la cuenta a auditar mediante el selector "1. Seleccionar Banco/Cuenta" (ej: Banco Santander, Banco Galicia o Mercado Pago).
+Complete los campos de rango de fechas Hasta – Desde de acuerdo a las fechas de inicio y culminación que figuran impresas en su extracto bancario PDF físico.
+Paso 3: Cargas de Control de Cierre
+El sistema recuperará y mostrará automáticamente el saldo consolidado de su último arqueo asentado en el campo "Monto último cierre".
+Ingrese el número final que le muestra su extracto oficial real en la casilla "Cierre conciliación actual".
+El sistema le calculará de manera automatizada la Diferencia de Cierres indicándole en verde o rojo si los balances están equilibrados.
+Paso 4: Ajustar Gastos del Banco
+Si su banco le ha aplicado cargos de mantenimiento habituales, comisiones, impuestos o sellados de cuenta que no se corresponden a un cargo de compra operativa individual, ingrese la suma total en la casilla Gastos Bancarios.
+El contador generará la sumatoria neta final de control en el bloque de color oscuro "Total menos gastos bancarios".
+Paso 5: Proceso de Conciliación de Movimientos (Tildado)
+Con su extracto bancario digital o físico frente a usted, observe la columna derecha de Movimientos a Conciliar.
+Compare movimiento por movimiento: cuando localice un importe coincidente, haga clic directamente sobre la tarjeta de esa transacción para tildarla.
+La tarjeta se tornará a color verde y se le mostrará el indicador de "Conciliado".
+En la franja superior de la tabla principal se actualizará el contador general indicándole la cantidad exacta de movimientos emparejados (ej: 14 / 22).
+Al finalizar y verificar que las operaciones de tildado arrojen diferencias balances cero, haga clic en el botón Confirmar Conciliación para resguardar formalmente el periodo conciliado como correcto.
