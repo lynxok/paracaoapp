@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
+import { useSettings } from "../context/SettingsContext";
 import { Package, AlertTriangle, DollarSign, Truck, Search, Plus, X, PackagePlus, Settings2, Trash2, Edit2, ArrowDownToLine, ArrowUpFromLine, MapPin } from "lucide-react";
 
 // Mock branches for selector
@@ -8,62 +9,17 @@ const BRANCHES = [
   { id: 2, name: "Shopping" },
 ];
 
-const INVENTORY_DATA = [
-  { 
-    name: "Ray-Ban Aviator", 
-    sku: "RB-3025", 
-    cat: "Armazones", 
-    price: "$165.00", 
-    color: "emerald",
-    stocks: {
-      1: 25, // Casa Central
-      2: 20  // Shopping
-    }
-  },
-  { 
-    name: "Acuvue Oasys 1-Day", 
-    sku: "JJ-ACO", 
-    cat: "Contacto", 
-    price: "$85.00", 
-    color: "red",
-    stocks: {
-      1: 3,
-      2: 5
-    }
-  },
-  { 
-    name: "Crizal Sapphire", 
-    sku: "ESS-CRZ", 
-    cat: "Cristales", 
-    price: "$60.00", 
-    color: "emerald",
-    stocks: {
-      1: 80,
-      2: 40
-    }
-  },
-  { 
-    name: "Oakley Holbrook", 
-    sku: "OK-HLB", 
-    cat: "Armazones", 
-    price: "$140.00", 
-    color: "slate",
-    stocks: {
-      1: 0,
-      2: 0
-    }
-  },
-];
-
+import { useInventory } from "../context/InventoryContext";
 export function Inventory() {
-  const [categories, setCategories] = useState(["Armazones", "Contacto", "Cristales"]);
+  const { inventoryCategories: categories, lensColors, contactLensColors, lensTypes } = useSettings();
+  const { inventory } = useInventory();
   const [selectedCategory, setSelectedCategory] = useState("Todos");
   const [selectedBranch, setSelectedBranch] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalCategory, setModalCategory] = useState("");
   const [isStockEntryOpen, setIsStockEntryOpen] = useState(false);
   const [isStockExitOpen, setIsStockExitOpen] = useState(false);
-  const [isManageCatsOpen, setIsManageCatsOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState<{ x: number, y: number } | null>(null);
   const [contextItem, setContextItem] = useState<any>(null);
   const location = useLocation();
@@ -89,7 +45,7 @@ export function Inventory() {
       setIsStockEntryOpen(true);
     }
   }, [location.pathname]);
-  const [newCatName, setNewCatName] = useState("");
+
   const [stockEntryData, setStockEntryData] = useState({
     productId: "",
     branchId: "",
@@ -103,7 +59,7 @@ export function Inventory() {
 
   const allCategories = ["Todos", ...categories];
 
-  const filteredItems = INVENTORY_DATA.map(item => {
+  const filteredItems = inventory.map(item => {
     // Calculate quantity based on selected branch
     let qty = 0;
     if (selectedBranch === "all") {
@@ -136,16 +92,19 @@ export function Inventory() {
     setIsModalOpen(false);
   };
 
-  const addCategory = () => {
-    if (newCatName && !categories.includes(newCatName)) {
-      setCategories([...categories, newCatName]);
-      setNewCatName("");
-    }
-  };
+  const totalSkus = inventory.length;
+  let lowStockCount = 0;
+  let totalValue = 0;
 
-  const deleteCategory = (catToDelete: string) => {
-    setCategories(categories.filter(c => c !== catToDelete));
-  };
+  inventory.forEach(item => {
+    const totalStock = Object.values(item.stocks).reduce((a, b) => a + b, 0);
+    if (totalStock <= 5) lowStockCount++;
+    
+    const parsedPrice = parseFloat(item.price.replace('$', '').replace(',', '')) || 0;
+    totalValue += (totalStock * parsedPrice);
+  });
+
+  const formattedTotalValue = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(totalValue);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -154,7 +113,7 @@ export function Inventory() {
         <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm">
           <div>
             <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">Total SKUs</p>
-            <p className="text-2xl font-bold text-slate-900 dark:text-white">1,240</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-white">{totalSkus}</p>
           </div>
           <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
             <Package className="w-6 h-6" />
@@ -164,7 +123,7 @@ export function Inventory() {
         <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm">
           <div>
             <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">Stock Bajo</p>
-            <p className="text-2xl font-bold text-red-600 dark:text-red-400">15</p>
+            <p className="text-2xl font-bold text-red-600 dark:text-red-400">{lowStockCount}</p>
           </div>
           <div className="w-12 h-12 rounded-full bg-red-50 dark:bg-red-900/30 flex items-center justify-center text-red-600 dark:text-red-400">
             <AlertTriangle className="w-6 h-6" />
@@ -174,7 +133,7 @@ export function Inventory() {
         <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm">
           <div>
             <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">Valor Total</p>
-            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">$45.2k</p>
+            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{formattedTotalValue}</p>
           </div>
           <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
             <DollarSign className="w-6 h-6" />
@@ -184,7 +143,7 @@ export function Inventory() {
         <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm">
           <div>
             <p className="text-slate-500 dark:text-slate-400 text-sm font-semibold">En Tránsito</p>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">8</p>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">0</p>
           </div>
           <div className="w-12 h-12 rounded-full bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
             <Truck className="w-6 h-6" />
@@ -237,7 +196,10 @@ export function Inventory() {
               <Truck className="w-4 h-4" /> Ingreso de Mercadería
             </button>
             <button 
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                setModalCategory(categories[0] || "");
+                setIsModalOpen(true);
+              }}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-sm hover:bg-blue-700 transition-colors"
             >
               <Plus className="w-4 h-4" /> Añadir Nuevo
@@ -333,7 +295,7 @@ export function Inventory() {
                       onChange={(e) => setStockEntryData({...stockEntryData, productId: e.target.value})}
                     >
                       <option value="">Seleccionar producto...</option>
-                      {INVENTORY_DATA.map(item => (
+                      {inventory.map(item => (
                         <option key={item.sku} value={item.sku}>{item.name} ({item.sku})</option>
                       ))}
                     </select>
@@ -439,24 +401,54 @@ export function Inventory() {
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Categoría</label>
                       {userRole === "superadmin" && (
-                        <button 
-                          type="button"
-                          onClick={() => setIsManageCatsOpen(true)}
+                        <Link 
+                          to="/settings"
                           className="text-[10px] flex items-center gap-1 text-blue-600 hover:underline font-bold"
                         >
-                          <Settings2 className="w-3 h-3" /> Gestionar
-                        </button>
+                          <Settings2 className="w-3 h-3" /> Gestionar en Ajustes
+                        </Link>
                       )}
                     </div>
                     <select 
                       className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
-                      defaultValue={contextItem?.cat}
+                      value={modalCategory}
+                      onChange={(e) => setModalCategory(e.target.value)}
                     >
                       {categories.map(cat => (
                         <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
                   </div>
+                  
+                  {(modalCategory === "Lentes de Contacto" || modalCategory === "Anteojos de Sol" || modalCategory === "Cristales") && (
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Color / Tono</label>
+                      <select 
+                        className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
+                        defaultValue={contextItem?.productColor || ""}
+                      >
+                        <option value="">Seleccionar color...</option>
+                        {(modalCategory === "Lentes de Contacto" ? contactLensColors : lensColors).map(c => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  
+                  {modalCategory === "Cristales" && (
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Tipo de Cristal</label>
+                      <select 
+                        className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
+                        defaultValue={contextItem?.lensType || ""}
+                      >
+                        <option value="">Seleccionar tipo...</option>
+                        {lensTypes.map(type => (
+                          <option key={type} value={type}>{type}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="flex flex-col gap-1.5 md:col-span-2">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Stock por Sucursal</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
@@ -520,65 +512,6 @@ export function Inventory() {
         </div>
       )}
 
-      {/* Manage Categories Modal (Superadmin only) */}
-      {isManageCatsOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-lg font-bold flex items-center gap-2 dark:text-white">
-                <Settings2 className="w-5 h-5 text-blue-600" />
-                Gestionar Categorías
-              </h3>
-              <button 
-                onClick={() => setIsManageCatsOpen(false)} 
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={newCatName}
-                  onChange={(e) => setNewCatName(e.target.value)}
-                  className="flex-1 h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
-                  placeholder="Nueva categoría..."
-                />
-                <button 
-                  onClick={addCategory}
-                  className="bg-blue-600 text-white px-3 py-2 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm"
-                >
-                  <Plus className="w-5 h-5" />
-                </button>
-              </div>
-              
-              <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-                {categories.map((cat) => (
-                  <div key={cat} className="flex items-center justify-between p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 group">
-                    <span className="text-sm font-medium text-slate-900 dark:text-white">{cat}</span>
-                    <button 
-                      onClick={() => deleteCategory(cat)}
-                      className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md transition-colors opacity-0 group-hover:opacity-100"
-                      title="Eliminar"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-              <button 
-                onClick={() => setIsManageCatsOpen(false)}
-                className="px-6 py-2 bg-slate-900 dark:bg-white dark:text-slate-900 text-white rounded-lg font-bold text-sm shadow-sm hover:opacity-90 transition-all"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Stock Exit Modal (Egreso) */}
       {isStockExitOpen && (
@@ -700,6 +633,7 @@ export function Inventory() {
               </button>
               <button 
                 onClick={() => {
+                  setModalCategory(contextItem?.cat || categories[0] || "");
                   setIsModalOpen(true);
                   closeMenu();
                 }}

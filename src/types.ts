@@ -6,6 +6,8 @@
 export interface Client {
   id: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   dni: string;
   phone: string;
   email: string;
@@ -17,9 +19,23 @@ export interface Client {
     floor?: string;
     apartment?: string;
   };
-  insurance?: string;
+  insurance?: string; // Legacy string name, migrating to insuranceId
+  insuranceId?: string;
+  affiliateNumber?: string;
   lastVisit?: string;
   balance: number; // Balance for Current Account (C.C.)
+}
+
+export interface InsuranceCoverage {
+  categoryId: string; // The category name for now, e.g. "Cristales Monofocales", "Armazones"
+  percentage: number; // e.g. 10 for 10%
+}
+
+export interface Insurance {
+  id: string;
+  name: string;
+  active: boolean;
+  coverages: InsuranceCoverage[];
 }
 
 export interface Order {

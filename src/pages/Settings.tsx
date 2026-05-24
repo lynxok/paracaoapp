@@ -1,26 +1,61 @@
-import React, { useState, useEffect } from "react";
-import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles } from "lucide-react";
 import { cn } from "../lib/utils";
 import { logger } from "../lib/logger";
+import { useSettings } from "../context/SettingsContext";
+import { useAuth } from "../context/AuthContext";
+
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
+import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
+import { Label } from "../../components/ui/label";
 
 const tabs = [
   { id: 'general', label: 'General', icon: Building2 },
+  { id: 'appearance', label: 'Apariencia', icon: Sparkles },
   { id: 'branches', label: 'Sucursales', icon: MapPin },
   { id: 'users', label: 'Usuarios', icon: Users },
   { id: 'permissions', label: 'Permisos', icon: Shield },
   { id: 'notifications', label: 'Notificaciones', icon: Bell },
   { id: 'billing', label: 'Facturación', icon: Receipt },
+  { id: 'insurances', label: 'Obras Sociales', icon: Activity },
+  { id: 'banks', label: 'Bancos', icon: Building2 },
+  { id: 'inventory', label: 'Categorías', icon: Package },
+  { id: 'database', label: 'Base de Datos', icon: Database },
   { id: 'audit', label: 'Audit Log', icon: ScrollText },
 ];
 
 export function Settings() {
+  const currentUser = { name: "Ignacio Valente", role: "superadmin" }; // User Mock for permissions
   const [activeTab, setActiveTab] = useState('general');
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, show: boolean, user: any }>({ x: 0, y: 0, show: false, user: null });
+  const { insurances, addInsurance, removeInsurance, banks, addBank, updateBank, removeBank, inventoryCategories, addInventoryCategory, updateInventoryCategory, removeInventoryCategory, lensColors, addLensColor, updateLensColor, removeLensColor, contactLensColors, addContactLensColor, updateContactLensColor, removeContactLensColor, lensTypes, addLensType, updateLensType, removeLensType, opticaLogo, setOpticaLogo, opticaName, setOpticaName, opticaPhone, setOpticaPhone, opticaAddress, setOpticaAddress, appTheme, setAppTheme } = useSettings();
+  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [newInsurance, setNewInsurance] = useState('');
+  const [isInsuranceModalOpen, setIsInsuranceModalOpen] = useState(false);
+  const [editingInsurance, setEditingInsurance] = useState<any>(null);
+  const [newLensColor, setNewLensColor] = useState('');
+  const [isLensColorModalOpen, setIsLensColorModalOpen] = useState(false);
+  const [editingLensColor, setEditingLensColor] = useState({ oldName: '', newName: '' });
+  const [newContactLensColor, setNewContactLensColor] = useState('');
+  const [isContactLensColorModalOpen, setIsContactLensColorModalOpen] = useState(false);
+  const [editingContactLensColor, setEditingContactLensColor] = useState({ oldName: '', newName: '' });
+  const [newLensType, setNewLensType] = useState('');
+  const [isLensTypeModalOpen, setIsLensTypeModalOpen] = useState(false);
+  const [editingLensType, setEditingLensType] = useState({ oldName: '', newName: '' });
+  const [newCategory, setNewCategory] = useState('');
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState({ oldName: '', newName: '' });
+  const [newBank, setNewBank] = useState({ name: '', cbu: '', alias: '', accountNumber: '' });
+  const [isBankEditModalOpen, setIsBankEditModalOpen] = useState(false);
+  const [editingBank, setEditingBank] = useState({ id: '', name: '', cbu: '', alias: '', accountNumber: '' });
   
+  const [supabaseUrl, setSupabaseUrl] = useState('');
+  const [supabaseKey, setSupabaseKey] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [passwordForm, setPasswordForm] = useState({
     current: "",
     new: "",
@@ -31,17 +66,8 @@ export function Settings() {
     new: false,
     confirm: false
   });
-  
-  const [branches, setBranches] = useState([
-    { id: 1, name: "Casa Central", address: "Av. Principal 123", phone: "+54 11 4444-5555", main: true },
-    { id: 2, name: "Sucursal Shopping", address: "Shopping Center - Local 45", phone: "+54 11 6666-7777", main: false },
-  ]);
+  const { users, addUser, updateUser, deleteUser, branches } = useAuth();
 
-  const [users, setUsers] = useState([
-    { id: 1, name: "Ignacio Valente", email: "valente.ignacio@gmail.com", role: "superadmin", branch: "Todas", status: "Activo" },
-    { id: 2, name: "Juana Pérez", email: "juana.p@visionclara.com", role: "admin", branch: "Casa Central", status: "Activo" },
-    { id: 3, name: "Marcos Ríos", email: "m.rios@visionclara.com", role: "standard", branch: "Sucursal Shopping", status: "Inactivo" },
-  ]);
 
   const [notificationConfig, setNotificationConfig] = useState({
     stockAlerts: true,
@@ -50,6 +76,37 @@ export function Settings() {
     whatsappBridge: true,
     emailLogins: true
   });
+
+  const initialPermissions = [
+    { id: 'dashboard', module: "Dashboard / Inicio", admin: [true, true, true, false], standard: [true, false, false, false] },
+    { id: 'inventory', module: "Inventario (Stock)", admin: [true, true, true, true], standard: [true, true, false, false] },
+    { id: 'clients', module: "Clientes", admin: [true, true, true, true], standard: [true, true, false, false] },
+    { id: 'suppliers', module: "Proveedores", admin: [true, true, true, false], standard: [true, false, false, false] },
+    { id: 'orders', module: "Órdenes / Recetados", admin: [true, true, true, true], standard: [true, true, false, false] },
+    { id: 'finance', module: "Caja y Finanzas", admin: [true, true, false, false], standard: [false, false, false, false] },
+    { id: 'settings', module: "Configuración Sistema", admin: [false, false, false, false], standard: [false, false, false, false] },
+  ];
+
+  const [permissions, setPermissions] = useState(() => {
+    const saved = localStorage.getItem('optica_permissions');
+    return saved ? JSON.parse(saved) : initialPermissions;
+  });
+
+  const savePermissions = () => {
+    localStorage.setItem('optica_permissions', JSON.stringify(permissions));
+    alert("Permisos guardados con éxito.");
+  };
+
+  const togglePermission = (moduleId: string, role: 'admin' | 'standard', index: number) => {
+    setPermissions(permissions.map(p => {
+      if (p.id === moduleId) {
+        const newRolePerms = [...p[role]];
+        newRolePerms[index] = !newRolePerms[index];
+        return { ...p, [role]: newRolePerms };
+      }
+      return p;
+    }));
+  };
 
   const [auditLogs, setAuditLogs] = useState(() => logger.getLogs());
 
@@ -86,6 +143,98 @@ export function Settings() {
     }
   }, []);
 
+  const handleExportLocalDB = () => {
+    const data: Record<string, string> = {};
+    Object.keys(localStorage).forEach(key => {
+      data[key] = localStorage.getItem(key) || '';
+    });
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `optica_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportLocalDB = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        if (window.confirm("¿Estás seguro de sobrescribir toda la base de datos local con este backup?")) {
+          Object.keys(data).forEach(key => {
+            localStorage.setItem(key, data[key]);
+          });
+          alert("Backup importado correctamente. La página se recargará.");
+          window.location.href = '/';
+        }
+      } catch (err) {
+        alert("Archivo de backup inválido.");
+      }
+    };
+    reader.readAsText(file);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleGenerateSupabaseSQL = () => {
+    if (!supabaseUrl || !supabaseKey) {
+      alert("Por favor ingresa la URL y la Key de Supabase.");
+      return;
+    }
+    const clients = JSON.parse(localStorage.getItem('optica_clients') || '[]');
+    const inventory = JSON.parse(localStorage.getItem('optica_inventory') || '[]');
+    const orders = JSON.parse(localStorage.getItem('optica_orders') || '[]');
+
+    let sql = `-- MIGRACIÓN PARA SUPABASE\\n`;
+    sql += `-- Instrucciones: Pegá este código en el SQL Editor de Supabase y ejecutalo.\\n\\n`;
+
+    sql += `CREATE TABLE IF NOT EXISTS clients (\\n  id text PRIMARY KEY,\\n  name text,\\n  dni text,\\n  phone text,\\n  email text,\\n  lastVisit text,\\n  balance numeric\\n);\\n\\n`;
+    sql += `CREATE TABLE IF NOT EXISTS inventory (\\n  sku text PRIMARY KEY,\\n  name text,\\n  cat text,\\n  price text,\\n  color text\\n);\\n\\n`;
+    sql += `CREATE TABLE IF NOT EXISTS orders (\\n  id text PRIMARY KEY,\\n  clientId text REFERENCES clients(id),\\n  clientName text,\\n  date text,\\n  type text,\\n  service text,\\n  status text,\\n  amount numeric,\\n  paid numeric\\n);\\n\\n`;
+
+    if (clients.length > 0) {
+      sql += `INSERT INTO clients (id, name, dni, phone, email, lastVisit, balance) VALUES\\n`;
+      sql += clients.map((c: any) => `('${c.id}', '${c.name.replace(/'/g, "''")}', '${c.dni}', '${c.phone}', '${c.email}', '${c.lastVisit}', ${c.balance})`).join(',\\n') + `\\nON CONFLICT (id) DO NOTHING;\\n\\n`;
+    }
+
+    if (inventory.length > 0) {
+      sql += `INSERT INTO inventory (sku, name, cat, price, color) VALUES\\n`;
+      sql += inventory.map((i: any) => `('${i.sku}', '${i.name.replace(/'/g, "''")}', '${i.cat}', '${i.price}', '${i.color}')`).join(',\\n') + `\\nON CONFLICT (sku) DO NOTHING;\\n\\n`;
+    }
+
+    if (orders.length > 0) {
+      sql += `INSERT INTO orders (id, clientId, clientName, date, type, service, status, amount, paid) VALUES\\n`;
+      sql += orders.map((o: any) => `('${o.id}', '${o.clientId}', '${o.clientName.replace(/'/g, "''")}', '${o.date}', '${o.type}', '${o.service.replace(/'/g, "''")}', '${o.status}', ${o.amount}, ${o.paid})`).join(',\\n') + `\\nON CONFLICT (id) DO NOTHING;\\n\\n`;
+    }
+
+    const blob = new Blob([sql], { type: 'text/sql' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'migracion_supabase.sql';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    alert("Script SQL generado correctamente.\\n\\nCopiá y pegá el contenido de 'migracion_supabase.sql' en el SQL Editor de tu panel de Supabase para crear las tablas e importar tus datos.");
+  };
+
+  const handleResetDatabase = () => {
+    if (window.confirm("⚠️ ADVERTENCIA ⚠️\n\n¿Estás seguro de querer limpiar TODA la base de datos?\nSe borrarán clientes, inventario, laboratorios, transacciones y ventas.\nLas categorías y ajustes se conservarán.\n\nEsta acción NO se puede deshacer.")) {
+      const keysToKeep = ['optica_categories', 'optica_lens_types', 'optica_lens_colors', 'optica_contact_colors', 'optica_logo', 'optica_name', 'optica_phone', 'optica_address', 'theme'];
+      Object.keys(localStorage).forEach(key => {
+        if (!keysToKeep.includes(key)) {
+          localStorage.removeItem(key);
+        }
+      });
+      window.location.href = '/';
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto">
       {/* Context Menu */}
@@ -116,7 +265,7 @@ export function Settings() {
             <button 
               onClick={() => {
                 if(confirm(`¿Estás seguro de eliminar a ${contextMenu.user.name}?`)) {
-                  setUsers(prev => prev.filter(u => u.id !== contextMenu.user.id));
+                  deleteUser(contextMenu.user.id);
                 }
               }}
               className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-slate-100 dark:border-slate-800"
@@ -155,12 +304,66 @@ export function Settings() {
               <Building2 className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Datos de la Óptica
             </h3>
             
+            {/* Logo Section */}
+            <div className="mb-8 p-5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4 flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-blue-500" /> Logo de la Óptica
+              </h4>
+              <div className="flex items-center gap-6">
+                <div className="w-32 h-20 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-600 flex items-center justify-center overflow-hidden bg-white dark:bg-slate-900 flex-shrink-0">
+                  {opticaLogo ? (
+                    <img src={opticaLogo} alt="Logo" className="w-full h-full object-contain" />
+                  ) : (
+                    <div className="text-center">
+                      <ImageIcon className="w-8 h-8 text-slate-300 dark:text-slate-600 mx-auto mb-1" />
+                      <p className="text-xs text-slate-400">Sin logo</p>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2 flex-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Sube el logo que aparecerá en las tarjetas de pedido para laboratorio y otros documentos. Formatos: PNG, JPG, SVG.</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => logoInputRef.current?.click()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+                    >
+                      <ImageIcon className="w-4 h-4" /> Cargar Logo
+                    </button>
+                    {opticaLogo && (
+                      <button
+                        onClick={() => setOpticaLogo('')}
+                        className="px-4 py-2 rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 font-bold text-sm hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
+                      >
+                        <X className="w-4 h-4" /> Eliminar
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => {
+                        setOpticaLogo(ev.target?.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-bold text-slate-600 dark:text-slate-400">Razón Social</label>
                 <input 
                   className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none" 
-                  defaultValue="Óptica Paracáo S.A." 
+                  value={opticaName}
+                  onChange={e => setOpticaName(e.target.value)}
                 />
               </div>
               <div className="flex flex-col gap-1.5">
@@ -181,19 +384,133 @@ export function Settings() {
                 <label className="text-sm font-bold text-slate-600 dark:text-slate-400">Teléfono</label>
                 <input 
                   className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none" 
-                  defaultValue="+54 11 4567-8901" 
+                  value={opticaPhone}
+                  onChange={e => setOpticaPhone(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5 md:col-span-2">
+                <label className="text-sm font-bold text-slate-600 dark:text-slate-400">Dirección</label>
+                <input 
+                  className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none" 
+                  value={opticaAddress}
+                  onChange={e => setOpticaAddress(e.target.value)}
+                  placeholder="Calle, número, ciudad"
                 />
               </div>
             </div>
             
             <div className="mt-8 pt-8 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3">
-              <button className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2">
-                <X className="w-4 h-4" /> Cancelar
-              </button>
               <button className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2">
                 <Save className="w-4 h-4" /> Guardar Cambios
               </button>
             </div>
+          </section>
+        )}
+
+        {activeTab === 'appearance' && (
+          <section className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-300">
+            <div className="mb-8">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Sparkles className="w-6 h-6 text-blue-600" /> Apariencia
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Personaliza los colores del sistema para que coincidan con la identidad de tu óptica.</p>
+            </div>
+
+            <Card className="border-slate-200 dark:border-slate-800 shadow-sm">
+              <CardHeader>
+                <CardTitle>Tema de la Aplicación</CardTitle>
+                <CardDescription>
+                  Selecciona el esquema de colores principal. Esto cambiará los botones, acentos y fondos sutiles en todo el sistema.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <RadioGroup 
+                  value={appTheme} 
+                  onValueChange={setAppTheme}
+                  className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"
+                >
+                  <div>
+                    <RadioGroupItem value="default" id="theme-default" className="peer sr-only" />
+                    <Label
+                      htmlFor="theme-default"
+                      className="flex flex-col items-center justify-between rounded-xl border-2 border-slate-200 dark:border-slate-800 bg-transparent p-4 hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-slate-800/50 peer-data-[state=checked]:border-blue-600 peer-data-[state=checked]:bg-blue-50 dark:peer-data-[state=checked]:bg-blue-900/20 [&:has([data-state=checked])]:border-blue-600 cursor-pointer transition-all"
+                    >
+                      <div className="w-full flex items-center justify-between mb-3">
+                        <div className="flex gap-2">
+                          <div className="w-4 h-4 rounded-full bg-blue-600"></div>
+                          <div className="w-4 h-4 rounded-full bg-indigo-500"></div>
+                        </div>
+                        {appTheme === "default" && <CheckCircle className="w-4 h-4 text-blue-600" />}
+                      </div>
+                      <div className="w-full">
+                        <p className="font-bold">Original (Azul/Índigo)</p>
+                        <p className="text-xs text-muted-foreground mt-1">Colores por defecto del sistema LYNX.</p>
+                      </div>
+                    </Label>
+                  </div>
+
+                  <div>
+                    <RadioGroupItem value="ocean" id="theme-ocean" className="peer sr-only" />
+                    <Label
+                      htmlFor="theme-ocean"
+                      className="flex flex-col items-center justify-between rounded-xl border-2 border-slate-200 dark:border-slate-800 bg-transparent p-4 hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-slate-800/50 peer-data-[state=checked]:border-cyan-600 peer-data-[state=checked]:bg-cyan-50 dark:peer-data-[state=checked]:bg-cyan-900/20 [&:has([data-state=checked])]:border-cyan-600 cursor-pointer transition-all"
+                    >
+                      <div className="w-full flex items-center justify-between mb-3">
+                        <div className="flex gap-2">
+                          <div className="w-4 h-4 rounded-full bg-[#0891b2]"></div>
+                          <div className="w-4 h-4 rounded-full bg-[#0ea5e9]"></div>
+                        </div>
+                        {appTheme === "ocean" && <CheckCircle className="w-4 h-4 text-cyan-600" />}
+                      </div>
+                      <div className="w-full">
+                        <p className="font-bold">Océano (Cyan/Celeste)</p>
+                        <p className="text-xs text-muted-foreground mt-1">Aspecto fresco, clínico y moderno.</p>
+                      </div>
+                    </Label>
+                  </div>
+
+                  <div>
+                    <RadioGroupItem value="emerald" id="theme-emerald" className="peer sr-only" />
+                    <Label
+                      htmlFor="theme-emerald"
+                      className="flex flex-col items-center justify-between rounded-xl border-2 border-slate-200 dark:border-slate-800 bg-transparent p-4 hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-slate-800/50 peer-data-[state=checked]:border-emerald-600 peer-data-[state=checked]:bg-emerald-50 dark:peer-data-[state=checked]:bg-emerald-900/20 [&:has([data-state=checked])]:border-emerald-600 cursor-pointer transition-all"
+                    >
+                      <div className="w-full flex items-center justify-between mb-3">
+                        <div className="flex gap-2">
+                          <div className="w-4 h-4 rounded-full bg-[#059669]"></div>
+                          <div className="w-4 h-4 rounded-full bg-[#14b8a6]"></div>
+                        </div>
+                        {appTheme === "emerald" && <CheckCircle className="w-4 h-4 text-emerald-600" />}
+                      </div>
+                      <div className="w-full">
+                        <p className="font-bold">Esmeralda (Verde/Teal)</p>
+                        <p className="text-xs text-muted-foreground mt-1">Enfoque en salud visual y bienestar.</p>
+                      </div>
+                    </Label>
+                  </div>
+
+                  <div>
+                    <RadioGroupItem value="violet" id="theme-violet" className="peer sr-only" />
+                    <Label
+                      htmlFor="theme-violet"
+                      className="flex flex-col items-center justify-between rounded-xl border-2 border-slate-200 dark:border-slate-800 bg-transparent p-4 hover:bg-slate-50 hover:text-slate-900 dark:hover:bg-slate-800/50 peer-data-[state=checked]:border-violet-600 peer-data-[state=checked]:bg-violet-50 dark:peer-data-[state=checked]:bg-violet-900/20 [&:has([data-state=checked])]:border-violet-600 cursor-pointer transition-all"
+                    >
+                      <div className="w-full flex items-center justify-between mb-3">
+                        <div className="flex gap-2">
+                          <div className="w-4 h-4 rounded-full bg-[#7c3aed]"></div>
+                          <div className="w-4 h-4 rounded-full bg-[#d946ef]"></div>
+                        </div>
+                        {appTheme === "violet" && <CheckCircle className="w-4 h-4 text-violet-600" />}
+                      </div>
+                      <div className="w-full">
+                        <p className="font-bold">Violeta (Uva/Fucsia)</p>
+                        <p className="text-xs text-muted-foreground mt-1">Estética premium y elegante.</p>
+                      </div>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </CardContent>
+            </Card>
           </section>
         )}
 
@@ -309,7 +626,7 @@ export function Settings() {
                       </td>
                       <td className="px-8 py-4">
                         <div className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                          <MapPin className="w-3 h-3 opacity-40" /> {user.branch}
+                          <MapPin className="w-3 h-3 opacity-40" /> {branches.find(b => b.id === user.defaultBranchId)?.name || 'Todas'}
                         </div>
                       </td>
                       <td className="px-8 py-4">
@@ -346,7 +663,7 @@ export function Settings() {
                             <button 
                               onClick={() => {
                                 if(confirm(`¿Estás seguro de eliminar a ${user.name}?`)) {
-                                  setUsers(prev => prev.filter(u => u.id !== user.id));
+                                  deleteUser(user.id);
                                 }
                               }}
                               className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-500 transition-colors"
@@ -374,10 +691,16 @@ export function Settings() {
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Configura qué puede hacer cada rol en el sistema.</p>
               </div>
               <div className="flex gap-2">
-                <button className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg font-bold text-sm hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors">
+                <button 
+                  onClick={() => setPermissions(initialPermissions)}
+                  className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg font-bold text-sm hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                >
                   Restaurar Valores
                 </button>
-                <button className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2">
+                <button 
+                  onClick={savePermissions}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
                   <Save className="w-4 h-4" /> Guardar Cambios
                 </button>
               </div>
@@ -395,16 +718,8 @@ export function Settings() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {[
-                    { module: "Dashboard / Inicio", admin: "✓✓✓-", standard: "✓---" },
-                    { module: "Inventario (Stock)", admin: "✓✓✓✓", standard: "✓✓--" },
-                    { module: "Clientes", admin: "✓✓✓✓", standard: "✓✓--" },
-                    { module: "Proveedores", admin: "✓✓✓-", standard: "✓---" },
-                    { module: "Órdenes / Recetados", admin: "✓✓✓✓", standard: "✓✓--" },
-                    { module: "Caja y Finanzas", admin: "✓✓--", standard: "----" },
-                    { module: "Configuración Sistema", admin: "----", standard: "----" },
-                  ].map((row, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
+                  {permissions.map((row) => (
+                    <tr key={row.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-colors">
                       <td className="px-8 py-5">
                         <div className="font-bold text-slate-900 dark:text-white">{row.module}</div>
                       </td>
@@ -414,20 +729,24 @@ export function Settings() {
                              <div className="flex items-center gap-4">
                                 <label className="flex flex-col items-center gap-1 cursor-pointer group">
                                   <span className="text-[9px] font-black text-slate-400 group-hover:text-blue-500 uppercase">Admin</span>
-                                  <div className={cn(
+                                  <div 
+                                    onClick={() => togglePermission(row.id, 'admin', pIdx)}
+                                    className={cn(
                                     "w-5 h-5 rounded-md flex items-center justify-center transition-all",
-                                    row.admin[pIdx] === '✓' ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600" : "bg-slate-100 dark:bg-slate-800 text-slate-300"
+                                    row.admin[pIdx] ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600" : "bg-slate-100 dark:bg-slate-800 text-slate-300"
                                   )}>
-                                    {row.admin[pIdx] === '✓' && <div className="w-2.5 h-2.5 bg-blue-600 rounded-sm" />}
+                                    {row.admin[pIdx] && <div className="w-2.5 h-2.5 bg-blue-600 rounded-sm" />}
                                   </div>
                                 </label>
                                 <label className="flex flex-col items-center gap-1 cursor-pointer group">
                                   <span className="text-[9px] font-black text-slate-400 group-hover:text-emerald-500 uppercase">Std</span>
-                                  <div className={cn(
+                                  <div 
+                                    onClick={() => togglePermission(row.id, 'standard', pIdx)}
+                                    className={cn(
                                     "w-5 h-5 rounded-md flex items-center justify-center transition-all",
-                                    row.standard[pIdx] === '✓' ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : "bg-slate-100 dark:bg-slate-800 text-slate-300"
+                                    row.standard[pIdx] ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600" : "bg-slate-100 dark:bg-slate-800 text-slate-300"
                                   )}>
-                                    {row.standard[pIdx] === '✓' && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-sm" />}
+                                    {row.standard[pIdx] && <div className="w-2.5 h-2.5 bg-emerald-600 rounded-sm" />}
                                   </div>
                                 </label>
                              </div>
@@ -563,6 +882,612 @@ export function Settings() {
           </section>
         )}
 
+        {activeTab === 'insurances' && (
+          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in duration-300">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Activity className="w-6 h-6 text-blue-600" /> Obras Sociales y Coberturas
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Administra las coberturas disponibles y los descuentos por categoría de producto.</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setEditingInsurance({ name: '', active: true, coverages: [] });
+                  setIsInsuranceModalOpen(true);
+                }}
+                className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm text-sm"
+              >
+                <Plus className="w-4 h-4" /> Nueva Obra Social
+              </button>
+            </div>
+            
+            <div className="p-6 sm:p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {insurances.filter(i => i.active !== false).map(ins => (
+                  <div key={ins.id} className="flex flex-col p-5 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm relative group">
+                    <div className="flex justify-between items-start mb-4">
+                      <h4 className="font-bold text-slate-900 dark:text-white text-lg">{ins.name}</h4>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => {
+                            setEditingInsurance({ ...ins });
+                            setIsInsuranceModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-blue-600 bg-slate-50 hover:bg-blue-50 dark:bg-slate-800 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if(window.confirm(`¿Seguro que deseas eliminar/desactivar la obra social ${ins.name}?`)) {
+                              removeInsurance(ins.id);
+                            }
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 dark:bg-slate-800 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Coberturas</p>
+                      {ins.coverages?.length > 0 ? (
+                        <div className="space-y-1">
+                          {ins.coverages.map((cov: any, idx: number) => (
+                            <div key={idx} className="flex justify-between text-sm bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded">
+                              <span className="text-slate-600 dark:text-slate-300">{cov.categoryId}</span>
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">{cov.percentage}%</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400 italic">No hay coberturas configuradas</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {activeTab === 'banks' && (
+          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in duration-300">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Building2 className="w-6 h-6 text-blue-600" /> Bancos y Entidades
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Administra la lista de bancos y pasarelas de pago disponibles.</p>
+            </div>
+            
+            <div className="p-6 sm:p-8">
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newBank.name.trim()) {
+                    addBank(newBank);
+                    setNewBank({ name: '', cbu: '', alias: '', accountNumber: '' });
+                  }
+                }}
+                className="flex flex-col gap-4 mb-8 bg-slate-50 dark:bg-slate-800/30 p-6 rounded-2xl border border-slate-100 dark:border-slate-800"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Banco / Billetera</label>
+                    <input 
+                      type="text" 
+                      value={newBank.name}
+                      onChange={e => setNewBank({...newBank, name: e.target.value})}
+                      placeholder="Ej: Banco Macro" 
+                      className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white"
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nro de Cuenta (Opcional)</label>
+                    <input 
+                      type="text" 
+                      value={newBank.accountNumber}
+                      onChange={e => setNewBank({...newBank, accountNumber: e.target.value})}
+                      placeholder="Ej: CC-1234567/8" 
+                      className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CBU / CVU (Opcional)</label>
+                    <input 
+                      type="text" 
+                      value={newBank.cbu}
+                      onChange={e => setNewBank({...newBank, cbu: e.target.value})}
+                      placeholder="22 dígitos" 
+                      className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Alias (Opcional)</label>
+                    <input 
+                      type="text" 
+                      value={newBank.alias}
+                      onChange={e => setNewBank({...newBank, alias: e.target.value})}
+                      placeholder="Ej: optica.paracao.mp" 
+                      className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-700 mt-2 gap-3">
+                  <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm">
+                    <Plus className="w-4 h-4" /> Registrar Banco
+                  </button>
+                </div>
+              </form>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {banks.map(bank => (
+                  <div key={bank.id} className="relative flex flex-col p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm group hover:border-blue-300 dark:hover:border-blue-900 transition-all">
+                    <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={() => {
+                          setEditingBank({ id: bank.id, name: bank.name, cbu: bank.cbu, alias: bank.alias, accountNumber: bank.accountNumber });
+                          setIsBankEditModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => removeBank(bank.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
+                        <Building2 className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-bold text-slate-900 dark:text-white pr-6 leading-tight">{bank.name}</h4>
+                    </div>
+                    
+                    <div className="space-y-2 flex-1">
+                      {bank.accountNumber && (
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nro de Cuenta</p>
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{bank.accountNumber}</p>
+                        </div>
+                      )}
+                      {bank.cbu && (
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">CBU/CVU</p>
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 font-mono tracking-wider">{bank.cbu}</p>
+                        </div>
+                      )}
+                      {bank.alias && (
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Alias</p>
+                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 italic">{bank.alias}</p>
+                        </div>
+                      )}
+                      {!bank.accountNumber && !bank.cbu && !bank.alias && (
+                        <p className="text-xs text-slate-400 italic">Sin datos adicionales registrados</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Editar Banco */}
+            {isBankEditModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
+                      <Building2 className="w-6 h-6 text-blue-600" /> Editar Banco
+                    </h3>
+                    <button onClick={() => setIsBankEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingBank.name.trim()) {
+                      updateBank(editingBank);
+                      setIsBankEditModalOpen(false);
+                    }
+                  }}>
+                    <div className="p-6 space-y-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Banco / Billetera</label>
+                        <input type="text" value={editingBank.name} onChange={e => setEditingBank({...editingBank, name: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" required />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nro de Cuenta</label>
+                        <input type="text" value={editingBank.accountNumber} onChange={e => setEditingBank({...editingBank, accountNumber: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CBU / CVU</label>
+                        <input type="text" value={editingBank.cbu} onChange={e => setEditingBank({...editingBank, cbu: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Alias</label>
+                        <input type="text" value={editingBank.alias} onChange={e => setEditingBank({...editingBank, alias: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" />
+                      </div>
+                    </div>
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                      <button type="button" onClick={() => setIsBankEditModalOpen(false)} className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                      <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2"><Save className="w-4 h-4"/> Guardar Cambios</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'inventory' && (
+          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in duration-300">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Package className="w-6 h-6 text-blue-600" /> Categorías de Inventario
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Configura las categorías para clasificar tus productos y stock.</p>
+            </div>
+            
+            <div className="p-6 sm:p-8">
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newCategory.trim()) {
+                    addInventoryCategory(newCategory);
+                    setNewCategory('');
+                  }
+                }}
+                className="flex gap-3 mb-8"
+              >
+                <input 
+                  type="text" 
+                  value={newCategory}
+                  onChange={e => setNewCategory(e.target.value)}
+                  placeholder="Añadir nueva categoría (Ej: Lentes de Contacto)" 
+                  className="flex-1 h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white"
+                />
+                <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm">
+                  <Plus className="w-4 h-4" /> Añadir
+                </button>
+              </form>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {inventoryCategories.map(cat => (
+                  <div key={cat} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200 dark:hover:border-blue-900/50 transition-colors group shadow-sm">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{cat}</span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={() => {
+                          setEditingCategory({ oldName: cat, newName: cat });
+                          setIsCategoryModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => removeInventoryCategory(cat)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Editar Categoría */}
+            {isCategoryModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
+                      <Package className="w-6 h-6 text-blue-600" /> Editar Categoría
+                    </h3>
+                    <button onClick={() => setIsCategoryModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingCategory.newName.trim()) {
+                      updateInventoryCategory(editingCategory.oldName, editingCategory.newName);
+                      setIsCategoryModalOpen(false);
+                    }
+                  }}>
+                    <div className="p-6 space-y-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre de la Categoría</label>
+                        <input type="text" value={editingCategory.newName} onChange={e => setEditingCategory({...editingCategory, newName: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" required />
+                      </div>
+                    </div>
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                      <button type="button" onClick={() => setIsCategoryModalOpen(false)} className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                      <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2"><Save className="w-4 h-4"/> Guardar Cambios</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+            
+            {/* Divider and Lens Colors Section */}
+            <div className="border-t border-slate-100 dark:border-slate-800 p-6 sm:p-8 mt-4">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
+                <Eye className="w-6 h-6 text-indigo-600" /> Colores de Cristales
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Configura los colores disponibles para los pedidos de laboratorio.</p>
+              
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newLensColor.trim()) {
+                    addLensColor(newLensColor);
+                    setNewLensColor('');
+                  }
+                }}
+                className="flex gap-3 mb-8"
+              >
+                <input 
+                  type="text" 
+                  value={newLensColor}
+                  onChange={e => setNewLensColor(e.target.value)}
+                  placeholder="Añadir nuevo color (Ej: Fotocromático)" 
+                  className="flex-1 h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 outline-none focus:ring-2 focus:ring-indigo-600 text-slate-900 dark:text-white"
+                />
+                <button type="submit" className="px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm">
+                  <Plus className="w-4 h-4" /> Añadir
+                </button>
+              </form>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {lensColors.map(color => (
+                  <div key={color} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-colors group shadow-sm">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{color}</span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={() => {
+                          setEditingLensColor({ oldName: color, newName: color });
+                          setIsLensColorModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-all"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => removeLensColor(color)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Editar Color Cristal */}
+            {isLensColorModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
+                      <Eye className="w-6 h-6 text-indigo-600" /> Editar Color
+                    </h3>
+                    <button onClick={() => setIsLensColorModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingLensColor.newName.trim()) {
+                      updateLensColor(editingLensColor.oldName, editingLensColor.newName);
+                      setIsLensColorModalOpen(false);
+                    }
+                  }}>
+                    <div className="p-6 space-y-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Color</label>
+                        <input type="text" value={editingLensColor.newName} onChange={e => setEditingLensColor({...editingLensColor, newName: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white" required />
+                      </div>
+                    </div>
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                      <button type="button" onClick={() => setIsLensColorModalOpen(false)} className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                      <button type="submit" className="px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-bold shadow-sm hover:bg-indigo-700 transition-colors flex items-center gap-2"><Save className="w-4 h-4"/> Guardar Cambios</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Divider and Contact Lens Colors Section */}
+            <div className="border-t border-slate-100 dark:border-slate-800 p-6 sm:p-8 mt-4">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
+                <Eye className="w-6 h-6 text-teal-600" /> Colores de Lentes de Contacto
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Configura los colores específicos para lentes de contacto.</p>
+              
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newContactLensColor.trim()) {
+                    addContactLensColor(newContactLensColor);
+                    setNewContactLensColor('');
+                  }
+                }}
+                className="flex gap-3 mb-8"
+              >
+                <input 
+                  type="text" 
+                  value={newContactLensColor}
+                  onChange={e => setNewContactLensColor(e.target.value)}
+                  placeholder="Añadir nuevo color (Ej: Celestes)" 
+                  className="flex-1 h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 outline-none focus:ring-2 focus:ring-teal-600 text-slate-900 dark:text-white"
+                />
+                <button type="submit" className="px-6 py-2.5 bg-teal-600 text-white font-bold rounded-xl hover:bg-teal-700 transition-colors flex items-center gap-2 shadow-sm">
+                  <Plus className="w-4 h-4" /> Añadir
+                </button>
+              </form>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {contactLensColors.map(color => (
+                  <div key={color} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-teal-200 dark:hover:border-teal-900/50 transition-colors group shadow-sm">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{color}</span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={() => {
+                          setEditingContactLensColor({ oldName: color, newName: color });
+                          setIsContactLensColorModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/30 transition-all"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => removeContactLensColor(color)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Editar Color Lentes de Contacto */}
+            {isContactLensColorModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
+                      <Eye className="w-6 h-6 text-teal-600" /> Editar Color
+                    </h3>
+                    <button onClick={() => setIsContactLensColorModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingContactLensColor.newName.trim()) {
+                      updateContactLensColor(editingContactLensColor.oldName, editingContactLensColor.newName);
+                      setIsContactLensColorModalOpen(false);
+                    }
+                  }}>
+                    <div className="p-6 space-y-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Color</label>
+                        <input type="text" value={editingContactLensColor.newName} onChange={e => setEditingContactLensColor({...editingContactLensColor, newName: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-teal-600 outline-none text-slate-900 dark:text-white" required />
+                      </div>
+                    </div>
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                      <button type="button" onClick={() => setIsContactLensColorModalOpen(false)} className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                      <button type="submit" className="px-6 py-2.5 bg-teal-600 text-white rounded-lg font-bold shadow-sm hover:bg-teal-700 transition-colors flex items-center gap-2"><Save className="w-4 h-4"/> Guardar Cambios</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {/* Divider and Lens Types Section */}
+            <div className="border-t border-slate-100 dark:border-slate-800 p-6 sm:p-8 mt-4">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-1">
+                <Eye className="w-6 h-6 text-purple-600" /> Tipos de Cristales
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Configura los tipos de cristales disponibles (Ej: Monofocal, Multifocal).</p>
+              
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newLensType.trim()) {
+                    addLensType(newLensType);
+                    setNewLensType('');
+                  }
+                }}
+                className="flex gap-3 mb-8"
+              >
+                <input 
+                  type="text" 
+                  value={newLensType}
+                  onChange={e => setNewLensType(e.target.value)}
+                  placeholder="Añadir nuevo tipo (Ej: Monofocal)" 
+                  className="flex-1 h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 outline-none focus:ring-2 focus:ring-purple-600 text-slate-900 dark:text-white"
+                />
+                <button type="submit" className="px-6 py-2.5 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-sm">
+                  <Plus className="w-4 h-4" /> Añadir
+                </button>
+              </form>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {lensTypes.map(type => (
+                  <div key={type} className="flex items-center justify-between p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-purple-200 dark:hover:border-purple-900/50 transition-colors group shadow-sm">
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{type}</span>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={() => {
+                          setEditingLensType({ oldName: type, newName: type });
+                          setIsLensTypeModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-all"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => removeLensType(type)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Modal Editar Tipo de Cristal */}
+            {isLensTypeModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
+                      <Eye className="w-6 h-6 text-purple-600" /> Editar Tipo
+                    </h3>
+                    <button onClick={() => setIsLensTypeModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingLensType.newName.trim()) {
+                      updateLensType(editingLensType.oldName, editingLensType.newName);
+                      setIsLensTypeModalOpen(false);
+                    }
+                  }}>
+                    <div className="p-6 space-y-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Tipo</label>
+                        <input type="text" value={editingLensType.newName} onChange={e => setEditingLensType({...editingLensType, newName: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-purple-600 outline-none text-slate-900 dark:text-white" required />
+                      </div>
+                    </div>
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                      <button type="button" onClick={() => setIsLensTypeModalOpen(false)} className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                      <button type="submit" className="px-6 py-2.5 bg-purple-600 text-white rounded-lg font-bold shadow-sm hover:bg-purple-700 transition-colors flex items-center gap-2"><Save className="w-4 h-4"/> Guardar Cambios</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         {activeTab === 'audit' && (
           <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in duration-300">
             <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
@@ -642,10 +1567,126 @@ export function Settings() {
           </section>
         )}
         
-        {activeTab !== 'general' && activeTab !== 'branches' && activeTab !== 'users' && activeTab !== 'permissions' && activeTab !== 'notifications' && activeTab !== 'billing' && activeTab !== 'audit' && (
-          <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center min-h-[400px] text-slate-500 dark:text-slate-400 animate-in fade-in duration-300">
-            <Shield className="w-16 h-16 mb-4 opacity-20" />
-            <p className="text-lg font-medium">Esta sección está en desarrollo</p>
+        {activeTab !== 'general' && activeTab !== 'appearance' && activeTab !== 'branches' && activeTab !== 'users' && activeTab !== 'permissions' && activeTab !== 'notifications' && activeTab !== 'billing' && activeTab !== 'audit' && activeTab !== 'insurances' && activeTab !== 'banks' && activeTab !== 'inventory' && activeTab !== 'database' && (
+          <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center animate-in fade-in duration-300 min-h-[400px]">
+            <CircleAlert className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-4" />
+            <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">Sección en Construcción</h3>
+            <p className="text-slate-500 dark:text-slate-500 mt-2 max-w-md">Esta área de configuración estará disponible en la próxima actualización del sistema.</p>
+          </div>
+        )}
+
+        {isInsuranceModalOpen && editingInsurance && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Activity className="w-6 h-6 text-blue-600" />
+                  {editingInsurance.id ? 'Editar Obra Social' : 'Nueva Obra Social'}
+                </h3>
+                <button 
+                  onClick={() => setIsInsuranceModalOpen(false)}
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-6">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nombre de la Obra Social</label>
+                  <input 
+                    type="text" 
+                    value={editingInsurance.name}
+                    onChange={e => setEditingInsurance({...editingInsurance, name: e.target.value})}
+                    className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
+                    placeholder="Ej: OSDE, Swiss Medical..."
+                  />
+                </div>
+
+                <div>
+                  <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-3">Coberturas por Categoría</h4>
+                  <div className="space-y-3 mb-4">
+                    {editingInsurance.coverages.map((cov: any, idx: number) => (
+                      <div key={idx} className="flex gap-3 items-center">
+                        <select
+                          value={cov.categoryId}
+                          onChange={e => {
+                            const newCovs = [...editingInsurance.coverages];
+                            newCovs[idx].categoryId = e.target.value;
+                            setEditingInsurance({...editingInsurance, coverages: newCovs});
+                          }}
+                          className="flex-1 h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-sm"
+                        >
+                          <option value="">Seleccionar Categoría</option>
+                          {inventoryCategories.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                        <div className="relative w-32">
+                          <input 
+                            type="number"
+                            min="0" max="100"
+                            value={cov.percentage}
+                            onChange={e => {
+                              const newCovs = [...editingInsurance.coverages];
+                              newCovs[idx].percentage = Number(e.target.value);
+                              setEditingInsurance({...editingInsurance, coverages: newCovs});
+                            }}
+                            className="h-11 pl-3 pr-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
+                            placeholder="Ej: 10"
+                          />
+                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            const newCovs = editingInsurance.coverages.filter((_: any, i: number) => i !== idx);
+                            setEditingInsurance({...editingInsurance, coverages: newCovs});
+                          }}
+                          className="p-2.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <button 
+                    onClick={() => {
+                      setEditingInsurance({
+                        ...editingInsurance, 
+                        coverages: [...editingInsurance.coverages, { categoryId: '', percentage: 0 }]
+                      });
+                    }}
+                    className="text-sm font-bold text-blue-600 flex items-center gap-1 hover:text-blue-700 transition-colors"
+                  >
+                    <Plus className="w-4 h-4" /> Añadir Regla de Cobertura
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900/50">
+                <button 
+                  onClick={() => setIsInsuranceModalOpen(false)}
+                  className="px-6 py-2.5 rounded-xl font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  onClick={() => {
+                    if (!editingInsurance.name.trim()) return alert("El nombre es requerido");
+                    if (editingInsurance.id) {
+                      updateInsurance(editingInsurance);
+                    } else {
+                      addInsurance({ name: editingInsurance.name, active: true, coverages: editingInsurance.coverages });
+                    }
+                    setIsInsuranceModalOpen(false);
+                  }}
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-lg shadow-blue-500/20 hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <Save className="w-4 h-4" /> Guardar
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -714,20 +1755,34 @@ export function Settings() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); setIsUserModalOpen(false); }}>
+              <form onSubmit={(e) => { 
+                e.preventDefault(); 
+                const target = e.target as any;
+                addUser({
+                  id: Date.now().toString(),
+                  name: target.elements.name.value,
+                  email: target.elements.email.value,
+                  username: target.elements.email.value.split('@')[0], // Generate default username
+                  password: "password123", // Default initial password
+                  role: target.elements.role.value,
+                  defaultBranchId: target.elements.branch.value,
+                  status: 'Activo'
+                });
+                setIsUserModalOpen(false); 
+              }}>
                 <div className="p-6 space-y-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nombre Completo</label>
-                    <input type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: Juan Pérez" required />
+                    <input name="name" type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: Juan Pérez" required />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Correo Electrónico</label>
-                    <input type="email" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="ejemplo@visionclara.com" required />
+                    <input name="email" type="email" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="ejemplo@visionclara.com" required />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
                       <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Rol de Acceso</label>
-                      <select className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
+                      <select name="role" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
                         <option value="standard">Estándar (Vendedor)</option>
                         <option value="admin">Administrador</option>
                         <option value="superadmin">Superadmin</option>
@@ -735,10 +1790,10 @@ export function Settings() {
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Sucursal Asignada</label>
-                      <select className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
+                      <select name="branch" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
                         <option value="all">Todas</option>
                         {branches.map(b => (
-                          <option key={b.id} value={b.name}>{b.name}</option>
+                          <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
                       </select>
                     </div>
@@ -903,6 +1958,108 @@ export function Settings() {
               </form>
             </div>
           </div>
+        )}
+
+        {activeTab === 'database' && (
+          <section className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-300">
+            <h3 className="text-xl font-bold mb-6 text-slate-900 dark:text-white flex items-center gap-2">
+              <Database className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Base de Datos Local
+            </h3>
+            
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 max-w-2xl">
+              Actualmente los datos de la aplicación se guardan de forma segura en el almacenamiento local del navegador (LocalStorage). Desde aquí puedes administrar tus datos.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                  <Database className="w-4 h-4 text-blue-600" /> Exportar Backup
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 h-8">
+                  Descarga una copia completa de toda tu base de datos en formato JSON.
+                </p>
+                <button 
+                  onClick={handleExportLocalDB}
+                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Descargar Copia Local
+                </button>
+              </div>
+              <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <h4 className="font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+                  <Package className="w-4 h-4 text-emerald-600" /> Importar Backup
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 h-8">
+                  Restaura tu información a partir de un archivo JSON descargado previamente.
+                </p>
+                <input 
+                  type="file" 
+                  accept=".json" 
+                  className="hidden" 
+                  ref={fileInputRef} 
+                  onChange={handleImportLocalDB}
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full px-4 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Cargar Archivo JSON
+                </button>
+              </div>
+            </div>
+
+            <h3 className="text-xl font-bold mb-6 text-slate-900 dark:text-white flex items-center gap-2 pt-8 border-t border-slate-200 dark:border-slate-800">
+              <Cloud className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /> Migración a Supabase (Nube)
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-2xl">
+              Puedes exportar tu información actual para llevarla a una base de datos en la nube como Supabase. Al generar el script SQL, obtendrás el código necesario para crear las tablas e importar tus datos exactos de forma automatizada en tu panel de Supabase.
+            </p>
+
+            <div className="space-y-4 mb-8">
+              <div className="flex flex-col gap-1.5 max-w-xl">
+                <label className="text-sm font-bold text-slate-600 dark:text-slate-400">Project URL</label>
+                <input 
+                  className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none" 
+                  placeholder="https://xyzcompany.supabase.co" 
+                  value={supabaseUrl}
+                  onChange={e => setSupabaseUrl(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5 max-w-xl">
+                <label className="text-sm font-bold text-slate-600 dark:text-slate-400">API Key / Service Role Key</label>
+                <input 
+                  type="password"
+                  className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none" 
+                  placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
+                  value={supabaseKey}
+                  onChange={e => setSupabaseKey(e.target.value)}
+                />
+              </div>
+            </div>
+            <button 
+              onClick={handleGenerateSupabaseSQL}
+              className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg font-bold shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-2"
+            >
+              <Cloud className="w-4 h-4" /> Generar Script SQL para Supabase
+            </button>
+
+            {/* Danger Zone */}
+            <div className="mt-16 p-6 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded-2xl">
+              <h4 className="text-red-700 dark:text-red-400 font-bold mb-2 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" /> Zona de Peligro
+              </h4>
+              <p className="text-sm text-red-600/80 dark:text-red-400/80 mb-4">
+                Esta acción eliminará todos los registros de la base de datos local (clientes, inventario, pedidos, finanzas, laboratorios). 
+                Solo se conservarán los ajustes visuales y categorías.
+              </p>
+              <button 
+                onClick={handleResetDatabase}
+                className="px-6 py-2.5 bg-red-600 text-white rounded-lg font-bold shadow-sm hover:bg-red-700 transition-colors"
+              >
+                Resetear Base de Datos
+              </button>
+            </div>
+          </section>
         )}
       </div>
     </div>

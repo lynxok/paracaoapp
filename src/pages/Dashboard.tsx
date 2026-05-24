@@ -1,18 +1,92 @@
 import { Link } from "react-router-dom";
-import { UserPlus, Eye, PackagePlus, Calculator, AlertTriangle, CheckCircle2, ShoppingCart, Cake, Gift, Bell } from "lucide-react";
-
-// Mock data for clients with birthdays
-const CLIENTS_BIRTHDAYS = [
-  { id: 1, name: "Maria Garcia", date: new Date().toISOString().split('T')[0], type: "today", phone: "5491122334455" },
-  { id: 2, name: "Juan Perez", date: new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0], type: "upcoming", phone: "5491133445566" },
-  { id: 3, name: "Ana Martinez", date: new Date(Date.now() - 86400000 * 3).toISOString().split('T')[0], type: "past", phone: "5491144556677" },
-  { id: 4, name: "Carlos Sanchez", date: new Date(Date.now() + 86400000 * 5).toISOString().split('T')[0], type: "upcoming", phone: "5491155667788" },
-];
+import { UserPlus, Eye, PackagePlus, Calculator, AlertTriangle, CheckCircle2, ShoppingCart, Cake, Gift, Bell, Clock, Smartphone } from "lucide-react";
+import { useClients } from "../context/ClientContext";
+import { useFinance } from "../context/FinanceContext";
+import { useNotifications } from "../context/NotificationsContext";
 
 export function Dashboard() {
-  const today = new Date().toISOString().split('T')[0];
+  const { clients, orders } = useClients();
+  const { boxes } = useFinance();
+  const { notifications, removeNotification } = useNotifications();
 
-  const handleWhatsApp = (client: typeof CLIENTS_BIRTHDAYS[0]) => {
+  const today = new Date();
+  const currentMonth = today.getMonth();
+  const currentDay = today.getDate();
+  const todayStr = today.toISOString().split('T')[0];
+
+  const upcomingBirthdays = clients.filter(c => {
+    if (!c.birthDate) return false;
+    const parts = c.birthDate.split('-');
+    if (parts.length !== 3) return false;
+    const [year, month, day] = parts;
+    const bMonth = parseInt(month, 10) - 1;
+    const bDay = parseInt(day, 10);
+    
+    const bDateThisYear = new Date(today.getFullYear(), bMonth, bDay);
+    
+    // If birthday passed this year, check next year
+    if (bDateThisYear.getTime() < today.getTime() - 86400000) {
+      bDateThisYear.setFullYear(today.getFullYear() + 1);
+    }
+    
+    const diffTime = bDateThisYear.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays >= 0 && diffDays <= 7;
+  }).map(c => {
+    const [year, month, day] = c.birthDate!.split('-');
+    const bMonth = parseInt(month, 10) - 1;
+    const bDay = parseInt(day, 10);
+    const isToday = bMonth === currentMonth && bDay === currentDay;
+    
+    return {
+      id: c.id,
+      name: c.name,
+      date: isToday ? todayStr : new Date(today.getFullYear(), bMonth, bDay).toISOString().split('T')[0],
+      isToday,
+      phone: c.phone || ''
+    };
+  }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  const recentOrders = orders.slice(0, 5);
+  
+  const pendingOrdersCount = orders.filter(o => o.status !== 'Completado' && o.status !== 'Entregado').length;
+
+  const customersPending = orders.map(order => {
+    const client = clients.find(c => c.id === order.clientId);
+    if (!client) return null;
+    const orderDate = new Date(order.date);
+    let nextControlDate = new Date(orderDate);
+    if (order.service.toLowerCase().includes('contacto')) {
+      nextControlDate.setMonth(nextControlDate.getMonth() + 6);
+    } else {
+      nextControlDate.setFullYear(nextControlDate.getFullYear() + 1);
+    }
+    const diffDays = Math.ceil((nextControlDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    // Show overdue (up to 30 days ago) or upcoming (in next 15 days)
+    if (diffDays > 15 || diffDays < -30) return null;
+    
+    return {
+      id: order.id,
+      name: client.name,
+      product: order.service,
+      status: diffDays < 0 ? 'Vencido' : 'Próximo',
+      phone: client.phone || '',
+      diffDays,
+      lastPurchase: order.date
+    };
+  }).filter(Boolean).sort((a, b) => a!.diffDays - b!.diffDays).slice(0, 5); // Take top 5
+
+  const handleReminderWhatsApp = (customer: any) => {
+    if(!customer.phone) {
+      alert("El cliente no tiene teléfono registrado.");
+      return;
+    }
+    const message = encodeURIComponent(`¡Hola ${customer.name}! Te escribimos de la Óptica. Notamos que tu último control para tus ${customer.product} fue en ${new Date(customer.lastPurchase).toLocaleDateString('es-ES')}. ¿Te gustaría agendar una cita para revisar tu graduación visual? 👓`);
+    window.open(`https://wa.me/${customer.phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+  };
+
+  const handleWhatsApp = (client: any) => {
     const message = encodeURIComponent(`¡Hola ${client.name}! Te escribimos de la Óptica para desearte un muy feliz cumpleaños. 🎂👓`);
     window.open(`https://wa.me/${client.phone}?text=${message}`, '_blank');
   };
@@ -89,25 +163,31 @@ export function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {[
-                    { id: "#ORD-2458", name: "María González", desc: "Lentes Multifocales", status: "En Taller", color: "amber", amount: "$120.00" },
-                    { id: "#ORD-2457", name: "Juan Pérez", desc: "Consulta General", status: "Completado", color: "emerald", amount: "$45.00" },
-                    { id: "#ORD-2456", name: "Lucía Méndez", desc: "Armazón Ray-Ban", status: "Para Retirar", color: "blue", amount: "$185.00" },
-                    { id: "#ORD-2455", name: "Carlos Ruiz", desc: "Lentes de Contacto", status: "Completado", color: "emerald", amount: "$60.00" },
-                    { id: "#ORD-2454", name: "Ana Soto", desc: "Reparación", status: "Pendiente", color: "slate", amount: "$25.00" },
-                  ].map((row, idx) => (
-                    <tr key={idx} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  {recentOrders.map((row, idx) => {
+                    let color = "slate";
+                    if (row.status === "Completado" || row.status === "Entregado") color = "emerald";
+                    else if (row.status === "En Taller") color = "amber";
+                    else if (row.status === "Para Retirar") color = "blue";
+                    
+                    return (
+                    <tr key={row.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{row.id}</td>
-                      <td className="px-6 py-4">{row.name}</td>
-                      <td className="px-6 py-4">{row.desc}</td>
+                      <td className="px-6 py-4">{row.clientName}</td>
+                      <td className="px-6 py-4">{row.service}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center rounded-full bg-${row.color}-100 dark:bg-${row.color}-900/30 px-2.5 py-0.5 text-xs font-medium text-${row.color}-800 dark:text-${row.color}-400 border border-${row.color}-200 dark:border-${row.color}-800`}>
+                        <span className={`inline-flex items-center rounded-full bg-${color}-100 dark:bg-${color}-900/30 px-2.5 py-0.5 text-xs font-medium text-${color}-800 dark:text-${color}-400 border border-${color}-200 dark:border-${color}-800`}>
                           {row.status}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right font-medium text-slate-900 dark:text-white">{row.amount}</td>
+                      <td className="px-6 py-4 text-right font-medium text-slate-900 dark:text-white">${row.amount.toLocaleString('es-AR')}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
+                  {recentOrders.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No hay pedidos recientes.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -127,11 +207,11 @@ export function Dashboard() {
                 </p>
               </div>
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
-                {CLIENTS_BIRTHDAYS.map((client) => (
-                  <div key={client.id} className={`p-4 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${client.date === today ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''}`}>
+                {upcomingBirthdays.map((client) => (
+                  <div key={client.id} className={`p-4 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors ${client.isToday ? 'bg-blue-50/30 dark:bg-blue-900/5' : ''}`}>
                     <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-lg ${client.date === today ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                        {client.date === today ? <Gift className="w-4 h-4" /> : <Cake className="w-4 h-4" />}
+                      <div className={`p-2 rounded-lg ${client.isToday ? 'bg-blue-100 text-blue-600' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                        {client.isToday ? <Gift className="w-4 h-4" /> : <Cake className="w-4 h-4" />}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -143,24 +223,87 @@ export function Dashboard() {
                           >
                             <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
                               <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 italic">
+                        {client.isToday ? '¡Hoy!' : 'Próximamente'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-xs font-bold ${client.isToday ? 'text-blue-600' : 'text-slate-600 dark:text-slate-400'}`}>
+                      {new Date(client.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                    </p>
+                    {client.isToday && (
+                      <button 
+                        onClick={() => handleWhatsApp(client)}
+                        className="text-[10px] font-black text-blue-600 underline mt-0.5"
+                      >
+                        Saludar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+              {upcomingBirthdays.length === 0 && (
+                <div className="p-6 text-center text-slate-500 text-sm">
+                  No hay cumpleaños en los próximos 7 días.
+                </div>
+              )}
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+              <Clock className="w-5 h-5 text-indigo-500" />
+              Controles Pendientes
+            </h2>
+            <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {customersPending.map(customer => customer && (
+                  <div key={customer.id} className="p-4 flex items-center justify-between group hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${customer.status === 'Vencido' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30'}`}>
+                        <Clock className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">{customer.name}</p>
+                          <button 
+                            onClick={() => handleReminderWhatsApp(customer)}
+                            title="Enviar recordatorio de control por WhatsApp"
+                            className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                          >
+                            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                             </svg>
                           </button>
                         </div>
-                        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400 italic">
-                          {client.date === today ? '¡Hoy!' : new Date(client.date) < new Date() ? 'Fue hace poco' : 'Próximamente'}
+                        <p className="text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                          {customer.product}
                         </p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className={`text-xs font-bold ${client.date === today ? 'text-blue-600' : 'text-slate-600 dark:text-slate-400'}`}>
-                        {new Date(client.date).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })}
+                      <p className={`text-[10px] font-black uppercase tracking-wider ${customer.status === 'Vencido' ? 'text-red-600' : 'text-indigo-600'}`}>
+                        {customer.status}
                       </p>
-                      {client.date === today && (
-                        <button className="text-[10px] font-black text-blue-600 underline mt-0.5">Saludar</button>
-                      )}
+                      <button 
+                        onClick={() => handleReminderWhatsApp(customer)}
+                        className="text-[10px] font-black text-indigo-600 underline mt-0.5"
+                      >
+                        Enviar
+                      </button>
                     </div>
                   </div>
                 ))}
+                {customersPending.length === 0 && (
+                  <div className="p-6 text-center text-slate-500 text-sm">
+                    No hay controles de salud visual pendientes.
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -171,24 +314,30 @@ export function Dashboard() {
               Alertas y Avisos
             </h2>
             <div className="flex flex-col gap-3">
-              <div className="flex gap-4 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/10 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">
-                  <AlertTriangle className="w-5 h-5" />
+              {notifications.slice(0, 3).map(notif => (
+                <div key={notif.id} className={`flex gap-4 rounded-xl border border-slate-200 dark:border-slate-800 ${notif.bg} p-4`}>
+                  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/50 dark:bg-black/20 ${notif.color}`}>
+                    {notif.type === 'error' && <AlertTriangle className="w-5 h-5" />}
+                    {notif.type === 'warning' && <AlertTriangle className="w-5 h-5" />}
+                    {notif.type === 'success' && <CheckCircle2 className="w-5 h-5" />}
+                    {notif.type === 'info' && <Bell className="w-5 h-5" />}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-white">{notif.title}</h3>
+                      <span className="text-[10px] text-slate-500">{notif.time}</span>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{notif.desc}</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Stock Crítico</h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Quedan menos de 5 unidades de Cristales Orgánicos 2.0.</p>
+              ))}
+              {notifications.length === 0 && (
+                <div className="text-center p-6 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm text-slate-500 font-medium">Todo está al día</p>
+                  <p className="text-xs text-slate-400 mt-1">No tienes avisos pendientes.</p>
                 </div>
-              </div>
-              <div className="flex gap-4 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/10 p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
-                  <CheckCircle2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Pedidos Listos</h3>
-                  <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">3 pedidos han salido del taller hoy.</p>
-                </div>
-              </div>
+              )}
             </div>
           </section>
         </div>

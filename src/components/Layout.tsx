@@ -30,9 +30,12 @@ import {
   Lock,
   EyeOff,
   Save,
-  KeyRound
+  KeyRound,
+  Plus
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { useAuth } from "../context/AuthContext";
+import { useNotifications } from "../context/NotificationsContext";
 
 const menuItems = [
   { path: "/", icon: LayoutDashboard, label: "Inicio" },
@@ -60,11 +63,24 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const { currentUser, currentBranch, logout } = useAuth();
+  
   const [profileData, setProfileData] = useState({
-    name: "Dr. Roberto G.",
-    role: "Administrador",
-    avatar: "https://picsum.photos/seed/doctor/100/100"
+    name: currentUser?.name || "Usuario",
+    role: currentUser?.role || "Administrador",
+    branch: currentBranch?.name || "Casa Central",
+    avatar: currentUser?.avatar || "https://picsum.photos/seed/doctor/100/100"
   });
+
+  useEffect(() => {
+    setProfileData(prev => ({
+      ...prev,
+      name: currentUser?.name || prev.name,
+      role: currentUser?.role || prev.role,
+      branch: currentBranch?.name || prev.branch,
+      avatar: currentUser?.avatar || prev.avatar
+    }));
+  }, [currentUser, currentBranch]);
 
   const [passForm, setPassForm] = useState({
     current: "",
@@ -80,70 +96,25 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAllNotifications, setShowAllNotifications] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState('Todas');
-  const [notifications, setNotifications] = useState([
-    { 
-      id: 1,
-      title: "Stock bajo en Sucursal CC", 
-      desc: "Ray-Ban Aviator Blue (SKU: RB-3025) por debajo del mínimo.", 
-      time: "Hace 5 min",
-      type: "warning",
-      category: "Urgentes",
-      icon: Package,
-      color: "text-amber-500",
-      bg: "bg-amber-50 dark:bg-amber-900/20"
-    },
-    { 
-      id: 2,
-      title: "Error Facturación AFIP", 
-      desc: "Falla de sincronización: Token expirado. Se requiere re-validar.", 
-      time: "Hace 20 min",
-      type: "error",
-      category: "Urgentes",
-      icon: AlertTriangle,
-      color: "text-red-500",
-      bg: "bg-red-50 dark:bg-red-900/20"
-    },
-    { 
-      id: 3,
-      title: "Pedido Listo para Retiro", 
-      desc: "Venta #12548 (Roberto Gómez) ha sido marcada como lista.", 
-      time: "Hace 1 hora",
-      type: "info",
-      category: "Info",
-      icon: ShoppingCart,
-      color: "text-blue-500",
-      bg: "bg-blue-50 dark:bg-blue-900/20"
-    },
-    { 
-      id: 4,
-      title: "Nuevo Mensaje de Proveedor", 
-      desc: "OptiSupply ha actualizado los precios de cristales.", 
-      time: "Ayer",
-      type: "info",
-      category: "Info",
-      icon: Truck,
-      color: "text-indigo-500",
-      bg: "bg-indigo-50 dark:bg-indigo-900/20"
-    },
-    { 
-      id: 5,
-      title: "Cierre de Caja Exitoso", 
-      desc: "La caja #01 fue cerrada por Juana Pérez sin diferencias.", 
-      time: "Ayer",
-      type: "success",
-      category: "Sistema",
-      icon: CheckCircle,
-      color: "text-emerald-500",
-      bg: "bg-emerald-50 dark:bg-emerald-900/20"
+  const { notifications, removeNotification, clearAll } = useNotifications();
+
+  const getIconComponent = (name: string) => {
+    switch(name) {
+      case 'Package': return Package;
+      case 'AlertTriangle': return AlertTriangle;
+      case 'ShoppingCart': return ShoppingCart;
+      case 'Truck': return Truck;
+      case 'CheckCircle': return CheckCircle;
+      default: return Info;
     }
-  ]);
+  };
 
   const handleClearAll = () => {
-    setNotifications([]);
+    clearAll();
   };
 
   const handleArchive = (id: number) => {
-    setNotifications(notifications.filter(n => n.id !== id));
+    removeNotification(id);
   };
 
   const filteredNotifications = notifications.filter(n => 
@@ -161,7 +132,11 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
   }, [isDark]);
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
+    <div className="flex h-screen w-full overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans relative selection:bg-blue-500/30">
+      {/* Ambient Glows */}
+      <div className="absolute top-[-10%] left-[-5%] w-[40vw] h-[40vw] bg-blue-500/5 dark:bg-blue-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+      <div className="absolute bottom-[-10%] right-[-5%] w-[40vw] h-[40vw] bg-indigo-500/5 dark:bg-indigo-600/10 rounded-full blur-[120px] pointer-events-none"></div>
+
       {/* Profile Modal */}
       {isProfileModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -284,25 +259,29 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 flex-shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static",
-        isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        "fixed lg:static inset-y-4 left-4 z-50 w-[260px] flex-shrink-0 glass-panel flex flex-col transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] rounded-2xl lg:mx-4 my-4",
+        isMobileMenuOpen ? "translate-x-0" : "-translate-x-[120%] lg:translate-x-0"
       )}>
-        <div className="flex items-center justify-between gap-3 p-5 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center rounded-lg bg-blue-600/10 p-2 text-blue-600 dark:text-blue-500">
-              <Eye className="w-6 h-6" />
-            </div>
-            <h2 className="text-lg font-bold leading-tight tracking-tight dark:text-white">
-              Óptica<span className="text-blue-600 dark:text-blue-500">Paracáo</span>
-            </h2>
-          </div>
-          <button className="lg:hidden p-1 text-slate-500" onClick={() => setIsMobileMenuOpen(false)}>
+        <div className="flex flex-col items-center justify-center p-6 border-b border-slate-900/5 dark:border-white/[0.05] relative pt-8">
+          <button className="lg:hidden absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
             <X className="w-5 h-5" />
           </button>
+          
+          <div className="relative -mb-2 mt-1">
+            <div className="absolute inset-0 bg-white/40 blur-[30px] rounded-full scale-125 -z-10 hidden dark:block"></div>
+            <img src="/argoslogo.png" alt="Argos" className="h-28 w-auto object-contain drop-shadow-md" />
+          </div>
+          
+          <div className="flex items-center gap-2 mt-0 z-10">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <p className="text-[11px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400">
+              {profileData.branch}
+            </p>
+          </div>
         </div>
         
-        <div className="flex flex-col gap-4 p-4 flex-1 overflow-y-auto">
-          <nav className="flex flex-col gap-1">
+        <div className="flex flex-col gap-2 p-4 flex-1 overflow-y-auto custom-scrollbar">
+          <nav className="flex flex-col gap-1.5">
             {menuItems.map(item => {
               const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
               return (
@@ -311,14 +290,17 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
                   to={item.path}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors",
+                    "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group relative overflow-hidden",
                     isActive 
-                      ? "bg-blue-600/10 text-blue-600 dark:text-blue-500 font-bold shadow-sm" 
-                      : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                      ? "bg-blue-500/5 dark:bg-white/[0.08] text-blue-600 dark:text-white font-medium border border-blue-500/10 dark:border-white/[0.05] shadow-[inset_0_1px_1px_rgba(0,0,0,0.02)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]" 
+                      : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-900/5 dark:hover:bg-white/[0.03]"
                   )}
                 >
-                  <item.icon className="w-5 h-5" />
-                  <span className="text-sm">{item.label}</span>
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1/2 bg-blue-500 rounded-r-full shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
+                  )}
+                  <item.icon className={cn("w-5 h-5 transition-transform duration-300", isActive ? "scale-110 text-blue-600 dark:text-blue-400" : "group-hover:scale-110")} />
+                  <span className="text-sm tracking-wide">{item.label}</span>
                 </Link>
               );
             })}
@@ -326,7 +308,7 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
         </div>
 
         {/* User Profile at Bottom */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+        <div className="px-4 pt-4 pb-1 border-t border-slate-900/5 dark:border-white/[0.05] bg-slate-50/50 dark:bg-slate-900/40">
           <div className="flex items-center justify-between gap-2">
             <button 
               onClick={() => setIsProfileModalOpen(true)}
@@ -344,9 +326,7 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
             <button 
               onClick={() => {
                 if(confirm("¿Estás seguro de que deseas cerrar sesión?")) {
-                  // In a real app, this would clear auth tokens/state
-                  alert("Cerrando sesión...");
-                  // Example: navigate("/login");
+                  logout();
                 }
               }}
               className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
@@ -356,12 +336,18 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
             </button>
           </div>
         </div>
+        <div className="pb-4 pt-0 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-900/40 rounded-b-2xl">
+          <a href="https://www.lnx.com.ar" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center group cursor-pointer gap-0">
+            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">Desarrollado por</span>
+            <img src="/logolynxnaranja.png" alt="LYNX" className="h-10 w-auto object-contain grayscale group-hover:grayscale-0 transition-all opacity-80 group-hover:opacity-100 mt-0.5" />
+          </a>
+        </div>
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
         {/* Header */}
-        <header className="h-16 flex items-center justify-between px-4 lg:px-6 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 sticky top-0 z-30 no-print">
+        <header className="h-20 flex items-center justify-between px-6 lg:px-8 bg-transparent shrink-0 z-30 no-print mt-2">
           <div className="flex items-center gap-4">
             <button className="lg:hidden p-2 -ml-2 text-slate-600 dark:text-slate-300" onClick={() => setIsMobileMenuOpen(true)}>
               <Menu className="w-5 h-5" />
@@ -380,39 +366,40 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
               {subtitle && <p className="text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>}
             </div>
           </div>
-          <div className="flex items-center gap-2 lg:gap-4">
+          <div className="flex items-center gap-3 lg:gap-5">
             <div className="relative hidden sm:block">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
               <input 
-                className="h-9 pl-9 pr-4 rounded-full bg-slate-100 dark:bg-slate-800 border-none focus:ring-2 focus:ring-blue-600 text-sm w-48 lg:w-64 text-slate-900 dark:text-white placeholder:text-slate-400" 
-                placeholder="Buscar..." 
+                className="h-10 pl-11 pr-4 rounded-full glass-panel border-none focus:ring-1 focus:ring-blue-500/50 focus:bg-white dark:focus:bg-slate-900/80 text-sm w-48 lg:w-72 text-slate-900 dark:text-white placeholder:text-slate-500 transition-all" 
+                placeholder="Buscar pacientes, pedidos..." 
                 type="text"
               />
             </div>
+            
             <button 
               onClick={() => {
                 const newDark = !isDark;
                 setIsDark(newDark);
-                // Force immediate class update to ensure UI response
                 if (newDark) {
                   document.documentElement.classList.add('dark');
                 } else {
                   document.documentElement.classList.remove('dark');
                 }
               }} 
-              className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-slate-600 dark:text-slate-300 active:scale-90"
+              className="p-2.5 rounded-full glass-panel hover:bg-slate-200/50 dark:hover:bg-slate-800/60 transition-all text-slate-600 dark:text-slate-300 active:scale-90"
               title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
             >
               <div className="transition-transform duration-300 rotate-0 dark:-rotate-12">
                 {isDark ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-blue-600" />}
               </div>
             </button>
+
             <div className="relative">
               <button 
                 onClick={() => setShowNotifications(!showNotifications)}
                 className={cn(
-                  "relative p-2 rounded-full transition-all group active:scale-95",
-                  showNotifications ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600" : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300"
+                  "relative p-2.5 rounded-full transition-all group active:scale-95 glass-panel hover:bg-slate-200/50 dark:hover:bg-slate-800/60",
+                  showNotifications ? "bg-slate-200/80 dark:bg-slate-800/80 ring-1 ring-slate-900/10 dark:ring-white/10" : "text-slate-600 dark:text-slate-300"
                 )}
               >
                 <Bell className="w-5 h-5" />
@@ -435,23 +422,26 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
                     </div>
                     <div className="max-h-[400px] overflow-y-auto">
                       {notifications.length > 0 ? (
-                        notifications.slice(0, 5).map((notif, idx) => (
-                          <div key={notif.id} className={cn(
-                            "p-4 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer",
-                            idx === 0 && "bg-blue-50/20 dark:bg-blue-900/5"
-                          )}>
-                            <div className="flex gap-3">
-                              <div className={cn("p-2 h-fit rounded-lg", notif.bg)}>
-                                <notif.icon className={cn("w-4 h-4", notif.color)} />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{notif.title}</p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed line-clamp-2">{notif.desc}</p>
-                                <p className="text-[10px] text-slate-400 mt-2 font-medium">{notif.time}</p>
+                        notifications.slice(0, 5).map((notif, idx) => {
+                          const Icon = getIconComponent(notif.iconName);
+                          return (
+                            <div key={notif.id} className={cn(
+                              "p-4 border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors cursor-pointer",
+                              idx === 0 && "bg-blue-50/20 dark:bg-blue-900/5"
+                            )}>
+                              <div className="flex gap-3">
+                                <div className={cn("p-2 h-fit rounded-lg", notif.bg)}>
+                                  <Icon className={cn("w-4 h-4", notif.color)} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{notif.title}</p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed line-clamp-2">{notif.desc}</p>
+                                  <p className="text-[10px] text-slate-400 mt-2 font-medium">{notif.time}</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       ) : (
                         <div className="p-8 text-center opacity-40">
                           <Bell className="w-8 h-8 mx-auto mb-2" />
@@ -478,9 +468,61 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
         </header>
 
         {/* Main Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
           {children}
         </main>
+
+        {/* Mobile Bottom Navigation Bar (Touch-First) */}
+        <nav className="lg:hidden fixed bottom-0 left-0 w-full z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 safe-area-pb">
+          <div className="flex items-center justify-around h-16 px-2">
+            <button 
+              onClick={() => navigate('/')}
+              className={cn(
+                "flex flex-col items-center justify-center w-full h-full gap-1 transition-colors",
+                location.pathname === '/' ? "text-blue-600 dark:text-blue-400" : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              <LayoutDashboard className="w-6 h-6" />
+              <span className="text-[10px] font-bold">Inicio</span>
+            </button>
+            <button 
+              onClick={() => navigate('/clients')}
+              className={cn(
+                "flex flex-col items-center justify-center w-full h-full gap-1 transition-colors",
+                location.pathname.startsWith('/clients') && location.pathname !== '/clients/new' ? "text-blue-600 dark:text-blue-400" : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              <Users className="w-6 h-6" />
+              <span className="text-[10px] font-bold">Clientes</span>
+            </button>
+            <button 
+              onClick={() => navigate('/orders/new')}
+              className="flex flex-col items-center justify-center w-full h-full gap-1 -mt-5"
+            >
+              <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg shadow-blue-500/30">
+                <Plus className="w-6 h-6" />
+              </div>
+              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400">Nueva Venta</span>
+            </button>
+            <button 
+              onClick={() => navigate('/finance')}
+              className={cn(
+                "flex flex-col items-center justify-center w-full h-full gap-1 transition-colors",
+                location.pathname.startsWith('/finance') ? "text-blue-600 dark:text-blue-400" : "text-slate-500 hover:text-slate-900 dark:hover:text-white"
+              )}
+            >
+              <Wallet className="w-6 h-6" />
+              <span className="text-[10px] font-bold">Finanzas</span>
+            </button>
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="flex flex-col items-center justify-center w-full h-full gap-1 text-slate-500 hover:text-slate-900 dark:hover:text-white transition-colors"
+            >
+              <Menu className="w-6 h-6" />
+              <span className="text-[10px] font-bold">Menú</span>
+            </button>
+          </div>
+        </nav>
 
         {/* All Notifications Modal */}
         {showAllNotifications && (
@@ -530,30 +572,33 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
 
               <div className="flex-1 overflow-y-auto p-2 sm:p-6 space-y-4">
                 {filteredNotifications.length > 0 ? (
-                  filteredNotifications.map((notif) => (
-                    <div key={notif.id} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200 dark:hover:border-blue-900/50 transition-all group flex gap-4">
-                      <div className={cn("p-3 h-fit rounded-xl shrink-0 transition-transform group-hover:scale-110", notif.bg)}>
-                        <notif.icon className={cn("w-5 h-5", notif.color)} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-start">
-                          <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">{notif.title}</h4>
-                          <span className="text-[10px] font-bold text-slate-400">{notif.time}</span>
+                  filteredNotifications.map((notif) => {
+                    const Icon = getIconComponent(notif.iconName);
+                    return (
+                      <div key={notif.id} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-blue-200 dark:hover:border-blue-900/50 transition-all group flex gap-4">
+                        <div className={cn("p-3 h-fit rounded-xl shrink-0 transition-transform group-hover:scale-110", notif.bg)}>
+                          <Icon className={cn("w-5 h-5", notif.color)} />
                         </div>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{notif.desc}</p>
-                        <div className="mt-4 flex items-center gap-3">
-                          <button className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline">Accionar</button>
-                          <span className="text-slate-200 dark:text-slate-800">|</span>
-                          <button 
-                            onClick={() => handleArchive(notif.id)}
-                            className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors"
-                          >
-                            Archivar
-                          </button>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start">
+                            <h4 className="font-bold text-slate-900 dark:text-white group-hover:text-blue-600 transition-colors">{notif.title}</h4>
+                            <span className="text-[10px] font-bold text-slate-400">{notif.time}</span>
+                          </div>
+                          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{notif.desc}</p>
+                          <div className="mt-4 flex items-center gap-3">
+                            <button className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline">Accionar</button>
+                            <span className="text-slate-200 dark:text-slate-800">|</span>
+                            <button 
+                              onClick={() => handleArchive(notif.id)}
+                              className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-red-500 transition-colors"
+                            >
+                              Archivar
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 ) : (
                   <div className="h-full flex flex-col items-center justify-center opacity-40 grayscale py-12">
                     <Bell className="w-12 h-12 mb-4" />

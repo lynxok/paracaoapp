@@ -14,6 +14,7 @@ import { Suppliers } from "./pages/Suppliers";
 import { Finance } from "./pages/Finance";
 import { Reports } from "./pages/Reports";
 import { Labs } from "./pages/Labs";
+
 import { Settings } from "./pages/Settings";
 import { StatusLookup } from "./pages/StatusLookup";
 import { Sales } from "./pages/Sales";
@@ -21,13 +22,23 @@ import { Marketing } from "./pages/Marketing";
 
 import { FinanceProvider } from "./context/FinanceContext";
 import { ClientProvider } from "./context/ClientContext";
+import { SettingsProvider } from "./context/SettingsContext";
+import { LabProvider } from "./context/LabContext";
+import { InventoryProvider } from "./context/InventoryContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { NotificationsProvider } from "./context/NotificationsContext";
+import { Login } from "./pages/Login";
 
-export default function App() {
+function AppContent() {
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
-    <FinanceProvider>
-      <ClientProvider>
-        <BrowserRouter>
-          <Routes>
+    <BrowserRouter>
+      <Routes>
           <Route path="/" element={<Layout title="Panel de Control" subtitle="Bienvenido de nuevo"><Dashboard /></Layout>} />
           <Route path="/clients" element={<Layout title="Gestión de Clientes" subtitle="2.450 clientes registrados"><Clients /></Layout>} />
           <Route path="/clients/new" element={<Layout title="Gestión de Clientes" subtitle="2.450 clientes registrados"><Clients /></Layout>} />
@@ -49,7 +60,25 @@ export default function App() {
           <Route path="/status-lookup" element={<StatusLookup />} />
         </Routes>
       </BrowserRouter>
-    </ClientProvider>
-    </FinanceProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <NotificationsProvider>
+        <SettingsProvider>
+        <FinanceProvider>
+          <ClientProvider>
+            <LabProvider>
+              <InventoryProvider>
+                <AppContent />
+              </InventoryProvider>
+            </LabProvider>
+          </ClientProvider>
+        </FinanceProvider>
+        </SettingsProvider>
+      </NotificationsProvider>
+    </AuthProvider>
   );
 }

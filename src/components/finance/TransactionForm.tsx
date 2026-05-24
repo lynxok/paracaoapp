@@ -241,7 +241,7 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
           <div className="space-y-4">
             <div>
               <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Destino / Caja de Impacto</label>
-              <div className="grid grid-cols-1 gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="grid grid-cols-1 gap-2">
                 {boxes.map(box => (
                   <button
                     key={box.id}

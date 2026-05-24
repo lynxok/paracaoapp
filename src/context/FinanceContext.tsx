@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { CashBox, Transaction, FinanceCategory, Supplier, SupplierTransaction } from '../types';
+import { useNotifications } from './NotificationsContext';
 
 interface FinanceContextType {
   boxes: CashBox[];
@@ -16,81 +17,34 @@ interface FinanceContextType {
   updateBoxClosingBalance: (boxId: string, balance: number) => void;
 }
 
-const INITIAL_SUPPLIERS: Supplier[] = [
-  { 
-    id: "sup-1", 
-    code: "PV-001",
-    name: "Luxottica Group", 
-    cuit: "30-12345678-9",
-    cbu: "1234567890123456789012",
-    contact: "Carlos Varela", 
-    email: "c.varela@lux.com", 
-    phone: "+54 9 11 2233-4455", 
-    category: "Armazones Premium", 
-    paymentTerms: "30 días",
-    balance: 0,
-    transactions: []
-  },
-  { 
-    id: "sup-2", 
-    code: "PV-002",
-    name: "Essilor S.A.", 
-    cuit: "30-87654321-0",
-    cbu: "9876543210987654321098",
-    contact: "Marta Gómez", 
-    email: "marta.g@essilor.com", 
-    phone: "+54 9 11 3344-5566", 
-    category: "Cristales", 
-    paymentTerms: "Contado",
-    balance: 1240,
-    transactions: [
-      { id: 'st-1', date: '2023-10-20', voucherNumber: 'FC-A-0001-00001234', amount: 1240, type: 'invoice', status: 'pending', description: 'Compra de cristales tallados' }
-    ]
-  },
-  { 
-    id: "sup-3", 
-    code: "PV-003",
-    name: "Bausch + Lomb", 
-    cuit: "33-55667788-2",
-    cbu: "0000000000000000000000",
-    contact: "Jorge Ríos", 
-    email: "jrios@bausch.com", 
-    phone: "+54 9 11 4455-6677", 
-    category: "Lentes Contacto", 
-    paymentTerms: "60 días",
-    balance: 450,
-    transactions: [
-      { id: 'st-2', date: '2023-10-15', voucherNumber: 'FC-A-0001-00005566', amount: 450, type: 'invoice', status: 'pending', description: 'Pack de lentes de contacto' }
-    ]
-  },
-];
+const INITIAL_SUPPLIERS: Supplier[] = [];
 
 const INITIAL_BOXES: CashBox[] = [
   {
     id: 'caja-efectivo',
     name: 'Caja Efectivo',
     type: 'cash',
-    initialBalance: 500,
-    incomes: 1250,
-    expenses: 120,
-    expectedCash: 1630,
+    initialBalance: 0,
+    incomes: 0,
+    expenses: 0,
+    expectedCash: 0,
     physicalCount: {},
   },
   {
     id: 'santander-1',
     name: 'Santander 1',
     type: 'bank',
-    initialBalance: 15400,
-    incomes: 45000,
-    expenses: 12000,
+    initialBalance: 0,
+    incomes: 0,
+    expenses: 0,
   },
   {
     id: 'galicia-1',
     name: 'Banco Galicia',
     type: 'bank',
-    initialBalance: 8500,
-    incomes: 12000,
-    expenses: 3000,
+    initialBalance: 0,
+    incomes: 0,
+    expenses: 0,
   },
   {
     id: 'tc-holding',
@@ -104,23 +58,43 @@ const INITIAL_BOXES: CashBox[] = [
     id: 'mercado-pago',
     name: 'Mercado Pago',
     type: 'digital',
-    initialBalance: 1200,
-    incomes: 5600,
-    expenses: 800,
+    initialBalance: 0,
+    incomes: 0,
+    expenses: 0,
   }
 ];
 
-const INITIAL_TRANSACTIONS: Transaction[] = [
-  { id: '1', date: '2023-10-24', time: "16:50", concept: "Insumos Limpieza", method: "Efectivo", amount: 120, type: 'expense', category: 'limpieza', boxId: 'caja-efectivo' },
-  { id: '2', date: '2023-10-24', time: "14:20", concept: "Venta #10236: Lentes Contacto", method: "Tarjeta Crédito", amount: 1200, type: 'income', category: 'ventas', boxId: 'tc-holding', clientName: 'Juan Perez' },
-];
+const INITIAL_TRANSACTIONS: Transaction[] = [];
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [boxes, setBoxes] = useState<CashBox[]>(INITIAL_BOXES);
-  const [transactions, setTransactions] = useState<Transaction[]>(INITIAL_TRANSACTIONS);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(INITIAL_SUPPLIERS);
+  const [boxes, setBoxes] = useState<CashBox[]>(() => {
+    const saved = localStorage.getItem('optica_finance_boxes');
+    return saved ? JSON.parse(saved) : INITIAL_BOXES;
+  });
+  
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+    const saved = localStorage.getItem('optica_finance_transactions');
+    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
+  });
+  
+  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
+    const saved = localStorage.getItem('optica_finance_suppliers');
+    return saved ? JSON.parse(saved) : INITIAL_SUPPLIERS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('optica_finance_boxes', JSON.stringify(boxes));
+  }, [boxes]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_finance_transactions', JSON.stringify(transactions));
+  }, [transactions]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_finance_suppliers', JSON.stringify(suppliers));
+  }, [suppliers]);
 
   const addTransaction = (tx: Transaction) => {
     setTransactions(prev => [tx, ...prev]);
@@ -197,10 +171,24 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     ));
   };
 
+  const { addNotification } = useNotifications();
+
   const updateBoxClosingBalance = (boxId: string, balance: number) => {
-    setBoxes(prev => prev.map(box => 
-      box.id === boxId ? { ...box, lastClosingBalance: balance } : box
-    ));
+    setBoxes(prev => {
+      const box = prev.find(b => b.id === boxId);
+      if (box) {
+        addNotification({
+          title: "Cierre de Caja Exitoso",
+          desc: `La caja "${box.name}" fue cerrada con un balance de $${balance}.`,
+          type: "success",
+          category: "Sistema",
+          iconName: "CheckCircle",
+          color: "text-emerald-500",
+          bg: "bg-emerald-50 dark:bg-emerald-900/20"
+        });
+      }
+      return prev.map(b => b.id === boxId ? { ...b, lastClosingBalance: balance } : b);
+    });
   };
 
   const addBox = (box: CashBox) => {

@@ -2,11 +2,13 @@ import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Search, Plus, X, Edit2, History, UserPlus, Eye, ShoppingCart, Trash2, Receipt, Package, ArrowRight } from "lucide-react";
 import { useClients } from "../context/ClientContext";
+import { useSettings } from "../context/SettingsContext";
 import { cn } from "../lib/utils";
 import { Client } from "../types";
 
 export function Clients() {
   const { clients, addClient, updateClient, deleteClient, getClientOrders, getClientTransactions } = useClients();
+  const { insurances } = useSettings();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCCModalOpen, setIsCCModalOpen] = useState(false);
   const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
@@ -59,10 +61,13 @@ export function Clients() {
       dni,
       birthDate,
       age,
-      name: target.elements.name.value,
+      firstName: target.elements.firstName.value,
+      lastName: target.elements.lastName.value,
+      name: `${target.elements.firstName.value} ${target.elements.lastName.value}`.trim(),
       phone: target.elements.phone.value,
       email: target.elements.email.value,
-      insurance: target.elements.insurance.value,
+      insuranceId: (target.elements.namedItem('insuranceId') as HTMLSelectElement)?.value,
+      affiliateNumber: (target.elements.namedItem('affiliateNumber') as HTMLInputElement)?.value,
       address: {
         street: target.elements.street.value,
         number: target.elements.address_number.value,
@@ -158,14 +163,25 @@ export function Clients() {
             <form onSubmit={handleSaveClient}>
               <div className="overflow-y-auto max-h-[calc(95vh-160px)] p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="flex flex-col gap-1.5 md:col-span-2">
-                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nombre Completo</label>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nombre</label>
                     <input 
-                      name="name"
+                      name="firstName"
                       type="text" 
                       className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" 
-                      placeholder="Ej: Juan Manuel Pérez" 
-                      defaultValue={contextItem?.name}
+                      placeholder="Ej: Juan" 
+                      defaultValue={contextItem?.firstName || contextItem?.name?.split(' ')[0]}
+                      required 
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Apellido</label>
+                    <input 
+                      name="lastName"
+                      type="text" 
+                      className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" 
+                      placeholder="Ej: Pérez" 
+                      defaultValue={contextItem?.lastName || contextItem?.name?.split(' ').slice(1).join(' ')}
                       required 
                     />
                   </div>
@@ -204,6 +220,7 @@ export function Clients() {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Teléfono / WhatsApp</label>
                   <input 
+                    name="phone"
                     type="tel" 
                     className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" 
                     placeholder="+54 9 ..." 
@@ -214,6 +231,7 @@ export function Clients() {
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Email</label>
                   <input 
+                    name="email"
                     type="email" 
                     className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" 
                     placeholder="ejemplo@correo.com" 
@@ -238,15 +256,18 @@ export function Clients() {
                     <input name="address_apartment" type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none" placeholder="B" defaultValue={contextItem?.address?.apartment} />
                   </div>
                 </div>
-                <div className="flex flex-col gap-1.5 md:col-span-2">
+                <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Obra Social / Seguro</label>
-                  <select name="insurance" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" defaultValue={contextItem?.insurance}>
-                    <option value="Particular">Particular</option>
-                    <option value="OSDE">OSDE</option>
-                    <option value="Swiss Medical">Swiss Medical</option>
-                    <option value="PAMI">PAMI</option>
-                    <option value="Otros">Otros</option>
+                  <select name="insuranceId" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" defaultValue={contextItem?.insuranceId || ""}>
+                    <option value="">Particular / Sin Cobertura</option>
+                    {insurances.filter(i => i.active !== false).map(ins => (
+                      <option key={ins.id} value={ins.id}>{ins.name}</option>
+                    ))}
                   </select>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nº Afiliado (Opcional)</label>
+                  <input name="affiliateNumber" type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: 12345678" defaultValue={contextItem?.affiliateNumber} />
                 </div>
               </div>
               </div>
