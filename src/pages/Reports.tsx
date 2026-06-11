@@ -1,8 +1,10 @@
-import { TrendingUp, TrendingDown, DollarSign, Percent, PieChart, BarChart3 } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Percent, PieChart, BarChart3, Users } from "lucide-react";
 import { useFinance } from "../context/FinanceContext";
+import { useClients } from "../context/ClientContext";
 
 export function Reports() {
   const { transactions } = useFinance();
+  const { orders } = useClients();
 
   // Calculate totals
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
@@ -61,6 +63,21 @@ export function Reports() {
 
   // Calculate percentages for chart heights
   const maxChartValue = Math.max(...last6Months.map(m => Math.max(m.income, m.expense)), 1);
+
+  // Group and rank doctors by order referral count
+  const doctorReferrals = orders
+    .filter(o => o.medico && o.medico.trim() !== '')
+    .reduce((acc, o) => {
+      const doc = o.medico!.trim();
+      acc[doc] = (acc[doc] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+  const sortedDoctors = Object.entries(doctorReferrals)
+    .sort(([, a], [, b]) => b - a)
+    .slice(0, 5); // Top 5 doctors
+
+  const totalReferrals = Object.values(doctorReferrals).reduce((sum, count) => sum + count, 0);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -159,6 +176,98 @@ export function Reports() {
             )) : (
               <p className="text-center text-slate-500 text-sm py-4">No hay gastos registrados para desglosar.</p>
             )}
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+          <h3 className="font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Ranking de Médicos Derivadores
+          </h3>
+          {sortedDoctors.length > 0 ? (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100 dark:border-slate-800 text-xs uppercase text-slate-400 tracking-wider">
+                    <th className="pb-3 font-semibold w-12 text-center">Puesto</th>
+                    <th className="pb-3 font-semibold pl-4">Médico</th>
+                    <th className="pb-3 font-semibold text-right">Derivaciones</th>
+                    <th className="pb-3 font-semibold text-right">% del Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {sortedDoctors.map(([docName, count], idx) => {
+                    const pct = totalReferrals > 0 ? ((count / totalReferrals) * 100).toFixed(1) : "0.0";
+                    return (
+                      <tr key={docName} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <td className="py-4 text-center">
+                          <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-xs font-black ${
+                            idx === 0 ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400" :
+                            idx === 1 ? "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" :
+                            idx === 2 ? "bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400" :
+                            "bg-slate-50 text-slate-500 dark:bg-slate-900"
+                          }`}>
+                            {idx + 1}
+                          </span>
+                        </td>
+                        <td className="py-4 pl-4 font-bold text-slate-900 dark:text-white">
+                          {docName}
+                        </td>
+                        <td className="py-4 text-right font-mono font-bold text-slate-850 dark:text-slate-300">
+                          {count}
+                        </td>
+                        <td className="py-4 text-right">
+                          <div className="flex items-center justify-end gap-3">
+                            <span className="font-mono text-xs text-slate-500">{pct}%</span>
+                            <div className="w-16 bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden hidden sm:block">
+                              <div className="bg-blue-600 h-full" style={{ width: `${pct}%` }}></div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-400">
+              <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
+              <p className="font-bold">Sin derivaciones registradas</p>
+              <p className="text-xs">Los médicos aparecerán a medida que registres recetas.</p>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
+          <div>
+            <h3 className="font-bold text-slate-900 dark:text-white mb-4">
+              Resumen de Recetados
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
+              Métricas globales sobre las prescripciones de pacientes derivadas por médicos de la zona.
+            </p>
+            
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-xs font-bold text-slate-500 uppercase">Total Recetas</span>
+                <span className="font-black text-slate-900 dark:text-white font-mono">{orders.filter(o => o.type !== 'sale').length}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-xs font-bold text-slate-500 uppercase">Médicos Activos</span>
+                <span className="font-black text-slate-900 dark:text-white font-mono">{Object.keys(doctorReferrals).length}</span>
+              </div>
+              <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
+                <span className="text-xs font-bold text-slate-500 uppercase">Tasa Derivación</span>
+                <span className="font-black text-emerald-600 font-mono">
+                  {orders.filter(o => o.type !== 'sale').length > 0
+                    ? `${((totalReferrals / orders.filter(o => o.type !== 'sale').length) * 100).toFixed(0)}%`
+                    : "0%"
+                  }
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -7,6 +7,7 @@ interface FinanceContextType {
   transactions: Transaction[];
   suppliers: Supplier[];
   addTransaction: (tx: Transaction) => void;
+  voidTransaction: (txId: string) => void;
   addBox: (box: CashBox) => void;
   transferFunds: (fromId: string, toId: string, amount: number, concept: string) => void;
   addSupplierTransaction: (supplierId: string, tx: Omit<SupplierTransaction, 'id'>) => void;
@@ -228,12 +229,31 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     addTransaction(incomeTx);
   };
 
+  const voidTransaction = (txId: string) => {
+    const tx = transactions.find(t => t.id === txId);
+    if (!tx) return;
+
+    setTransactions(prev => prev.filter(t => t.id !== txId));
+    setBoxes(prev => prev.map(b => {
+      if (b.id === tx.boxId) {
+        return {
+          ...b,
+          incomes: tx.type === 'income' ? b.incomes - tx.amount : b.incomes,
+          expenses: tx.type === 'expense' ? b.expenses - tx.amount : b.expenses,
+          expectedCash: b.type === 'cash' ? (b.expectedCash || 0) - (tx.type === 'income' ? tx.amount : -tx.amount) : b.expectedCash
+        };
+      }
+      return b;
+    }));
+  };
+
   return (
     <FinanceContext.Provider value={{ 
       boxes, 
       transactions, 
       suppliers,
       addTransaction, 
+      voidTransaction,
       addBox, 
       transferFunds,
       addSupplierTransaction,

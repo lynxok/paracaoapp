@@ -7,6 +7,7 @@ import { useClients } from "../context/ClientContext";
 import { useSettings } from "../context/SettingsContext";
 import { useInventory } from "../context/InventoryContext";
 import { useLabs } from "../context/LabContext";
+import { useCart } from "../context/CartContext";
 
 export function NewOrder() {
   const { boxes, addTransaction } = useFinance();
@@ -17,8 +18,9 @@ export function NewOrder() {
   const navigate = useNavigate();
   const { type } = useParams<{ type: string }>();
   const isMultifocal = type === 'multifocal';
+  const isOccupational = type === 'ocupacional';
   const isContact = type === 'contact';
-  const title = isContact ? "Lentes de Contacto" : isMultifocal ? "Multifocales / Bifocales" : "Monofocales";
+  const title = isContact ? "Lentes de Contacto" : isMultifocal ? "Multifocales / Bifocales" : isOccupational ? "Ocupacionales" : "Monofocales";
   const printRef = useRef<HTMLDivElement>(null);
 
   // Client state
@@ -67,6 +69,61 @@ export function NewOrder() {
   const [alturaOD, setAlturaOD] = useState("");
   const [alturaOI, setAlturaOI] = useState("");
   const [medico, setMedico] = useState("");
+  
+  // Doctor Database State & Handlers
+  const [doctors, setDoctors] = useState<any[]>(() => {
+    const saved = localStorage.getItem('optica_doctors');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return [
+      { id: '1', name: "Dr. Guillermo Altamirano", matricula: "12345" },
+      { id: '2', name: "Dra. Carolina Martínez", matricula: "67890" },
+      { id: '3', name: "Dr. Roberto Gómez", matricula: "54321" }
+    ];
+  });
+
+  const [matricula, setMatricula] = useState("");
+  const [selectedDoctor, setSelectedDoctor] = useState<any | null>(null);
+  const [showSaveDoctorBtn, setShowSaveDoctorBtn] = useState(false);
+
+  const handleMatriculaSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setMatricula(val);
+    
+    if (val.trim() === "") {
+      setSelectedDoctor(null);
+      setMedico("");
+      setShowSaveDoctorBtn(false);
+      return;
+    }
+
+    const found = doctors.find(doc => doc.matricula.trim().toLowerCase() === val.trim().toLowerCase());
+    if (found) {
+      setSelectedDoctor(found);
+      setMedico(found.name);
+      setShowSaveDoctorBtn(false);
+    } else {
+      setSelectedDoctor(null);
+      setShowSaveDoctorBtn(true);
+    }
+  };
+
+  const handleSaveDoctor = () => {
+    if (!medico || !matricula) return;
+    const newDoc = {
+      id: `doc-${Date.now()}`,
+      name: medico,
+      matricula: matricula
+    };
+    const updated = [...doctors, newDoc];
+    setDoctors(updated);
+    localStorage.setItem('optica_doctors', JSON.stringify(updated));
+    setSelectedDoctor(newDoc);
+    setShowSaveDoctorBtn(false);
+    alert(`Médico ${medico} registrado con éxito en la base de datos.`);
+  };
+
   const [observaciones, setObservaciones] = useState("");
   const [lensColor, setLensColor] = useState(lensColors[0] || '');
 
@@ -91,11 +148,11 @@ export function NewOrder() {
   if (clientInsurance && clientInsurance.coverages) {
     if (selectedCrystal) {
        const rule = clientInsurance.coverages.find((c: any) => c.categoryId === selectedCrystal.cat);
-       if (rule) crystalCoverage = crystalPrice * (rule.percentage / 100);
+       if (rule) crystalCoverage = Math.min(crystalPrice, rule.amount || 0);
     }
     if (selectedFrame) {
        const rule = clientInsurance.coverages.find((c: any) => c.categoryId === selectedFrame.cat);
-       if (rule) frameCoverage = framePrice * (rule.percentage / 100);
+       if (rule) frameCoverage = Math.min(framePrice, rule.amount || 0);
     }
   }
 
@@ -145,52 +202,48 @@ export function NewOrder() {
     }
   };
 
+  const [diOD, setDiOD] = useState("");
+  const [diOI, setDiOI] = useState("");
+  const [apOD, setApOD] = useState("");
+  const [apOI, setApOI] = useState("");
+
   const handleConfirm = () => {
-    let targetBoxId = 'caja-efectivo';
-    if (paymentMethod === 'tarjeta') targetBoxId = 'tc-holding';
-    if (paymentMethod === 'mercado-pago') targetBoxId = 'mercado-pago';
-    if (paymentMethod === 'transferencia' && selectedBankId) targetBoxId = selectedBankId;
-
-    addTransaction({
-      id: `tx-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      concept: `Pedido ${title}: ${selectedClient?.name || 'Cliente Mostrador'}`,
-      amount: orderTotal || 4500,
-      type: 'income',
-      category: 'ventas',
-      boxId: targetBoxId,
-      method: paymentMethod === 'contado' ? 'Efectivo' : 
-              paymentMethod === 'tarjeta' ? 'Tarjeta Crédito' :
-              paymentMethod === 'mercado-pago' ? 'Mercado Pago' : 'Transferencia',
-      clientName: selectedClient?.name || 'Cliente Mostrador'
+    addToCart({
+      id: `prescription-${Date.now()}`,
+      type: 'prescription',
+      name: `${title}: ${selectedClient?.name || 'Cliente Mostrador'}`,
+      price: orderTotal || 4500,
+      quantity: 1,
+      details: {
+        client: selectedClient,
+        prescriptionType: type || 'monofocal',
+        lejosOD,
+        lejosOI,
+        cercaOD,
+        cercaOI,
+        adicionOD,
+        adicionOI,
+        alturaOD,
+        alturaOI,
+        diOD,
+        diOI,
+        apOD,
+        apOI,
+        medico,
+        observaciones,
+        lensColor,
+        selectedCrystal,
+        selectedFrame,
+        assignedLab,
+        deliveryDate,
+        crystalCoverage,
+        frameCoverage,
+        subtotal,
+        totalCoverage
+      }
     });
 
-    addOrder({
-      clientId: selectedClient?.id || '0',
-      clientName: selectedClient?.name || 'Cliente Mostrador',
-      date: new Date().toISOString().split('T')[0],
-      type: type || 'monofocal',
-      service: title,
-      status: 'En Taller',
-      amount: orderTotal || 4500,
-      paid: orderTotal || 4500,
-    });
-
-    if (selectedFrame) deductStock(selectedFrame.sku, 1, 1);
-    if (selectedCrystal) deductStock(selectedCrystal.sku, 1, 1);
-
-    if (assignedLab) {
-      addJob({
-        labId: assignedLab.id,
-        date: new Date().toISOString().split('T')[0],
-        orderId: orderNumber,
-        concept: `${title} - ${selectedClient?.name || 'Cliente'}`,
-        cost: 0,
-        status: 'Pendiente',
-      });
-    }
-
+    alert("Recetado agregado al carrito de venta");
     navigate('/orders');
   };
 
@@ -643,10 +696,10 @@ export function NewOrder() {
                   ))}
                 </div>
 
-                {/* Adicion Multifocal */}
-                {isMultifocal && (
+                {/* Adición Multifocal / Ocupacional */}
+                {(isMultifocal || isOccupational) && (
                   <div style={{ marginBottom: '14px' }}>
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#444', borderBottom: '1.5px solid #000', paddingBottom: '3px', marginBottom: '8px' }}>Multifocal</div>
+                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#444', borderBottom: '1.5px solid #000', paddingBottom: '3px', marginBottom: '8px' }}>{isOccupational ? "Ocupacional" : "Multifocal"}</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr', gap: '6px', marginBottom: '4px' }}>
                       <div></div>
                       <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Adición</div>
@@ -718,7 +771,7 @@ export function NewOrder() {
           <span className="font-bold">Volver a Selección</span>
         </Link>
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-xl border ${isContact ? 'bg-emerald-100 border-emerald-200 text-emerald-600' : isMultifocal ? 'bg-indigo-100 border-indigo-200 text-indigo-600' : 'bg-blue-100 border-blue-200 text-blue-600'}`}>
+          <div className={`p-2 rounded-xl border ${isContact ? 'bg-emerald-100 border-emerald-200 text-emerald-600' : isMultifocal ? 'bg-indigo-100 border-indigo-200 text-indigo-600' : isOccupational ? 'bg-violet-100 border-violet-200 text-violet-600' : 'bg-blue-100 border-blue-200 text-blue-600'}`}>
             <Eye className="w-5 h-5" />
           </div>
           <h2 className="text-2xl font-black text-slate-900 dark:text-white">{title}</h2>
@@ -744,6 +797,16 @@ export function NewOrder() {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
             <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">DNI / Identificación</label>
+              <input 
+                className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none disabled:bg-slate-50 dark:disabled:bg-slate-800/50 disabled:text-slate-500 transition-all font-mono text-sm" 
+                placeholder="Ingresar DNI para buscar..." 
+                value={selectedClient ? selectedClient.dni : tempDni}
+                onChange={handleDniSearch}
+                readOnly={!!selectedClient}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Cliente</label>
               <div className="relative">
                 <input 
@@ -764,16 +827,6 @@ export function NewOrder() {
                 )}
               </div>
             </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">DNI / Identificación</label>
-              <input 
-                className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none disabled:bg-slate-50 dark:disabled:bg-slate-800/50 disabled:text-slate-500 transition-all font-mono text-sm" 
-                placeholder="Ingresar DNI para buscar..." 
-                value={selectedClient ? selectedClient.dni : tempDni}
-                onChange={handleDniSearch}
-                readOnly={!!selectedClient}
-              />
-            </div>
             {selectedClient && (
               <div className="flex flex-col gap-1.5 md:col-span-2">
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Obra Social / Cobertura</label>
@@ -789,9 +842,43 @@ export function NewOrder() {
                 </div>
               </div>
             )}
-            <div className="flex flex-col gap-1.5 md:col-span-2">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Matrícula</label>
+              <div className="relative">
+                <input 
+                  type="text"
+                  value={matricula} 
+                  onChange={handleMatriculaSearch} 
+                  className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none font-mono text-sm" 
+                  placeholder="Ej: 12345" 
+                />
+                {selectedDoctor && (
+                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-emerald-600 dark:text-emerald-400 text-xs font-bold flex items-center gap-1 bg-white dark:bg-slate-950 px-1">
+                    <Check className="w-3.5 h-3.5" /> Registrado
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Médico Recetador</label>
-              <input value={medico} onChange={e => setMedico(e.target.value)} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none" placeholder="Dr. / Dra." />
+              <div className="relative">
+                <input 
+                  value={medico} 
+                  onChange={e => setMedico(e.target.value)} 
+                  readOnly={!!selectedDoctor}
+                  className="h-10 pl-3 pr-28 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none disabled:bg-slate-50 dark:disabled:bg-slate-800/50" 
+                  placeholder="Ej: Dr. Guillermo Altamirano" 
+                />
+                {showSaveDoctorBtn && medico && matricula && (
+                  <button
+                    type="button"
+                    onClick={handleSaveDoctor}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 h-7 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold transition-all flex items-center gap-1 active:scale-95 shadow-sm"
+                  >
+                    💾 Registrar
+                  </button>
+                )}
+              </div>
             </div>
             <div className="md:col-span-2 flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Observaciones</label>
@@ -823,27 +910,47 @@ export function NewOrder() {
                   </div>
 
                   <div className="space-y-3">
-                    {['OD', 'OI'].map(eye => (
-                      <div key={`lejos-${eye}`} className="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <div className="sm:w-1/4 text-center font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
-                          {eye === 'OD' ? 'Ojo Derecho' : 'Ojo Izquierdo'}
+                    {['OD', 'OI'].map(eye => {
+                      const isOD = eye === 'OD';
+                      const stateVal = isOD ? lejosOD : lejosOI;
+                      const setVal = isOD ? setLejosOD : setLejosOI;
+                      return (
+                        <div key={`lejos-${eye}`} className="flex flex-col sm:flex-row sm:items-center gap-3">
+                          <div className="sm:w-1/4 text-center font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+                            {eye === 'OD' ? 'Ojo Derecho' : 'Ojo Izquierdo'}
+                          </div>
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="relative">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Esférico</label>
+                              <input 
+                                value={stateVal.esf}
+                                onChange={e => setVal({ ...stateVal, esf: e.target.value })}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                placeholder="0.00" 
+                              />
+                            </div>
+                            <div className="relative">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Cilíndrico</label>
+                              <input 
+                                value={stateVal.cil}
+                                onChange={e => setVal({ ...stateVal, cil: e.target.value })}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                placeholder="0.00" 
+                              />
+                            </div>
+                            <div className="relative">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Eje</label>
+                              <input 
+                                value={stateVal.eje}
+                                onChange={e => setVal({ ...stateVal, eje: e.target.value })}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                placeholder="0°" 
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div className="relative">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Esférico</label>
-                            <input className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" placeholder="0.00" />
-                          </div>
-                          <div className="relative">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Cilíndrico</label>
-                            <input className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" placeholder="0.00" />
-                          </div>
-                          <div className="relative">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Eje</label>
-                            <input className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" placeholder="0°" />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -862,61 +969,172 @@ export function NewOrder() {
                   </div>
 
                   <div className="space-y-3">
-                    {['OD', 'OI'].map(eye => (
-                      <div key={`cerca-${eye}`} className="flex flex-col sm:flex-row sm:items-center gap-3">
-                        <div className="sm:w-1/4 text-center font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
-                          {eye === 'OD' ? 'Ojo Derecho' : 'Ojo Izquierdo'}
+                    {['OD', 'OI'].map(eye => {
+                      const isOD = eye === 'OD';
+                      const stateVal = isOD ? cercaOD : cercaOI;
+                      const setVal = isOD ? setCercaOD : setCercaOI;
+                      return (
+                        <div key={`cerca-${eye}`} className="flex flex-col sm:flex-row sm:items-center gap-3">
+                          <div className="sm:w-1/4 text-center font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+                            {eye === 'OD' ? 'Ojo Derecho' : 'Ojo Izquierdo'}
+                          </div>
+                          <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="relative">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Esférico</label>
+                              <input 
+                                value={stateVal.esf}
+                                onChange={e => setVal({ ...stateVal, esf: e.target.value })}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                placeholder="0.00" 
+                              />
+                            </div>
+                            <div className="relative">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Cilíndrico</label>
+                              <input 
+                                value={stateVal.cil}
+                                onChange={e => setVal({ ...stateVal, cil: e.target.value })}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                placeholder="0.00" 
+                              />
+                            </div>
+                            <div className="relative">
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Eje</label>
+                              <input 
+                                value={stateVal.eje}
+                                onChange={e => setVal({ ...stateVal, eje: e.target.value })}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                placeholder="0°" 
+                              />
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                          <div className="relative">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Esférico</label>
-                            <input className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" placeholder="0.00" />
-                          </div>
-                          <div className="relative">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Cilíndrico</label>
-                            <input className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" placeholder="0.00" />
-                          </div>
-                          <div className="relative">
-                            <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Eje</label>
-                            <input className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" placeholder="0°" />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
 
-                {isMultifocal && (
-                  <div className="p-5 rounded-xl bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-100 dark:border-indigo-800/30 shadow-sm">
-                    <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                      <Plus className="w-5 h-5 text-indigo-500" /> Especificaciones Multifocales
-                    </h4>
-                    
-                    {/* Desktop Headers */}
-                    <div className="hidden sm:grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3 px-2">
-                      <div className="col-span-1"></div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Adición</div>
-                      <div className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Altura Seg.</div>
-                    </div>
+                {/* Medidas Pupilares (DI y Altura Pupilar) */}
+                <div className="p-5 rounded-xl bg-blue-50/40 dark:bg-blue-950/10 border border-blue-100 dark:border-blue-900/30 shadow-sm">
+                  <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                    <Eye className="w-5 h-5 text-blue-500" /> Medidas Pupilares (DI & Altura Pupilar)
+                  </h4>
+                  
+                  {/* Desktop Headers */}
+                  <div className="hidden sm:grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3 px-2">
+                    <div className="col-span-1"></div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Distancia Interpupilar (DI)</div>
+                    <div className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Altura Pupilar</div>
+                  </div>
 
-                    <div className="space-y-3">
-                      {['OD', 'OI'].map(eye => (
-                        <div key={`multi-${eye}`} className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <div className="space-y-3">
+                    {['OD', 'OI'].map(eye => {
+                      const isOD = eye === 'OD';
+                      return (
+                        <div key={`pupil-${eye}`} className="flex flex-col sm:flex-row sm:items-center gap-3">
                           <div className="sm:w-1/3 text-center font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
                             {eye === 'OD' ? 'Ojo Derecho' : 'Ojo Izquierdo'}
                           </div>
                           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="relative">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Adición</label>
-                              <input className="h-11 px-3 w-full rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-indigo-600 outline-none" placeholder="+0.00" />
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Distancia Interpupilar (DI)</label>
+                              <input 
+                                value={isOD ? diOD : diOI}
+                                onChange={e => isOD ? setDiOD(e.target.value) : setDiOI(e.target.value)}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                placeholder="31 mm" 
+                              />
                             </div>
                             <div className="relative">
-                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Altura Seg.</label>
-                              <input className="h-11 px-3 w-full rounded-lg border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-indigo-600 outline-none" placeholder="0 mm" />
+                              <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Altura Pupilar</label>
+                              <input 
+                                value={isOD ? apOD : apOI}
+                                onChange={e => isOD ? setApOD(e.target.value) : setApOI(e.target.value)}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                placeholder="18 mm" 
+                              />
                             </div>
                           </div>
                         </div>
-                      ))}
+                      );
+                    })}
+
+                    {/* Calculated Interpupillary Distance (DI) Total placed directly under DI inputs */}
+                    {((parseFloat(diOD) || 0) + (parseFloat(diOI) || 0)) > 0 && (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 mt-2 animate-in fade-in">
+                        <div className="sm:w-1/3"></div>
+                        <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="text-left">
+                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 text-center sm:text-left">Distancia Interpupilar Total (D.I.)</p>
+                            <div className="h-11 flex items-center justify-center rounded-lg bg-blue-50/50 dark:bg-blue-950/40 border border-blue-100 dark:border-blue-900/30 text-center font-black text-blue-600 dark:text-blue-400 text-sm">
+                              {((parseFloat(diOD) || 0) + (parseFloat(diOI) || 0))} mm
+                            </div>
+                          </div>
+                          <div className="relative"></div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {(isMultifocal || isOccupational) && (
+                  <div className={cn(
+                    "p-5 rounded-xl border shadow-sm",
+                    isOccupational 
+                      ? "bg-violet-50/50 dark:bg-violet-950/20 border-violet-100 dark:border-violet-800/30"
+                      : "bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-100 dark:border-indigo-800/30"
+                  )}>
+                    <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                      <Plus className={cn("w-5 h-5", isOccupational ? "text-violet-500" : "text-indigo-500")} /> {isOccupational ? "Especificaciones Ocupacionales" : "Especificaciones Multifocales"}
+                    </h4>
+                    
+                    {/* Desktop Headers */}
+                    <div className="hidden sm:grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3 px-2">
+                      <div className="col-span-1"></div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">{isOccupational ? "Degresión" : "Adición"}</div>
+                      <div className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Altura Seg.</div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {['OD', 'OI'].map(eye => {
+                        const isOD = eye === 'OD';
+                        return (
+                          <div key={`multi-${eye}`} className="flex flex-col sm:flex-row sm:items-center gap-3">
+                            <div className="sm:w-1/3 text-center font-bold text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 py-2 px-3 rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
+                              {eye === 'OD' ? 'Ojo Derecho' : 'Ojo Izquierdo'}
+                            </div>
+                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div className="relative">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">{isOccupational ? "Degresión" : "Adición"}</label>
+                                <input 
+                                  value={isOD ? adicionOD : adicionOI}
+                                  onChange={e => isOD ? setAdicionOD(e.target.value) : setAdicionOI(e.target.value)}
+                                  className={cn(
+                                    "h-11 px-3 w-full rounded-lg bg-white dark:bg-slate-950 text-center font-medium outline-none border transition-all focus:ring-2",
+                                    isOccupational 
+                                      ? "border-violet-200 dark:border-violet-800 focus:ring-violet-600" 
+                                      : "border-indigo-200 dark:border-indigo-800 focus:ring-indigo-600"
+                                  )}
+                                  placeholder="+0.00" 
+                                />
+                              </div>
+                              <div className="relative">
+                                <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Altura Seg.</label>
+                                <input 
+                                  value={isOD ? alturaOD : alturaOI}
+                                  onChange={e => isOD ? setAlturaOD(e.target.value) : setAlturaOI(e.target.value)}
+                                  className={cn(
+                                    "h-11 px-3 w-full rounded-lg bg-white dark:bg-slate-950 text-center font-medium outline-none border transition-all focus:ring-2",
+                                    isOccupational 
+                                      ? "border-violet-200 dark:border-violet-800 focus:ring-violet-600" 
+                                      : "border-indigo-200 dark:border-indigo-800 focus:ring-indigo-600"
+                                  )}
+                                  placeholder="0 mm" 
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -928,7 +1146,20 @@ export function NewOrder() {
                     <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                       <Eye className="w-5 h-5 text-emerald-500" /> Ojo {eye === 'OD' ? 'Derecho' : 'Izquierdo'}
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="relative">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Esférico (ESF)</label>
+                        <input 
+                          value={eye === 'OD' ? lejosOD.esf : lejosOI.esf}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (eye === 'OD') setLejosOD({ ...lejosOD, esf: val });
+                            else setLejosOI({ ...lejosOI, esf: val });
+                          }}
+                          className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-emerald-600 outline-none" 
+                          placeholder="0.00" 
+                        />
+                      </div>
                       <div className="relative">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Curvatura (BC)</label>
                         <input className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-emerald-600 outline-none" placeholder="8.6" />
@@ -1184,7 +1415,7 @@ export function NewOrder() {
             onClick={handleConfirm}
             className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 text-white font-black h-14 hover:bg-blue-700 shadow-xl shadow-blue-500/20 transition-all active:scale-95"
           >
-            <Check className="w-6 h-6" /> Confirmar Operación
+            <Check className="w-6 h-6" /> Agregar al Carrito de Venta
           </button>
         </div>
       </div>

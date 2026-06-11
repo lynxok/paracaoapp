@@ -1,17 +1,28 @@
 import React, { useState, useEffect } from "react";
-import { Link, useLocation } from "react-router-dom";
-import { Search, Plus, X, Edit2, History, UserPlus, Eye, ShoppingCart, Trash2, Receipt, Package, ArrowRight } from "lucide-react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Search, Plus, X, Edit2, History, UserPlus, Eye, ShoppingCart, Trash2, Receipt, Package, ArrowRight, Printer, CheckCircle } from "lucide-react";
 import { useClients } from "../context/ClientContext";
 import { useSettings } from "../context/SettingsContext";
+import { useFinance } from "../context/FinanceContext";
 import { cn } from "../lib/utils";
 import { Client } from "../types";
 
 export function Clients() {
+  const navigate = useNavigate();
   const { clients, addClient, updateClient, deleteClient, getClientOrders, getClientTransactions } = useClients();
   const { insurances } = useSettings();
+  const { boxes, addTransaction, voidTransaction, transactions } = useFinance();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCCModalOpen, setIsCCModalOpen] = useState(false);
   const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false);
+  const [receiptForm, setReceiptForm] = useState({
+    amount: "",
+    concept: "Cancelación de Saldo de Cuenta Corriente",
+    method: "Efectivo"
+  });
+  const [selectedBoxId, setSelectedBoxId] = useState("caja-efectivo");
+  const [generatedReceipt, setGeneratedReceipt] = useState<any | null>(null);
   const [birthDate, setBirthDate] = useState('');
   const [age, setAge] = useState('');
   const [dni, setDni] = useState('');
@@ -22,6 +33,87 @@ export function Clients() {
   const [formData, setFormData] = useState<Partial<Client>>({});
 
   const userRole = "superadmin"; // Simulated role
+
+  const handlePrintReceipt = (receipt: any) => {
+    const win = window.open('', '_blank', 'width=450,height=600');
+    if (!win) return;
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Recibo de Pago - ${receipt.receiptNumber}</title>
+        <style>
+          @page { size: auto; margin: 10mm; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; background: #fff; padding: 20px; }
+          .receipt { border: 2px dashed #000; padding: 20px; max-width: 380px; margin: 0 auto; }
+          .text-center { text-align: center; }
+          .title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+          .subtitle { font-size: 10px; color: #555; margin-bottom: 2px; }
+          .divider { border-bottom: 1px solid #000; margin: 10px 0; }
+          .double-divider { border-bottom: 2px dashed #000; margin: 15px 0; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+          .bold { font-weight: bold; }
+          .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 10px; }
+          .no-print { text-align: center; margin-top: 20px; }
+          .btn { padding: 8px 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 4px; margin: 0 4px; }
+          .btn-primary { background: #000; color: #fff; }
+          .btn-secondary { background: #eee; color: #333; }
+          @media print {
+            .no-print { display: none !important; }
+            body { padding: 0; }
+            .receipt { border: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="text-center">
+            <h2 class="title">ÓPTICA PARACAO</h2>
+            <p class="subtitle">Paraná, Entre Ríos, Argentina</p>
+            <p class="subtitle">Tel: (343) 420-XXXX</p>
+            <div class="divider"></div>
+            <p class="bold" style="font-size: 11px;">RECIBO DE PAGO</p>
+            <p style="font-size: 10px;">${receipt.receiptNumber}</p>
+          </div>
+
+          <div style="margin-top: 15px; font-size: 11px;">
+            <div class="row">
+              <span>Fecha: ${receipt.date}</span>
+              <span>Hora: ${receipt.time}</span>
+            </div>
+            <div class="divider"></div>
+            <div style="margin-bottom: 4px;"><span class="bold">Cliente:</span> ${receipt.clientName}</div>
+            <div style="margin-bottom: 4px;"><span class="bold">DNI:</span> ${receipt.clientDni}</div>
+            <div class="divider"></div>
+            <div style="margin-bottom: 4px;"><span class="bold">Concepto:</span> ${receipt.concept}</div>
+            <div style="margin-bottom: 4px;"><span class="bold">Medio:</span> ${receipt.method}</div>
+            <div style="margin-bottom: 4px;"><span class="bold">Caja:</span> ${receipt.boxName}</div>
+          </div>
+
+          <div class="double-divider"></div>
+
+          <div class="total-row">
+            <span>TOTAL RECIBIDO</span>
+            <span>$${receipt.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          <div class="text-center" style="margin-top: 30px; font-size: 9px; color: #666; text-transform: uppercase;">
+            Gracias por su confianza
+          </div>
+        </div>
+
+        <div class="no-print">
+          <button class="btn btn-primary" onclick="window.print()">Imprimir</button>
+          <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+  };
 
   const handleContextMenu = (e: React.MouseEvent, item: any) => {
     e.preventDefault();
@@ -468,19 +560,120 @@ export function Clients() {
                </div>
 
                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
-                  <div className="text-center py-12 text-slate-400">
-                    <History className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                    <p className="font-bold">No hay movimientos registrados recientemente</p>
-                    <p className="text-xs">Los pagos y facturas aparecerán aquí</p>
-                  </div>
-               </div>
-            </div>
+                  {(() => {
+                    const clientTx = transactions.filter(t => t.clientId === contextItem.id);
+                    if (clientTx.length === 0) {
+                      return (
+                        <div className="text-center py-12 text-slate-400">
+                          <History className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                          <p className="font-bold">No hay movimientos registrados recientemente</p>
+                          <p className="text-xs">Los pagos y facturas aparecerán aquí</p>
+                        </div>
+                      );
+                    }
+                    return clientTx.map(tx => (
+                      <div key={tx.id} className="p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 flex justify-between items-center hover:bg-slate-50 dark:hover:bg-slate-850/40 transition-all">
+                        <div className="flex items-center gap-3">
+                          <div className={cn(
+                            "p-2 rounded-lg text-white",
+                            tx.type === 'income' ? "bg-emerald-500" : "bg-rose-500"
+                          )}>
+                            <Receipt className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-900 dark:text-white">{tx.concept}</p>
+                            <p className="text-[10px] text-slate-400 font-medium">
+                              {tx.date} · {tx.time} · {tx.method} ({boxes.find(b => b.id === tx.boxId)?.name || 'Caja'})
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            "font-bold text-sm",
+                            tx.type === 'income' ? "text-emerald-600" : "text-rose-600"
+                          )}>
+                            {tx.type === 'income' ? '+' : '-'}${tx.amount.toLocaleString()}
+                          </span>
+                          {tx.category === 'Cobro Cliente' && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  const receiptToPrint = {
+                                    receiptNumber: tx.id.replace('tx-', 'REC-'),
+                                    clientName: contextItem.name,
+                                    clientDni: contextItem.dni,
+                                    amount: tx.amount,
+                                    concept: tx.concept.replace('Cobro Cuenta Corriente: ', ''),
+                                    method: tx.method,
+                                    boxName: boxes.find(b => b.id === tx.boxId)?.name || 'Caja General',
+                                    date: tx.date,
+                                    time: tx.time
+                                  };
+                                  handlePrintReceipt(receiptToPrint);
+                                }}
+                                className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg text-indigo-600 dark:text-indigo-400 transition-colors"
+                                title="Reimprimir Recibo"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (confirm(`¿Estás seguro de que deseas anular el recibo ${tx.id.replace('tx-', 'REC-')} por $${tx.amount.toLocaleString()}? Se restará este monto del saldo del cliente.`)) {
+                                    voidTransaction(tx.id);
+                                    const updatedClient = {
+                                      ...contextItem,
+                                      balance: contextItem.balance - tx.amount
+                                    };
+                                    updateClient(updatedClient);
+                                    setContextItem(updatedClient);
+                                    alert("El recibo ha sido anulado y el saldo del cliente actualizado.");
+                                  }
+                                }}
+                                className="p-1.5 hover:bg-red-50 dark:hover:bg-red-950/20 rounded-lg text-rose-600 transition-colors"
+                                title="Anular Recibo"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    ));
+                  })()}
+                </div>
+             </div>
 
-            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
-               <button className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 py-3 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm">
+             <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-3">
+               <button 
+                  onClick={() => {
+                    setIsCCModalOpen(false);
+                    setReceiptForm({
+                      amount: contextItem.balance < 0 ? Math.abs(contextItem.balance).toString() : "",
+                      concept: "Cancelación de Saldo de Cuenta Corriente",
+                      method: "Efectivo"
+                    });
+                    setSelectedBoxId(boxes[0]?.id || "caja-efectivo");
+                    setGeneratedReceipt(null);
+                    setIsReceiptModalOpen(true);
+                  }}
+                  className="flex-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 py-3 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm"
+                >
                   Cargar Pago
                </button>
-               <button className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20">
+               <button 
+                  onClick={() => {
+                    setIsCCModalOpen(false);
+                    setReceiptForm({
+                      amount: contextItem.balance < 0 ? Math.abs(contextItem.balance).toString() : "",
+                      concept: "Cancelación de Saldo de Cuenta Corriente",
+                      method: "Efectivo"
+                    });
+                    setSelectedBoxId(boxes[0]?.id || "caja-efectivo");
+                    setGeneratedReceipt(null);
+                    setIsReceiptModalOpen(true);
+                  }}
+                  className="flex-1 bg-indigo-600 text-white py-3 rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20"
+                >
                   Emitir Recibo
                </button>
             </div>
@@ -515,7 +708,7 @@ export function Clients() {
                          <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
                                <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
-                                  {order.type === 'monofocal' || order.type === 'multifocal' ? <Eye className="w-4 h-4" /> : <Package className="w-4 h-4" />}
+                                  {order.type === 'monofocal' || order.type === 'multifocal' || order.type === 'ocupacional' ? <Eye className="w-4 h-4" /> : <Package className="w-4 h-4" />}
                                </div>
                                <div>
                                   <p className="text-xs font-black text-indigo-600 uppercase tracking-widest">{order.id} · {order.date}</p>
@@ -548,9 +741,15 @@ export function Clients() {
                  <div className="text-center py-16 text-slate-400">
                     <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
                     <p className="font-bold">No hay pedidos registrados</p>
-                    <button className="mt-4 px-6 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all">
-                      Iniciar un Pedido
-                    </button>
+                    <button 
+                       onClick={() => {
+                         setIsOrdersModalOpen(false);
+                         navigate('/orders/new/monofocal', { state: { clientId: contextItem.id, clientName: contextItem.name } });
+                       }}
+                       className="mt-4 px-6 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all"
+                     >
+                       Iniciar un Pedido
+                     </button>
                  </div>
                )}
             </div>
@@ -559,6 +758,262 @@ export function Clients() {
                <button onClick={() => setIsOrdersModalOpen(false)} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 py-3 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
                   Cerrar
                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Receipt Emission Modal */}
+      {isReceiptModalOpen && contextItem && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-xl rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+            <style>{`
+              @media print {
+                body > * {
+                  display: none !important;
+                }
+                #printable-receipt-modal {
+                  display: block !important;
+                  position: absolute;
+                  left: 0;
+                  top: 0;
+                  width: 100%;
+                  height: auto;
+                  background: white;
+                  color: black;
+                  z-index: 99999;
+                }
+                .no-print {
+                  display: none !important;
+                }
+              }
+            `}</style>
+            
+            <div id="printable-receipt-modal">
+              {/* Header */}
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-indigo-50/40 dark:bg-indigo-900/10 no-print">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl text-indigo-600">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                    {generatedReceipt ? "Recibo Emitido Exitosamente" : "Emitir Recibo de Pago"}
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => { setIsReceiptModalOpen(false); setContextItem(null); }} 
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-400"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {!generatedReceipt ? (
+                /* Form view */
+                <form 
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const now = new Date();
+                    const dateStr = now.toISOString().split('T')[0];
+                    const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+                    const amountVal = parseFloat(receiptForm.amount);
+
+                    if (isNaN(amountVal) || amountVal <= 0) return;
+
+                    // Add income transaction
+                    addTransaction({
+                      id: `tx-${Date.now()}`,
+                      date: dateStr,
+                      time: timeStr,
+                      concept: `Cobro Cuenta Corriente: ${receiptForm.concept}`,
+                      method: receiptForm.method,
+                      amount: amountVal,
+                      type: 'income',
+                      category: 'Cobro Cliente',
+                      boxId: selectedBoxId,
+                      clientId: contextItem.id,
+                      clientName: contextItem.name
+                    });
+
+                    // Update client balance
+                    updateClient({
+                      ...contextItem,
+                      balance: contextItem.balance + amountVal
+                    });
+
+                    // Set receipt details for preview
+                    setGeneratedReceipt({
+                      receiptNumber: `REC-${String(Math.floor(100000 + Math.random() * 900000))}`,
+                      clientName: contextItem.name,
+                      clientDni: contextItem.dni,
+                      amount: amountVal,
+                      concept: receiptForm.concept,
+                      method: receiptForm.method,
+                      boxName: boxes.find(b => b.id === selectedBoxId)?.name || 'Caja General',
+                      date: now.toLocaleDateString('es-AR'),
+                      time: now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+                    });
+                  }}
+                  className="p-6 space-y-4 no-print"
+                >
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase">Cliente</label>
+                      <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{contextItem.name}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-400 uppercase">DNI</label>
+                      <p className="font-bold text-slate-800 dark:text-slate-200 mt-0.5">{contextItem.dni}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Monto a Recibir ($)</label>
+                    <input 
+                      type="number" 
+                      required
+                      min="1"
+                      step="any"
+                      value={receiptForm.amount}
+                      onChange={(e) => setReceiptForm({ ...receiptForm, amount: e.target.value })}
+                      className="h-11 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-mono text-lg font-bold" 
+                      placeholder="0.00" 
+                    />
+                    {contextItem.balance < 0 && (
+                      <p className="text-[11px] text-slate-400">
+                        Saldo pendiente: <span className="font-bold text-rose-500">${Math.abs(contextItem.balance).toLocaleString()}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Concepto</label>
+                    <input 
+                      type="text" 
+                      required
+                      value={receiptForm.concept}
+                      onChange={(e) => setReceiptForm({ ...receiptForm, concept: e.target.value })}
+                      className="h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" 
+                      placeholder="Cancelación de Saldo" 
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Medio de Pago</label>
+                      <select 
+                        value={receiptForm.method}
+                        onChange={(e) => setReceiptForm({ ...receiptForm, method: e.target.value })}
+                        className="h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
+                      >
+                        <option value="Efectivo">Efectivo</option>
+                        <option value="Transferencia">Transferencia Bancaria</option>
+                        <option value="Tarjeta de Débito">Tarjeta de Débito</option>
+                        <option value="Tarjeta de Crédito">Tarjeta de Crédito</option>
+                        <option value="Mercado Pago">Mercado Pago</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Caja de Destino</label>
+                      <select 
+                        value={selectedBoxId}
+                        onChange={(e) => setSelectedBoxId(e.target.value)}
+                        className="h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
+                      >
+                        {boxes.map(box => (
+                          <option key={box.id} value={box.id}>{box.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="pt-4 flex justify-end gap-3 border-t border-slate-100 dark:border-slate-800">
+                    <button 
+                      type="button"
+                      onClick={() => { setIsReceiptModalOpen(false); setContextItem(null); }}
+                      className="px-5 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm"
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      type="submit"
+                      className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md text-sm"
+                    >
+                      Confirmar y Generar Recibo
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* Receipt Preview / Printable view */
+                <div className="p-6 space-y-6">
+                  <div className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 p-4 rounded-xl flex items-center gap-3 text-sm no-print">
+                    <CheckCircle className="w-5 h-5 shrink-0" />
+                    <span>El pago ha sido registrado y el balance de la cuenta corriente ha sido actualizado.</span>
+                  </div>
+
+                  {/* Printable Area */}
+                  <div className="bg-white text-black p-6 rounded-xl border-2 border-dashed border-slate-200 dark:border-slate-700 font-mono text-sm space-y-6 max-w-md mx-auto shadow-inner">
+                    <div className="text-center space-y-1">
+                      <h2 className="text-lg font-black tracking-wider">ÓPTICA PARACAO</h2>
+                      <p className="text-xs text-slate-500">Paraná, Entre Ríos, Argentina</p>
+                      <p className="text-xs text-slate-500">Tel: (343) 420-XXXX</p>
+                      <div className="border-b border-slate-200 my-2"></div>
+                      <p className="font-bold text-xs uppercase">Recibo de Pago X</p>
+                      <p className="text-xs">{generatedReceipt.receiptNumber}</p>
+                    </div>
+
+                    <div className="space-y-2 text-xs">
+                      <div className="flex justify-between">
+                        <span>Fecha: {generatedReceipt.date}</span>
+                        <span>Hora: {generatedReceipt.time}</span>
+                      </div>
+                      <div className="border-b border-slate-100"></div>
+                      <div>
+                        <span className="font-bold">Cliente:</span> {generatedReceipt.clientName}
+                      </div>
+                      <div>
+                        <span className="font-bold">DNI:</span> {generatedReceipt.clientDni}
+                      </div>
+                      <div className="border-b border-slate-100"></div>
+                      <div>
+                        <span className="font-bold">Concepto:</span> {generatedReceipt.concept}
+                      </div>
+                      <div>
+                        <span className="font-bold">Método:</span> {generatedReceipt.method}
+                      </div>
+                      <div>
+                        <span className="font-bold">Caja:</span> {generatedReceipt.boxName}
+                      </div>
+                    </div>
+
+                    <div className="border-t-2 border-dashed border-slate-200 pt-4 flex justify-between items-center">
+                      <span className="font-black text-sm uppercase">Total Recibido</span>
+                      <span className="text-xl font-black">${generatedReceipt.amount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                    </div>
+
+                    <div className="text-center pt-8 text-[9px] text-slate-400 uppercase">
+                      Gracias por su confianza
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 no-print justify-end">
+                    <button 
+                      onClick={() => { setIsReceiptModalOpen(false); setContextItem(null); }}
+                      className="px-5 py-2.5 rounded-xl font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors text-sm"
+                    >
+                      Finalizar
+                    </button>
+                    <button 
+                      onClick={() => handlePrintReceipt(generatedReceipt)}
+                      className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md flex items-center gap-2 text-sm"
+                    >
+                      <Printer className="w-4 h-4" /> Imprimir Recibo
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

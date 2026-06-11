@@ -27,9 +27,35 @@ const tabs = [
 export function Settings() {
   const currentUser = { name: "Ignacio Valente", role: "superadmin" }; // User Mock for permissions
   const [activeTab, setActiveTab] = useState('general');
+  
+  // Load points of sale from CRM/Marketing context
+  const [puntosVenta] = useState<string[]>(() => {
+    const saved = localStorage.getItem('optica_puntos_venta');
+    return saved ? JSON.parse(saved) : ["0001 - P.V. Central", "0002 - P.V. Shopping", "0003 - P.V. Online"];
+  });
+
+  const [selectedPV, setSelectedPV] = useState(() => {
+    return localStorage.getItem('optica_default_pv') || (puntosVenta[0] || "0001");
+  });
+
+  const [branchPVs, setBranchPVs] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem('optica_branch_pvs');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // AFIP Certificates and Credentials
+  const [afipCuit, setAfipCuit] = useState(() => localStorage.getItem('optica_afip_cuit') || "30-71234567-8");
+  const [afipEnv, setAfipEnv] = useState(() => localStorage.getItem('optica_afip_env') || "homologacion");
+  const [afipCertName, setAfipCertName] = useState(() => localStorage.getItem('optica_afip_cert') || "certificado_prod_paracao.crt");
+  const [afipKeyName, setAfipKeyName] = useState(() => localStorage.getItem('optica_afip_key') || "privada_afip.key");
+
   const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isCsrModalOpen, setIsCsrModalOpen] = useState(false);
+  const [csrOrg, setCsrOrg] = useState("Óptica Paracao");
+  const [csrCN, setCsrCN] = useState("ParacaoApp");
+  const [csrCuit, setCsrCuit] = useState("30712345678");
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, show: boolean, user: any }>({ x: 0, y: 0, show: false, user: null });
   const { insurances, addInsurance, removeInsurance, banks, addBank, updateBank, removeBank, inventoryCategories, addInventoryCategory, updateInventoryCategory, removeInventoryCategory, lensColors, addLensColor, updateLensColor, removeLensColor, contactLensColors, addContactLensColor, updateContactLensColor, removeContactLensColor, lensTypes, addLensType, updateLensType, removeLensType, opticaLogo, setOpticaLogo, opticaName, setOpticaName, opticaPhone, setOpticaPhone, opticaAddress, setOpticaAddress, appTheme, setAppTheme } = useSettings();
@@ -849,27 +875,179 @@ export function Settings() {
                   <input className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none placeholder:text-slate-400" placeholder="Ej: 902-123456-7" />
                 </div>
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Punto de Venta</label>
-                  <input className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none" defaultValue="0001" />
+                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Punto de Venta por Defecto</label>
+                  <select 
+                    value={selectedPV}
+                    onChange={e => {
+                      setSelectedPV(e.target.value);
+                      localStorage.setItem('optica_default_pv', e.target.value);
+                    }}
+                    className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none text-sm font-medium text-slate-900 dark:text-white"
+                  >
+                    {puntosVenta.map(pv => (
+                      <option key={pv} value={pv}>{pv}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Próximo Nro. de Factura</label>
                   <input className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none" defaultValue="00021458" />
                 </div>
+
+                {/* Punto de Venta por Sucursal */}
+                <div className="flex flex-col gap-3 mt-4 border-t border-slate-100 dark:border-slate-800 pt-6 md:col-span-2">
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                    <Building2 className="w-4.5 h-4.5 text-blue-600" /> Puntos de Venta Asignados por Sucursal
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Define qué Punto de Venta facturará automáticamente cada sucursal.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+                    {branches.map(branch => (
+                      <div key={branch.id} className="flex flex-col gap-1.5 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">{branch.name}</label>
+                        <select
+                          value={branchPVs[branch.id] || ""}
+                          onChange={e => {
+                            const updated = { ...branchPVs, [branch.id]: e.target.value };
+                            setBranchPVs(updated);
+                            localStorage.setItem('optica_branch_pvs', JSON.stringify(updated));
+                          }}
+                          className="h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none text-xs font-semibold text-slate-900 dark:text-white"
+                        >
+                          <option value="">Seleccionar Punto de Venta...</option>
+                          {puntosVenta.map(pv => (
+                            <option key={pv} value={pv}>{pv}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
               
-              <div className="p-6 bg-blue-50 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-900/20">
-                <div className="flex gap-4">
-                  <Info className="w-6 h-6 text-blue-600 mt-1" />
-                  <div>
-                    <h4 className="font-bold text-blue-900 dark:text-blue-400">Facturación Electrónica (AFIP)</h4>
-                    <p className="text-sm text-blue-700 dark:text-blue-500/80 mt-1 leading-relaxed">
-                      La conexión con el WebService de AFIP para comprobantes en línea está <span className="font-bold">Activa</span>. No olvides renovar tu certificado digital cada 2 años.
-                    </p>
-                    <button className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors">
-                      Ver Certificados
-                    </button>
+              <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-6">
+                <h4 className="font-black text-slate-900 dark:text-white flex items-center gap-2 text-sm">
+                  <ScrollText className="w-5 h-5 text-blue-600" /> Credenciales y Certificados de AFIP / ARCA
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Carga los archivos de certificado de homologación o producción y asocia el CUIT para operar con factura electrónica.
+                </p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">CUIT Vinculado</label>
+                    <input 
+                      type="text" 
+                      value={afipCuit}
+                      onChange={e => {
+                        setAfipCuit(e.target.value);
+                        localStorage.setItem('optica_afip_cuit', e.target.value);
+                      }}
+                      className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono" 
+                      placeholder="Ej: 30-71234567-8"
+                    />
                   </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Entorno del Servidor</label>
+                    <select 
+                      value={afipEnv}
+                      onChange={e => {
+                        setAfipEnv(e.target.value);
+                        localStorage.setItem('optica_afip_env', e.target.value);
+                      }}
+                      className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-semibold"
+                    >
+                      <option value="homologacion">Homologación (Testing / Pruebas)</option>
+                      <option value="produccion">Producción (Real / Fiscal)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  {/* Certificate Upload Slot */}
+                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col gap-3">
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">Certificado Digital (.crt / .pem)</h5>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Firmado y descargado desde la web de AFIP.</p>
+                    </div>
+                    {afipCertName ? (
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                        <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-400 font-bold truncate max-w-[180px]">{afipCertName}</span>
+                        <button 
+                          onClick={() => {
+                            setAfipCertName("");
+                            localStorage.removeItem('optica_afip_cert');
+                          }}
+                          className="text-xs text-red-500 hover:underline font-bold shrink-0 ml-2"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="h-10 flex items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-all text-xs font-bold text-slate-500 dark:text-slate-400">
+                        Subir certificado_firmado.crt
+                        <input 
+                          type="file" 
+                          accept=".crt,.pem" 
+                          className="hidden" 
+                          onChange={e => {
+                            const name = e.target.files?.[0]?.name || "certificado.crt";
+                            setAfipCertName(name);
+                            localStorage.setItem('optica_afip_cert', name);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+
+                  {/* Private Key Upload Slot */}
+                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col gap-3">
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">Clave Privada (.key)</h5>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Clave RSA generada junto con el archivo CSR.</p>
+                    </div>
+                    {afipKeyName ? (
+                      <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                        <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-400 font-bold truncate max-w-[180px]">{afipKeyName}</span>
+                        <button 
+                          onClick={() => {
+                            setAfipKeyName("");
+                            localStorage.removeItem('optica_afip_key');
+                          }}
+                          className="text-xs text-red-500 hover:underline font-bold shrink-0 ml-2"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="h-10 flex items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-all text-xs font-bold text-slate-500 dark:text-slate-400">
+                        Subir clave_privada.key
+                        <input 
+                          type="file" 
+                          accept=".key" 
+                          className="hidden" 
+                          onChange={e => {
+                            const name = e.target.files?.[0]?.name || "privada.key";
+                            setAfipKeyName(name);
+                            localStorage.setItem('optica_afip_key', name);
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-4 border-t border-slate-100 dark:border-slate-800 gap-2">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">¿No tienes una clave privada ni un archivo de pedido de firma?</span>
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      setCsrCuit(afipCuit.replace(/\D/g, '') || "30712345678");
+                      setIsCsrModalOpen(true);
+                    }}
+                    className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1.5 active:scale-95 transition-transform"
+                  >
+                    🔑 Generar Clave y Solicitud CSR (AFIP)
+                  </button>
                 </div>
               </div>
             </div>
@@ -938,7 +1116,7 @@ export function Settings() {
                           {ins.coverages.map((cov: any, idx: number) => (
                             <div key={idx} className="flex justify-between text-sm bg-slate-50 dark:bg-slate-800/50 px-2 py-1 rounded">
                               <span className="text-slate-600 dark:text-slate-300">{cov.categoryId}</span>
-                              <span className="font-bold text-emerald-600 dark:text-emerald-400">{cov.percentage}%</span>
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">${cov.amount?.toLocaleString()}</span>
                             </div>
                           ))}
                         </div>
@@ -1622,22 +1800,23 @@ export function Settings() {
                             <option key={cat} value={cat}>{cat}</option>
                           ))}
                         </select>
-                        <div className="relative w-32">
+                        <div className="relative w-36">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
                           <input 
                             type="number"
-                            min="0" max="100"
-                            value={cov.percentage}
+                            min="0"
+                            value={cov.amount || ''}
                             onChange={e => {
                               const newCovs = [...editingInsurance.coverages];
-                              newCovs[idx].percentage = Number(e.target.value);
+                              newCovs[idx].amount = Number(e.target.value);
                               setEditingInsurance({...editingInsurance, coverages: newCovs});
                             }}
-                            className="h-11 pl-3 pr-8 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
-                            placeholder="Ej: 10"
+                            className="h-11 pl-7 pr-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-mono"
+                            placeholder="Ej: 5000"
                           />
-                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">%</span>
                         </div>
                         <button 
+                          type="button"
                           onClick={() => {
                             const newCovs = editingInsurance.coverages.filter((_: any, i: number) => i !== idx);
                             setEditingInsurance({...editingInsurance, coverages: newCovs});
@@ -1651,10 +1830,11 @@ export function Settings() {
                   </div>
                   
                   <button 
+                    type="button"
                     onClick={() => {
                       setEditingInsurance({
                         ...editingInsurance, 
-                        coverages: [...editingInsurance.coverages, { categoryId: '', percentage: 0 }]
+                        coverages: [...editingInsurance.coverages, { categoryId: '', amount: 0 }]
                       });
                     }}
                     className="text-sm font-bold text-blue-600 flex items-center gap-1 hover:text-blue-700 transition-colors"
@@ -2062,6 +2242,111 @@ export function Settings() {
           </section>
         )}
       </div>
+
+      {/* AFIP CSR / Key Generation Wizard Modal */}
+      {isCsrModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+                🔑 Asistente Generador CSR & Clave
+              </h3>
+              <button 
+                onClick={() => setIsCsrModalOpen(false)} 
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Genera tu clave privada local y la solicitud de firma (CSR) requerida por el portal de AFIP (Clave Fiscal) para habilitar la facturación electrónica.
+              </p>
+
+              <div className="space-y-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400">CUIT del Contribuyente (sin guiones)</label>
+                  <input 
+                    type="text" 
+                    value={csrCuit}
+                    onChange={e => setCsrCuit(e.target.value.replace(/\D/g, ''))}
+                    className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-slate-900 dark:text-white" 
+                    placeholder="30712345678"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Nombre de la Organización (Razón Social)</label>
+                  <input 
+                    type="text" 
+                    value={csrOrg}
+                    onChange={e => setCsrOrg(e.target.value)}
+                    className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-semibold text-slate-900 dark:text-white" 
+                    placeholder="Óptica Paracao"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Nombre del Sistema (CN)</label>
+                  <input 
+                    type="text" 
+                    value={csrCN}
+                    onChange={e => setCsrCN(e.target.value)}
+                    className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-semibold text-slate-900 dark:text-white" 
+                    placeholder="ParacaoApp"
+                  />
+                </div>
+              </div>
+
+              <div className="bg-blue-50 dark:bg-blue-950/20 p-3.5 rounded-xl border border-blue-100 dark:border-blue-900/30">
+                <p className="text-[10px] text-blue-700 dark:text-blue-400/90 leading-relaxed font-medium">
+                  <strong>Próximo Paso:</strong> Al hacer click en Generar, se crearán y descargarán los archivos <code>privada.key</code> y <code>pedido.csr</code>. Deberás subir el archivo <code>pedido.csr</code> al portal de AFIP ("Administración de Certificados Digitales") para obtener tu certificado <code>certificado.crt</code> definitivo.
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+              <button 
+                type="button" 
+                onClick={() => setIsCsrModalOpen(false)} 
+                className="px-6 py-2.5 rounded-lg font-bold text-xs text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={() => {
+                  // Simulate CSR & Private Key Generation & Download
+                  const mockPrivateKey = `-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA0t6aKz... (Clave RSA Privada de 2048 bits de ${csrOrg})\n-----END RSA PRIVATE KEY-----`;
+                  const mockCsr = `-----BEGIN CERTIFICATE REQUEST-----\nMIIBnMCMQswCQYDVQQGEwJBUjE... (Pedido CSR para CUIT ${csrCuit} / CN=${csrCN})\n-----END CERTIFICATE REQUEST-----`;
+
+                  const downloadFile = (content: string, filename: string) => {
+                    const blob = new Blob([content], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  };
+
+                  downloadFile(mockPrivateKey, "privada.key");
+                  setTimeout(() => downloadFile(mockCsr, "pedido.csr"), 300);
+
+                  alert("¡Archivos 'privada.key' y 'pedido.csr' generados y descargados con éxito!\n\nPor favor, subí el archivo 'pedido.csr' a la web de AFIP.");
+                  
+                  // Auto fill in the loaded inputs for testing
+                  setAfipKeyName("privada.key");
+                  localStorage.setItem('optica_afip_key', "privada.key");
+
+                  setIsCsrModalOpen(false);
+                }}
+                className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-500/10"
+              >
+                Generar y Descargar Archivos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

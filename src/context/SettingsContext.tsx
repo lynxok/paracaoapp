@@ -48,7 +48,7 @@ interface SettingsContextType {
 
 const INITIAL_INSURANCES: Insurance[] = [
   { id: '1', name: "Particular", active: true, coverages: [] },
-  { id: '2', name: "OSDE", active: true, coverages: [{ categoryId: "monofocal", percentage: 20 }] },
+  { id: '2', name: "OSDE", active: true, coverages: [{ categoryId: "monofocal", amount: 5000 }] },
   { id: '3', name: "Swiss Medical", active: true, coverages: [] },
   { id: '4', name: "PAMI", active: true, coverages: [] },
   { id: '5', name: "Jerárquicos", active: true, coverages: [] },

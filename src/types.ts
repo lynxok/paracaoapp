@@ -28,7 +28,7 @@ export interface Client {
 
 export interface InsuranceCoverage {
   categoryId: string; // The category name for now, e.g. "Cristales Monofocales", "Armazones"
-  percentage: number; // e.g. 10 for 10%
+  amount: number; // e.g. 5000 for $5000
 }
 
 export interface Insurance {
@@ -43,11 +43,13 @@ export interface Order {
   clientId: string;
   clientName: string;
   date: string;
-  type: 'monofocal' | 'multifocal' | 'contact' | 'sale';
+  type: 'monofocal' | 'multifocal' | 'ocupacional' | 'contact' | 'sale';
   service: string;
   status: string;
   amount: number;
   paid: number;
+  medico?: string;
+  branchId?: string;
 }
 
 export type TransactionType = 'income' | 'expense';

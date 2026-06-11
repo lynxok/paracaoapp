@@ -6,17 +6,39 @@ export interface InventoryItem {
   sku: string;
   cat: string;
   price: string;
+  buyPrice?: number;
+  criticalStock?: number;
   color: string; // The UI pill color
   productColor?: string; // The actual product color/tone
   lensType?: string; // Monofocal, etc
   stocks: Record<number, number>;
 }
 
+export interface StockMovement {
+  id: string;
+  date: string;
+  time: string;
+  sku: string;
+  productName: string;
+  branchId: number;
+  branchName: string;
+  quantity: number;
+  type: 'ingreso' | 'egreso';
+  buyPrice?: number;
+  supplier?: string;
+  invoice?: string;
+  reason?: string;
+  notes?: string;
+}
+
 interface InventoryContextType {
   inventory: InventoryItem[];
+  stockMovements: StockMovement[];
   addInventoryItem: (item: InventoryItem) => void;
   updateInventoryItem: (sku: string, item: InventoryItem) => void;
+  deleteInventoryItem: (sku: string) => void;
   deductStock: (sku: string, branchId: number, quantity: number) => void;
+  registerMovement: (movement: Omit<StockMovement, 'id' | 'date' | 'time'>) => void;
 }
 
 const INITIAL_INVENTORY: InventoryItem[] = [];
@@ -29,9 +51,18 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
   });
 
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
+    const saved = localStorage.getItem('optica_stock_movements');
+    return saved ? JSON.parse(saved) : [];
+  });
+
   useEffect(() => {
     localStorage.setItem('optica_inventory', JSON.stringify(inventory));
   }, [inventory]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_stock_movements', JSON.stringify(stockMovements));
+  }, [stockMovements]);
 
   const addInventoryItem = (item: InventoryItem) => {
     setInventory(prev => [...prev, item]);
@@ -41,18 +72,52 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     setInventory(prev => prev.map(item => item.sku === sku ? updated : item));
   };
 
+  const deleteInventoryItem = (sku: string) => {
+    setInventory(prev => prev.filter(item => item.sku !== sku));
+  };
+
   const { addNotification } = useNotifications();
 
   const deductStock = (sku: string, branchId: number, quantity: number) => {
+    const item = inventory.find(i => i.sku === sku);
+    if (item) {
+      const branchName = branchId === 1 ? "Casa Central" : "Shopping";
+      registerMovement({
+        sku,
+        productName: item.name,
+        branchId,
+        branchName,
+        quantity,
+        type: 'egreso',
+        reason: 'Venta'
+      });
+    }
+  };
+
+  const registerMovement = (movData: Omit<StockMovement, 'id' | 'date' | 'time'>) => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('es-AR');
+    const timeStr = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+
+    const newMovement: StockMovement = {
+      ...movData,
+      id: `mov-${Date.now()}`,
+      date: dateStr,
+      time: timeStr
+    };
+
+    setStockMovements(prev => [newMovement, ...prev]);
+
     setInventory(prev => prev.map(item => {
-      if (item.sku === sku) {
-        const currentStock = item.stocks[branchId] || 0;
-        const newStock = Math.max(0, currentStock - quantity);
-        
-        if (newStock < 5 && currentStock >= 5) {
+      if (item.sku === movData.sku) {
+        const currentStock = item.stocks[movData.branchId] || 0;
+        const adjustment = movData.type === 'ingreso' ? movData.quantity : -movData.quantity;
+        const newStock = Math.max(0, currentStock + adjustment);
+
+        if (movData.type === 'egreso' && newStock < 5 && currentStock >= 5) {
           addNotification({
             title: `Stock bajo en ${item.name}`,
-            desc: `El producto ${item.name} (SKU: ${item.sku}) tiene un stock crítico de ${newStock} unidades.`,
+            desc: `El producto ${item.name} (SKU: ${item.sku}) tiene un stock crítico de ${newStock} unidades en ${movData.branchName}.`,
             type: 'warning',
             category: 'Urgentes',
             iconName: 'Package',
@@ -63,9 +128,10 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
         return {
           ...item,
+          buyPrice: movData.type === 'ingreso' && movData.buyPrice !== undefined ? movData.buyPrice : item.buyPrice,
           stocks: {
             ...item.stocks,
-            [branchId]: newStock
+            [movData.branchId]: newStock
           }
         };
       }
@@ -74,7 +140,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <InventoryContext.Provider value={{ inventory, addInventoryItem, updateInventoryItem, deductStock }}>
+    <InventoryContext.Provider value={{ inventory, stockMovements, addInventoryItem, updateInventoryItem, deleteInventoryItem, deductStock, registerMovement }}>
       {children}
     </InventoryContext.Provider>
   );

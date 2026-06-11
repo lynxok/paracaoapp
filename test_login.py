@@ -5,8 +5,8 @@ def test_login():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
-        print("Navigating to http://localhost:3000...")
-        page.goto('http://localhost:3000')
+        print("Navigating to http://localhost:3005...")
+        page.goto('http://localhost:3005')
         page.wait_for_load_state('networkidle')
         
         # Check if we are at the login page

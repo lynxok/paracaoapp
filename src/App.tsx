@@ -28,6 +28,7 @@ import { InventoryProvider } from "./context/InventoryContext";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NotificationsProvider } from "./context/NotificationsContext";
 import { Login } from "./pages/Login";
+import { CartProvider } from "./context/CartContext";
 
 function AppContent() {
   const { isAuthenticated } = useAuth();
@@ -72,7 +73,9 @@ export default function App() {
           <ClientProvider>
             <LabProvider>
               <InventoryProvider>
-                <AppContent />
+                <CartProvider>
+                  <AppContent />
+                </CartProvider>
               </InventoryProvider>
             </LabProvider>
           </ClientProvider>

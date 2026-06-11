@@ -31,11 +31,14 @@ import {
   EyeOff,
   Save,
   KeyRound,
-  Plus
+  Plus,
+  Info
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationsContext";
+import { useCart } from "../context/CartContext";
+import { CartSidebar } from "./CartSidebar";
 
 const menuItems = [
   { path: "/", icon: LayoutDashboard, label: "Inicio" },
@@ -54,6 +57,9 @@ const menuItems = [
 export function Layout({ children, title, subtitle }: { children: React.ReactNode, title: string, subtitle?: string }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const { cart } = useCart();
+  const isSalesOrOrdersPage = location.pathname.startsWith('/sales') || location.pathname.startsWith('/orders');
+  const [isCartOpen, setIsCartOpen] = useState(true);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme');
@@ -347,7 +353,7 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
         {/* Header */}
-        <header className="h-20 flex items-center justify-between px-6 lg:px-8 bg-transparent shrink-0 z-30 no-print mt-2">
+        <header className="h-20 flex items-center justify-between px-6 lg:px-8 bg-transparent shrink-0 z-50 no-print mt-2">
           <div className="flex items-center gap-4">
             <button className="lg:hidden p-2 -ml-2 text-slate-600 dark:text-slate-300" onClick={() => setIsMobileMenuOpen(true)}>
               <Menu className="w-5 h-5" />
@@ -393,6 +399,25 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
                 {isDark ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-blue-600" />}
               </div>
             </button>
+
+            {/* Cart Toggle Button */}
+            <div className="relative">
+              <button
+                onClick={() => setIsCartOpen(!isCartOpen)}
+                className={cn(
+                  "relative p-2.5 rounded-full transition-all group active:scale-95 glass-panel hover:bg-slate-200/50 dark:hover:bg-slate-800/60",
+                  isCartOpen ? "bg-slate-200/80 dark:bg-slate-800/80 ring-1 ring-slate-900/10 dark:ring-white/10 text-blue-600 dark:text-blue-400" : "text-slate-600 dark:text-slate-300"
+                )}
+                title="Ver Carrito / Resumen"
+              >
+                <ShoppingCart className="w-5 h-5" />
+                {cart.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[9px] font-black h-5 w-5 rounded-full flex items-center justify-center border border-white dark:border-slate-900">
+                    {cart.reduce((acc, i) => acc + i.quantity, 0)}
+                  </span>
+                )}
+              </button>
+            </div>
 
             <div className="relative">
               <button 
@@ -467,10 +492,14 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
           </div>
         </header>
 
-        {/* Main Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
-          {children}
-        </main>
+        {/* Main Content Area with Cart Sidebar */}
+        <div className="flex-1 flex overflow-hidden relative">
+          {/* Main Area */}
+          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
+            {children}
+          </main>
+          <CartSidebar isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
+        </div>
 
         {/* Mobile Bottom Navigation Bar (Touch-First) */}
         <nav className="lg:hidden fixed bottom-0 left-0 w-full z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-t border-slate-200 dark:border-slate-800 safe-area-pb">
