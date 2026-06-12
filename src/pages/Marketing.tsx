@@ -28,6 +28,8 @@ import {
 import { cn } from "../lib/utils";
 import { useClients } from "../context/ClientContext";
 import { useAuth } from "../context/AuthContext";
+import { useSettings } from "../context/SettingsContext";
+import { generateInvoicePDF } from "../utils/pdfGenerator";
 
 const INITIAL_CAMPAIGNS = [
   { id: 1, name: "Recordatorio Control Anual", status: "Active", sent: 145, conversion: "12%", type: "WhatsApp" },
@@ -219,7 +221,7 @@ export function Marketing() {
     acc[order.clientId] = (acc[order.clientId] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
-  const clientsWithMultipleOrders = Object.values(clientOrderCounts).filter(count => count > 1).length;
+  const clientsWithMultipleOrders = (Object.values(clientOrderCounts) as number[]).filter(count => count > 1).length;
   const retentionRate = clients.length > 0 ? Math.round((clientsWithMultipleOrders / clients.length) * 100) : 0;
 
   const totalSales = orders.reduce((sum, order) => sum + (order.amount || 0), 0);
@@ -782,6 +784,43 @@ function InvoiceSimulationModal({
   const [comprobanteTipo, setComprobanteTipo] = useState(savedDetails?.tipo || (client?.dni && client.dni.length > 8 ? "Factura A" : "Factura B"));
   const [details, setDetails] = useState<any>(savedDetails || null);
 
+  const { opticaName, opticaAddress, opticaLogo, pdfConfig } = useSettings();
+
+  const handleDownloadPDF = async () => {
+    if (!details) return;
+    
+    const invoiceData = {
+      voucherNumber: details.num,
+      ptoVta: details.pv,
+      date: order.date,
+      amount: order.amount,
+      clientCuit: client?.dni || "0",
+      clientName: order.clientName,
+      description: order.service,
+      cae: details.cae,
+      caeVto: details.vto
+    };
+
+    const configData = {
+      razonSocial: opticaName,
+      nombreFantasia: opticaName,
+      afipCuit: localStorage.getItem('optica_afip_cuit') || "30-71234567-8",
+      afipPtoVta: details.pv,
+      ingresosBrutos: localStorage.getItem('optica_iibb') || "30-71234567-8",
+      inicioActividad: localStorage.getItem('optica_inicio_actividad') || "01/05/2026",
+      domicilioComercial: opticaAddress,
+      invoiceLogo: opticaLogo,
+      ...pdfConfig
+    };
+
+    try {
+      const pdfUrl = await generateInvoicePDF(invoiceData, configData);
+      window.open(pdfUrl, '_blank');
+    } catch (error) {
+      console.error("Error generating invoice PDF:", error);
+    }
+  };
+
   const startInvoicing = () => {
     setStep("processing");
     setLogs([]);
@@ -940,23 +979,31 @@ function InvoiceSimulationModal({
                   </div>
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
                   <button
-                    onClick={() => {
-                      if (window.confirm("¿Seguro que deseas anular esta factura electrónica en el simulador local?")) {
-                        onCancelInvoice();
-                      }
-                    }}
-                    className="flex-1 h-10 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg text-xs font-bold hover:bg-red-50 dark:hover:bg-red-950/20 active:scale-95 transition-all"
+                    onClick={handleDownloadPDF}
+                    className="w-full h-11 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-lg shadow-indigo-500/20 active:scale-95 transition-all flex items-center justify-center gap-1.5"
                   >
-                    Anular Factura
+                    <Download className="w-4 h-4" /> Descargar PDF Factura
                   </button>
-                  <button
-                    onClick={onClose}
-                    className="flex-1 h-10 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-lg text-xs font-bold hover:opacity-90 active:scale-95 transition-all"
-                  >
-                    Cerrar Asistente
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        if (window.confirm("¿Seguro que deseas anular esta factura electrónica en el simulador local?")) {
+                          onCancelInvoice();
+                        }
+                      }}
+                      className="flex-1 h-10 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 rounded-lg text-xs font-bold hover:bg-red-50 dark:hover:bg-red-950/20 active:scale-95 transition-all"
+                    >
+                      Anular Factura
+                    </button>
+                    <button
+                      onClick={onClose}
+                      className="flex-1 h-10 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-lg text-xs font-bold hover:opacity-90 active:scale-95 transition-all"
+                    >
+                      Cerrar Asistente
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

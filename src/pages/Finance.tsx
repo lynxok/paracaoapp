@@ -25,6 +25,7 @@ import { CashBox, Transaction, Denomination, FinanceCategory } from "../types";
 import { BoxForm } from "../components/finance/BoxForm";
 import { TransactionForm } from "../components/finance/TransactionForm";
 import { BankReconciliation } from "../components/finance/BankReconciliation";
+import { TransferForm } from "../components/finance/TransferForm";
 
 const INITIAL_DENOMINATIONS: Denomination[] = [
   { id: 1, value: 1000, label: "$1000" },
@@ -57,7 +58,7 @@ const FINANCE_CATEGORIES: FinanceCategory[] = [
   { id: 'transferencia', name: 'Transferencia Int.', type: 'expense' },
 ];
 
-type FinanceTab = 'cajas' | 'ingresos' | 'egresos' | 'conciliacion';
+type FinanceTab = 'cajas' | 'ingresos' | 'egresos' | 'transferencias' | 'conciliacion';
 
 export function Finance() {
   const { 
@@ -170,6 +171,11 @@ export function Finance() {
     setReconcileAmount("");
   };
 
+  const handleTransfer = (fromId: string, toId: string, amount: number, concept: string, dateStr: string) => {
+    transferFunds(fromId, toId, amount, concept);
+    setActiveTab('cajas');
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-8">
       {/* Reconcile Modal */}
@@ -261,13 +267,22 @@ export function Finance() {
             <ArrowDownCircle className="w-4 h-4" /> Egresos
           </button>
           <button 
+            onClick={() => setActiveTab('transferencias')}
+            className={cn(
+              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all",
+              activeTab === 'transferencias' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+            )}
+          >
+            <ArrowLeftRight className="w-4 h-4" /> Transferencias
+          </button>
+          <button 
             onClick={() => setActiveTab('conciliacion')}
             className={cn(
               "flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all",
-              activeTab === 'conciliacion' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+              activeTab === 'conciliacion' ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
             )}
           >
-            <ArrowLeftRight className="w-4 h-4" /> Conciliación
+            <History className="w-4 h-4" /> Conciliación
           </button>
         </div>
 
@@ -694,6 +709,13 @@ export function Finance() {
           onToggleReconciliation={toggleTransactionReconciliation} 
           onUpdateClosing={updateBoxClosingBalance} 
         />
+      ) : activeTab === 'transferencias' ? (
+        <div className="max-w-4xl mx-auto animate-in fade-in zoom-in duration-300">
+          <TransferForm 
+            boxes={boxes}
+            onSubmit={handleTransfer}
+          />
+        </div>
       ) : (
         /* Render Form for Ingresos or Egresos */
         <div className="max-w-4xl mx-auto animate-in fade-in zoom-in duration-300">

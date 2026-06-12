@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles } from "lucide-react";
+import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles, FileText } from "lucide-react";
 import { cn } from "../lib/utils";
 import { logger } from "../lib/logger";
 import { useSettings } from "../context/SettingsContext";
 import { useAuth } from "../context/AuthContext";
+import { generateInvoicePDF } from "../utils/pdfGenerator";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
 import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
@@ -58,8 +59,58 @@ export function Settings() {
   const [csrCuit, setCsrCuit] = useState("30712345678");
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, show: boolean, user: any }>({ x: 0, y: 0, show: false, user: null });
-  const { insurances, addInsurance, removeInsurance, banks, addBank, updateBank, removeBank, inventoryCategories, addInventoryCategory, updateInventoryCategory, removeInventoryCategory, lensColors, addLensColor, updateLensColor, removeLensColor, contactLensColors, addContactLensColor, updateContactLensColor, removeContactLensColor, lensTypes, addLensType, updateLensType, removeLensType, opticaLogo, setOpticaLogo, opticaName, setOpticaName, opticaPhone, setOpticaPhone, opticaAddress, setOpticaAddress, appTheme, setAppTheme } = useSettings();
+  const { insurances, addInsurance, updateInsurance, removeInsurance, banks, addBank, updateBank, removeBank, inventoryCategories, addInventoryCategory, updateInventoryCategory, removeInventoryCategory, lensColors, addLensColor, updateLensColor, removeLensColor, contactLensColors, addContactLensColor, updateContactLensColor, removeContactLensColor, lensTypes, addLensType, updateLensType, removeLensType, opticaLogo, setOpticaLogo, opticaName, setOpticaName, opticaPhone, setOpticaPhone, opticaAddress, setOpticaAddress, appTheme, setAppTheme, pdfConfig, setPdfConfig } = useSettings();
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const lynxLogoInputRef = useRef<HTMLInputElement>(null);
+
+  const [pdfSubTab, setPdfSubTab] = useState<'design' | 'logos' | 'margins'>('design');
+  const [inicioActividad, setInicioActividad] = useState(() => localStorage.getItem('optica_inicio_actividad') || "01/05/2026");
+  const [iibb, setIibb] = useState(() => localStorage.getItem('optica_iibb') || "30-71234567-8");
+
+  const [previewUrl, setPreviewUrl] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const updatePreview = async () => {
+      const mockInvoice = {
+        voucherNumber: "00002145",
+        ptoVta: "0001",
+        date: new Date().toISOString().split('T')[0],
+        amount: 154800,
+        clientCuit: "20-35678901-2",
+        clientName: "Juan Pérez",
+        description: "Anteojos Recetados Multifocales - Cristales Orgánicos AR",
+        cae: "7423985739281",
+        caeVto: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toLocaleDateString('es-ES')
+      };
+
+      const configData = {
+        razonSocial: opticaName,
+        nombreFantasia: opticaName,
+        afipCuit: afipCuit,
+        afipPtoVta: "0001",
+        ingresosBrutos: iibb,
+        inicioActividad: inicioActividad,
+        domicilioComercial: opticaAddress,
+        invoiceLogo: opticaLogo,
+        ...pdfConfig
+      };
+
+      try {
+        const url = await generateInvoicePDF(mockInvoice, configData);
+        if (active) {
+          setPreviewUrl(url);
+        }
+      } catch (err) {
+        console.error("Error generating invoice preview:", err);
+      }
+    };
+
+    updatePreview();
+    return () => {
+      active = false;
+    };
+  }, [pdfConfig, opticaName, opticaAddress, opticaLogo, afipCuit, iibb, inicioActividad]);
   const [newInsurance, setNewInsurance] = useState('');
   const [isInsuranceModalOpen, setIsInsuranceModalOpen] = useState(false);
   const [editingInsurance, setEditingInsurance] = useState<any>(null);
@@ -1051,11 +1102,540 @@ export function Settings() {
                 </div>
               </div>
             </div>
-            
-            <div className="p-6 sm:p-8 border-t border-slate-100 dark:border-slate-800 flex justify-end">
-              <button className="px-8 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors">
-                Actualizar Datos Fiscales
-              </button>
+
+            {/* Panel de Personalización y Vista Previa */}
+            <div className="p-6 sm:p-8 border-t border-slate-200 dark:border-slate-800 space-y-6">
+              <div>
+                <h4 className="text-lg font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-indigo-600" /> Diseño y Personalización de Factura PDF
+                </h4>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  Ajusta la paleta de colores, márgenes de logos y el alto de las secciones de tu factura. Los cambios se previsualizan automáticamente.
+                </p>
+              </div>
+
+              {/* Sub-tabs layout */}
+              <div className="flex border-b border-slate-205 dark:border-slate-800 mb-6 gap-6">
+                {[
+                  { id: 'design', label: 'DISEÑO & DATOS' },
+                  { id: 'logos', label: 'LOGOS' },
+                  { id: 'margins', label: 'ALINEACIÓN & MÁRGENES' }
+                ].map(subtab => {
+                  const isSubActive = pdfSubTab === subtab.id;
+                  return (
+                    <button
+                      key={subtab.id}
+                      type="button"
+                      onClick={() => setPdfSubTab(subtab.id as any)}
+                      className={cn(
+                        "pb-3 text-xs font-black tracking-wider transition-all relative uppercase",
+                        isSubActive 
+                          ? "text-amber-500 font-extrabold" 
+                          : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                      )}
+                    >
+                      {subtab.label}
+                      {isSubActive && (
+                        <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-500 rounded-full animate-in fade-in slide-in-from-left-2" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+                {/* Formulario de Parámetros */}
+                <div className="xl:col-span-7 space-y-6 bg-slate-50 dark:bg-slate-950 p-6 rounded-2xl border border-slate-200 dark:border-slate-900">
+                  
+                  {pdfSubTab === 'design' && (
+                    <div className="space-y-6 animate-in fade-in duration-200">
+                      {/* Paleta de Colores */}
+                      <div>
+                        <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-3">
+                          Paleta de Colores Principal
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {[
+                            { id: 'slate', name: 'PIZARRA CLÁSICA', c1: 'bg-[#1e293b]', c2: 'bg-[#94a3b8]' },
+                            { id: 'blue', name: 'AZUL PROFESIONAL', c1: 'bg-[#1e3a8a]', c2: 'bg-[#60a5fa]' },
+                            { id: 'emerald', name: 'VERDE ESMERALDA', c1: 'bg-[#064e3b]', c2: 'bg-[#34d499]' },
+                            { id: 'amber', name: 'ÁMBAR PREMIUM', c1: 'bg-[#78350f]', c2: 'bg-[#fbbf24]' },
+                            { id: 'monochrome', name: 'MONOCROMO', c1: 'bg-black', c2: 'bg-zinc-500' }
+                          ].map(palette => {
+                            const isSelected = pdfConfig.pdfColorPalette === palette.id;
+                            return (
+                              <button
+                                key={palette.id}
+                                type="button"
+                                onClick={() => setPdfConfig({ ...pdfConfig, pdfColorPalette: palette.id })}
+                                className={cn(
+                                  "flex items-center justify-between p-3.5 rounded-xl border bg-white dark:bg-slate-900 transition-all text-left",
+                                  isSelected 
+                                    ? "border-amber-500 ring-1 ring-amber-500 shadow-sm" 
+                                    : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
+                                )}
+                              >
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 tracking-wide">{palette.name}</span>
+                                <div className="flex gap-1.5">
+                                  <span className={cn("w-3 h-3 rounded-full shadow-sm", palette.c1)} />
+                                  <span className={cn("w-3 h-3 rounded-full shadow-sm", palette.c2)} />
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Datos Fiscales / Comerciales */}
+                      <div className="border-t border-slate-200 dark:border-slate-800 pt-5">
+                        <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-4">
+                          Datos Fiscales / Comerciales de Emisor
+                        </span>
+                        <div className="space-y-4">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                              Nombre Comercial / Fantasía (Lado Izquierdo)
+                            </label>
+                            <input 
+                              type="text" 
+                              value={opticaName} 
+                              onChange={e => setOpticaName(e.target.value)}
+                              className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-amber-500 outline-none"
+                            />
+                          </div>
+                          
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                              Dirección Comercial (Lado Izquierdo)
+                            </label>
+                            <input 
+                              type="text" 
+                              value={opticaAddress} 
+                              onChange={e => setOpticaAddress(e.target.value)}
+                              className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-amber-500 outline-none"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                                Inicio de Actividad
+                              </label>
+                              <input 
+                                type="text" 
+                                value={inicioActividad} 
+                                onChange={e => {
+                                  setInicioActividad(e.target.value);
+                                  localStorage.setItem('optica_inicio_actividad', e.target.value);
+                                }}
+                                className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-amber-500 outline-none"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1.5">
+                              <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">
+                                Ingresos Brutos C.M
+                              </label>
+                              <input 
+                                type="text" 
+                                value={iibb} 
+                                onChange={e => {
+                                  setIibb(e.target.value);
+                                  localStorage.setItem('optica_iibb', e.target.value);
+                                }}
+                                className="h-11 px-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-amber-500 outline-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {pdfSubTab === 'logos' && (
+                    <div className="space-y-6 animate-in fade-in duration-200">
+                      {/* Logo del Comercio */}
+                      <div>
+                        <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-4">
+                          Logo del Comercio
+                        </span>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Posición del Logo</label>
+                            <select 
+                              value={pdfConfig.pdfLogoPosition}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfLogoPosition: e.target.value})}
+                              className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none text-xs font-semibold"
+                            >
+                              <option value="izquierda">CABECERA IZQUIERDA</option>
+                              <option value="derecha">CABECERA DERECHA</option>
+                              <option value="oculto">OCULTO / SIN LOGO</option>
+                            </select>
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Ancho del Logo ({pdfConfig.pdfLogoSizeWidth} mm)</span>
+                            <input 
+                              type="range"
+                              min="10"
+                              max="100"
+                              value={pdfConfig.pdfLogoSizeWidth}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfLogoSizeWidth: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Alineación Horizontal X ({pdfConfig.pdfLogoX} mm)</span>
+                            <input 
+                              type="range"
+                              min="0"
+                              max="150"
+                              value={pdfConfig.pdfLogoX}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfLogoX: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Alineación Vertical Y ({pdfConfig.pdfLogoY} mm)</span>
+                            <input 
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={pdfConfig.pdfLogoY}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfLogoY: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Drag and Drop Zone */}
+                        <div className="p-5 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-center hover:border-amber-500 transition-all cursor-pointer" onClick={() => logoInputRef.current?.click()}>
+                          <div className="flex flex-col items-center justify-center">
+                            <ImageIcon className="w-8 h-8 text-amber-500 mb-2" />
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">HAZ CLIC O ARRASTRA EL LOGO DEL NEGOCIO</span>
+                            {opticaLogo ? (
+                              <span className="text-[10px] text-emerald-600 font-extrabold mt-1.5">✓ LOGO CARGADO</span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 mt-1">Formatos recomendados: PNG, JPG</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Marca LYNX Branding */}
+                      <div className="border-t border-slate-200 dark:border-slate-800 pt-5">
+                        <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-4">
+                          Logo / Marca de LYNX (Branding)
+                        </span>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Ubicación en Hoja</label>
+                            <select 
+                              value={pdfConfig.pdfLynxPosition}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfLynxPosition: e.target.value})}
+                              className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none text-xs font-semibold"
+                            >
+                              <option value="abajo_centro">ABAJO AL CENTRO (PIE DE P)</option>
+                              <option value="abajo_derecha">ABAJO A LA DERECHA (PIE DE P)</option>
+                              <option value="abajo_izquierda">ABAJO A LA IZQUIERDA (PIE DE P)</option>
+                              <option value="marca_agua">FONDO (MARCA DE AGUA)</option>
+                              <option value="oculto">OCULTO / SIN BRANDING</option>
+                            </select>
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Ancho del Logo LYNX ({pdfConfig.pdfLynxSize} mm)</span>
+                            <input 
+                              type="range"
+                              min="5"
+                              max="80"
+                              value={pdfConfig.pdfLynxSize}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfLynxSize: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          {/* File input for Custom LYNX Branding */}
+                          <div className="p-4 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-center hover:border-amber-500 transition-all cursor-pointer flex flex-col items-center justify-center" onClick={() => lynxLogoInputRef.current?.click()}>
+                            <Smartphone className="w-6 h-6 text-amber-500 mb-1" />
+                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">SUBIR LOGO LYNX PERSONALIZADO</span>
+                            {pdfConfig.pdfLynxLogo ? (
+                              <span className="text-[9px] text-emerald-600 font-extrabold mt-1">✓ LOGO PERSONALIZADO</span>
+                            ) : (
+                              <span className="text-[9px] text-slate-400 mt-0.5">Formatos: PNG, JPG, SVG</span>
+                            )}
+                            <input
+                              ref={lynxLogoInputRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const reader = new FileReader();
+                                reader.onload = (ev) => {
+                                  setPdfConfig({
+                                    ...pdfConfig,
+                                    pdfLynxLogo: ev.target?.result as string
+                                  });
+                                };
+                                reader.readAsDataURL(file);
+                              }}
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPdfConfig({
+                                  ...pdfConfig,
+                                  pdfLynxLogo: undefined
+                                });
+                              }}
+                              className="w-full h-full p-4 rounded-xl border border-red-200 dark:border-red-950/45 text-red-600 dark:text-red-400 bg-red-50/10 dark:bg-red-950/10 hover:bg-red-50/20 dark:hover:bg-red-950/20 transition-all font-bold text-xs uppercase tracking-wide"
+                            >
+                              Restaurar Original
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {pdfSubTab === 'margins' && (
+                    <div className="space-y-6 animate-in fade-in duration-200">
+                      {/* Dimensiones Generales de la Hoja */}
+                      <div>
+                        <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-4">
+                          Dimensiones Generales de la Hoja
+                        </span>
+                        
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Altura de Cabecera ({pdfConfig.pdfHeaderHeight} mm)</span>
+                            <input 
+                              type="range"
+                              min="20"
+                              max="120"
+                              value={pdfConfig.pdfHeaderHeight}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfHeaderHeight: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Inicio de Tabla de Ítems ({pdfConfig.pdfTableStartY} mm)</span>
+                            <input 
+                              type="range"
+                              min="50"
+                              max="200"
+                              value={pdfConfig.pdfTableStartY}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfTableStartY: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Columna Izquierda (Fantasía) */}
+                      <div className="border-t border-slate-200 dark:border-slate-800 pt-5">
+                        <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-4">
+                          Columna Izquierda (Fantasía)
+                        </span>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                          <div className="flex flex-col gap-1.5">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Alineación de Texto</label>
+                            <select 
+                              value={pdfConfig.pdfLeftColAlign}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfLeftColAlign: e.target.value})}
+                              className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none text-xs font-semibold"
+                            >
+                              <option value="centrado">CENTRADO EN BLOQUE IZQUIERDO</option>
+                              <option value="izquierda">IZQUIERDA EN CABECERA</option>
+                            </select>
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Tamaño de Fuente Nombre ({pdfConfig.pdfCompanyNameSize} px)</span>
+                            <input 
+                              type="range"
+                              min="8"
+                              max="28"
+                              value={pdfConfig.pdfCompanyNameSize}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfCompanyNameSize: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Posición Horizontal Margen X ({pdfConfig.pdfLeftColX} mm)</span>
+                            <input 
+                              type="range"
+                              min="5"
+                              max="100"
+                              value={pdfConfig.pdfLeftColX}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfLeftColX: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Posición Vertical Alineación Y ({pdfConfig.pdfCompanyNameY} mm)</span>
+                            <input 
+                              type="range"
+                              min="5"
+                              max="100"
+                              value={pdfConfig.pdfCompanyNameY}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfCompanyNameY: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Columna Derecha (Factura) */}
+                      <div className="border-t border-slate-200 dark:border-slate-800 pt-5">
+                        <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest block mb-4">
+                          Columna Derecha (Factura)
+                        </span>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Posición Horizontal X ({pdfConfig.pdfRightColX} mm)</span>
+                            <input 
+                              type="range"
+                              min="50"
+                              max="180"
+                              value={pdfConfig.pdfRightColX}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfRightColX: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Posición Vertical Y ({pdfConfig.pdfRightColY} mm)</span>
+                            <input 
+                              type="range"
+                              min="5"
+                              max="100"
+                              value={pdfConfig.pdfRightColY}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfRightColY: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Tamaño Fuente Título ({pdfConfig.pdfRightColTitleSize} pt)</span>
+                            <input 
+                              type="range"
+                              min="8"
+                              max="28"
+                              value={pdfConfig.pdfRightColTitleSize}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfRightColTitleSize: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase">Tamaño de Detalles ({pdfConfig.pdfRightColDetailsSize} pt)</span>
+                            <input 
+                              type="range"
+                              min="6"
+                              max="14"
+                              value={pdfConfig.pdfRightColDetailsSize}
+                              onChange={e => setPdfConfig({...pdfConfig, pdfRightColDetailsSize: Number(e.target.value)})}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Restablecer valores default */}
+                  <div className="flex justify-between items-center pt-5 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const INITIAL_PDF_CONFIG_LOCAL = {
+                          pdfColorPalette: 'slate',
+                          pdfLogoPosition: 'izquierda',
+                          pdfLogoSizeWidth: 30,
+                          pdfLogoX: 15,
+                          pdfLogoY: 12,
+                          pdfLynxPosition: 'abajo_derecha',
+                          pdfLynxSize: 25,
+                          pdfLynxOpacity: 0.08,
+                          pdfHeaderHeight: 55,
+                          pdfCompanyNameSize: 16,
+                          pdfCompanyNameY: 25,
+                          pdfRightColTitleSize: 18,
+                          pdfRightColDetailsSize: 9,
+                          pdfRightColY: 15,
+                          pdfInvoiceTypeX: 95,
+                          pdfInvoiceTypeY: 10,
+                          pdfLeftColAlign: 'centrado',
+                          pdfLeftColX: 15,
+                          pdfRightColX: 110,
+                          pdfTableStartY: 92
+                        };
+                        setPdfConfig(INITIAL_PDF_CONFIG_LOCAL);
+                      }}
+                      className="px-4 py-2 border border-slate-200 dark:border-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 rounded-lg text-xs font-bold transition-all"
+                    >
+                      Restaurar Valores por Defecto
+                    </button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.setItem('optica_inicio_actividad', inicioActividad);
+                        localStorage.setItem('optica_iibb', iibb);
+                        setPdfConfig({...pdfConfig});
+                        alert("¡Diseño final guardado correctamente!");
+                      }}
+                      className="px-6 py-2.5 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl font-bold text-xs uppercase tracking-wider transition-all shadow-md flex items-center gap-2"
+                    >
+                      <Save className="w-4 h-4" /> GUARDAR DISEÑO FINAL
+                    </button>
+                  </div>
+                </div>
+
+                {/* Previsualización en Tiempo Real */}
+                <div className="xl:col-span-5 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-amber-500" /> VISTA PREVIA DEL PDF EN VIVO
+                    </span>
+                    <span className="text-[9px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> AUTO-REGENERANDO
+                    </span>
+                  </div>
+                  {previewUrl ? (
+                    <iframe 
+                      src={previewUrl} 
+                      title="Previsualización Factura" 
+                      className="w-full h-[600px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white shadow-xl"
+                    />
+                  ) : (
+                    <div className="w-full h-[600px] rounded-2xl border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 italic text-sm">
+                      Generando previsualización del diseño...
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </section>
         )}

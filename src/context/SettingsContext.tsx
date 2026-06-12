@@ -9,6 +9,29 @@ export interface BankEntity {
   accountNumber: string;
 }
 
+export interface PDFConfig {
+  pdfColorPalette: string;
+  pdfLogoPosition: string;
+  pdfLogoSizeWidth: number;
+  pdfLogoX: number;
+  pdfLogoY: number;
+  pdfLynxPosition: string;
+  pdfLynxSize: number;
+  pdfLynxOpacity: number;
+  pdfHeaderHeight: number;
+  pdfCompanyNameSize: number;
+  pdfCompanyNameY: number;
+  pdfRightColTitleSize: number;
+  pdfRightColDetailsSize: number;
+  pdfRightColY: number;
+  pdfInvoiceTypeX: number;
+  pdfInvoiceTypeY: number;
+  pdfLeftColAlign: string;
+  pdfLeftColX: number;
+  pdfRightColX: number;
+  pdfTableStartY: number;
+}
+
 interface SettingsContextType {
   insurances: Insurance[];
   addInsurance: (insurance: Omit<Insurance, 'id'>) => void;
@@ -44,6 +67,8 @@ interface SettingsContextType {
   setOpticaAddress: (address: string) => void;
   appTheme: string;
   setAppTheme: (theme: string) => void;
+  pdfConfig: PDFConfig;
+  setPdfConfig: (config: PDFConfig) => void;
 }
 
 const INITIAL_INSURANCES: Insurance[] = [
@@ -59,6 +84,29 @@ const INITIAL_BANKS: BankEntity[] = [
   { id: '2', name: "Banco Santander", cbu: "", alias: "", accountNumber: "" },
   { id: '3', name: "Mercado Pago", cbu: "", alias: "", accountNumber: "" },
 ];
+
+const INITIAL_PDF_CONFIG: PDFConfig = {
+  pdfColorPalette: 'slate',
+  pdfLogoPosition: 'izquierda',
+  pdfLogoSizeWidth: 30,
+  pdfLogoX: 15,
+  pdfLogoY: 12,
+  pdfLynxPosition: 'abajo_derecha',
+  pdfLynxSize: 25,
+  pdfLynxOpacity: 0.08,
+  pdfHeaderHeight: 55,
+  pdfCompanyNameSize: 16,
+  pdfCompanyNameY: 25,
+  pdfRightColTitleSize: 18,
+  pdfRightColDetailsSize: 9,
+  pdfRightColY: 15,
+  pdfInvoiceTypeX: 95,
+  pdfInvoiceTypeY: 10,
+  pdfLeftColAlign: 'centrado',
+  pdfLeftColX: 15,
+  pdfRightColX: 110,
+  pdfTableStartY: 92
+};
 
 const INITIAL_INVENTORY_CATEGORIES = ["Armazones", "Anteojos de Sol", "Anteojos Terminados", "Cristales", "Lentes de Contacto", "Líquidos", "Accesorios"];
 const INITIAL_LENS_COLORS = ["Blanco", "Fotocromático", "Antireflex", "Gris", "Marrón", "Verde"];
@@ -127,6 +175,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const [opticaAddress, setOpticaAddress] = useState(() => localStorage.getItem('optica_address') || "Av. Principal 123");
   const [appTheme, setAppTheme] = useState(() => localStorage.getItem('optica_theme') || "default");
+  const [pdfConfig, setPdfConfigState] = useState<PDFConfig>(() => {
+    const saved = localStorage.getItem('optica_pdf_config');
+    return saved ? JSON.parse(saved) : INITIAL_PDF_CONFIG;
+  });
+
+  const setPdfConfig = (newConfig: PDFConfig) => {
+    setPdfConfigState(newConfig);
+    localStorage.setItem('optica_pdf_config', JSON.stringify(newConfig));
+  };
 
   useEffect(() => { localStorage.setItem('optica_insurances', JSON.stringify(insurances)); }, [insurances]);
 
@@ -295,7 +352,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       opticaAddress,
       setOpticaAddress,
       appTheme,
-      setAppTheme
+      setAppTheme,
+      pdfConfig,
+      setPdfConfig
     }}>
       {children}
     </SettingsContext.Provider>
