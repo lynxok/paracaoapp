@@ -122,3 +122,22 @@ export interface Denomination {
   value: number;
   label: string;
 }
+
+// --- Crystal Pricing Rules ---
+// A single range condition that a prescription must satisfy
+export interface CrystalPricingCondition {
+  esfMin: number;     // minimum ESF value (e.g. -15)
+  esfMax: number;     // maximum ESF value (e.g. 6)
+  cilMax: number;     // maximum absolute CIL value (e.g. 2)
+  esfPlusCilMax?: number; // optional: |ESF| + |CIL| must not exceed this
+}
+
+// A crystal product rule: price applies when the prescription matches ANY condition (OR logic)
+export interface CrystalPricingRule {
+  id: string;
+  name: string;           // display name e.g. "Orgánico Blanco - Stock"
+  material: string;       // e.g. "Orgánico", "Orgánico 1.67"
+  tratamiento: string;    // e.g. "Blanco", "AR", "AR + Blue Cut", "Fotocromatico c/AR"
+  conditions: CrystalPricingCondition[]; // OR: first matching condition wins
+  precio: number;         // price in ARS
+}

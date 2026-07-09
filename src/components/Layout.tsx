@@ -57,9 +57,8 @@ const menuItems = [
 export function Layout({ children, title, subtitle }: { children: React.ReactNode, title: string, subtitle?: string }) {
   const location = useLocation();
   const navigate = useNavigate();
-  const { cart } = useCart();
+  const { cart, isCartOpen, setIsCartOpen } = useCart();
   const isSalesOrOrdersPage = location.pathname.startsWith('/sales') || location.pathname.startsWith('/orders');
-  const [isCartOpen, setIsCartOpen] = useState(true);
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('theme');

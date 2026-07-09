@@ -49,6 +49,8 @@ interface CartContextType {
   paymentMethodId: string;
   setPaymentMethodId: (id: string) => void;
   checkout: () => { success: boolean; message: string };
+  isCartOpen: boolean;
+  setIsCartOpen: (open: boolean) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -63,6 +65,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
+  const [isCartOpen, setIsCartOpen] = useState<boolean>(true);
 
   useEffect(() => {
     if (boxes.length > 0 && !paymentMethodId) {
@@ -193,7 +196,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setSelectedClient,
       paymentMethodId,
       setPaymentMethodId,
-      checkout
+      checkout,
+      isCartOpen,
+      setIsCartOpen
     }}>
       {children}
     </CartContext.Provider>

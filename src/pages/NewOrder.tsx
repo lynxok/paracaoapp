@@ -8,15 +8,34 @@ import { useSettings } from "../context/SettingsContext";
 import { useInventory } from "../context/InventoryContext";
 import { useLabs } from "../context/LabContext";
 import { useCart } from "../context/CartContext";
+import { CrystalPricingCondition } from "../types";
 
 export function NewOrder() {
   const { boxes, addTransaction } = useFinance();
   const { clients, addOrder } = useClients();
-  const { insurances, lensColors, contactLensColors, opticaLogo, opticaName, opticaPhone, opticaAddress } = useSettings();
+  const { insurances, lensColors, contactLensColors, opticaLogo, opticaName, opticaPhone, opticaAddress, crystalRules } = useSettings();
   const { inventory, deductStock } = useInventory();
   const { labs, addJob } = useLabs();
+  const { addToCart, setIsCartOpen } = useCart();
   const navigate = useNavigate();
   const { type } = useParams<{ type: string }>();
+
+  // Helper: evaluate a prescription eye against all crystal rules
+  const getCrystalPrice = (esf: number, cil: number, material: string, tratamiento: string): number => {
+    const matchingRules = crystalRules.filter(r => r.material === material && r.tratamiento === tratamiento);
+    for (const rule of matchingRules) {
+      const matches = rule.conditions.some((cond: CrystalPricingCondition) => {
+        const absEsf = Math.abs(esf);
+        const absCil = Math.abs(cil);
+        const inEsfRange = esf >= cond.esfMin && esf <= cond.esfMax;
+        const inCilRange = absCil <= cond.cilMax;
+        const sumOk = cond.esfPlusCilMax === undefined || (absEsf + absCil) <= cond.esfPlusCilMax;
+        return inEsfRange && inCilRange && sumOk;
+      });
+      if (matches) return rule.precio;
+    }
+    return 0;
+  };
   const isMultifocal = type === 'multifocal';
   const isOccupational = type === 'ocupacional';
   const isContact = type === 'contact';
@@ -28,6 +47,36 @@ export function NewOrder() {
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [clientSearch, setClientSearch] = useState("");
   const [tempDni, setTempDni] = useState("");
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  const resetForm = (mode: 'sameClient' | 'all') => {
+    setLejosOD({ esf: "", cil: "", eje: "" });
+    setLejosOI({ esf: "", cil: "", eje: "" });
+    setCercaOD({ esf: "", cil: "", eje: "" });
+    setCercaOI({ esf: "", cil: "", eje: "" });
+    setAdicionOD("");
+    setAdicionOI("");
+    setAlturaOD("");
+    setAlturaOI("");
+    setDiOD("");
+    setDiOI("");
+    setApOD("");
+    setApOI("");
+    setSelectedFrame(null);
+    setAssignedLab(null);
+    setDeliveryDate("");
+    setObservaciones("");
+    setSelectedMaterial('Orgánico');
+    setSelectedTratamiento('Blanco');
+    setInternalLabCost('');
+    
+    if (mode === 'all') {
+      setSelectedClient(null);
+      setMedico("");
+      setMatricula("");
+      setSelectedDoctor(null);
+    }
+  };
 
   const handleDniSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -60,6 +109,8 @@ export function NewOrder() {
   const [orderNumber] = useState(`#${Math.floor(10000 + Math.random() * 90000)}`);
 
   // Prescription state
+  const [enableLejos, setEnableLejos] = useState(true);
+  const [enableCerca, setEnableCerca] = useState(false);
   const [lejosOD, setLejosOD] = useState({ esf: "", cil: "", eje: "" });
   const [lejosOI, setLejosOI] = useState({ esf: "", cil: "", eje: "" });
   const [cercaOD, setCercaOD] = useState({ esf: "", cil: "", eje: "" });
@@ -127,16 +178,36 @@ export function NewOrder() {
   const [observaciones, setObservaciones] = useState("");
   const [lensColor, setLensColor] = useState(lensColors[0] || '');
 
-  // Crystal (from stock) state
-  const [isCrystalModalOpen, setIsCrystalModalOpen] = useState(false);
-  const [selectedCrystal, setSelectedCrystal] = useState<any>(null);
-  const [crystalSearch, setCrystalSearch] = useState('');
+  // Crystal selectors (material + tratamiento — price calculated dynamically)
+  const [selectedMaterial, setSelectedMaterial] = useState('Orgánico');
+  const [selectedTratamiento, setSelectedTratamiento] = useState('Blanco');
+
+  // Derive available unique materials and tratamientos from crystalRules
+  const availableMaterials = [...new Set(crystalRules.map(r => r.material))];
+  const availableTratamientos = [...new Set(crystalRules.filter(r => r.material === selectedMaterial).map(r => r.tratamiento))];
 
   // Internal lab cost (when no external lab used)
   const [internalLabCost, setInternalLabCost] = useState('');
 
-  // Derived values
-  const crystalPrice = selectedCrystal ? (parseFloat(selectedCrystal.price.replace('$','')) || 0) : 0;
+  // Derived values — crystal price calculated per eye from prescription + rules
+  const lejosPriceOD = (!isContact && (type !== 'monofocal' || enableLejos))
+    ? getCrystalPrice(parseFloat(lejosOD.esf) || 0, parseFloat(lejosOD.cil) || 0, selectedMaterial, selectedTratamiento)
+    : 0;
+  const lejosPriceOI = (!isContact && (type !== 'monofocal' || enableLejos))
+    ? getCrystalPrice(parseFloat(lejosOI.esf) || 0, parseFloat(lejosOI.cil) || 0, selectedMaterial, selectedTratamiento)
+    : 0;
+
+  const cercaPriceOD = (!isContact && type === 'monofocal' && enableCerca)
+    ? getCrystalPrice(parseFloat(cercaOD.esf) || 0, parseFloat(cercaOD.cil) || 0, selectedMaterial, selectedTratamiento)
+    : 0;
+  const cercaPriceOI = (!isContact && type === 'monofocal' && enableCerca)
+    ? getCrystalPrice(parseFloat(cercaOI.esf) || 0, parseFloat(cercaOI.cil) || 0, selectedMaterial, selectedTratamiento)
+    : 0;
+
+  const crystalPriceOD = lejosPriceOD + cercaPriceOD;
+  const crystalPriceOI = lejosPriceOI + cercaPriceOI;
+  const crystalPrice = crystalPriceOD + crystalPriceOI;
+
   const framePrice = selectedFrame ? selectedFrame.numericPrice : 0;
   const labIntCost = parseFloat(internalLabCost) || 0;
   const subtotal = crystalPrice + framePrice + labIntCost;
@@ -146,8 +217,8 @@ export function NewOrder() {
   const clientInsurance = selectedClient?.insuranceId ? insurances.find(i => i.id === selectedClient.insuranceId) : null;
   
   if (clientInsurance && clientInsurance.coverages) {
-    if (selectedCrystal) {
-       const rule = clientInsurance.coverages.find((c: any) => c.categoryId === selectedCrystal.cat);
+    if (crystalPrice > 0) {
+       const rule = clientInsurance.coverages.find((c: any) => c.categoryId === 'Cristales');
        if (rule) crystalCoverage = Math.min(crystalPrice, rule.amount || 0);
     }
     if (selectedFrame) {
@@ -159,16 +230,7 @@ export function NewOrder() {
   const totalCoverage = crystalCoverage + frameCoverage;
   const orderTotal = Math.max(0, subtotal - totalCoverage);
 
-  const filteredCrystals = inventory
-    .filter(item => item.cat === 'Cristales')
-    .filter(c => {
-      // First apply the color filter from the form dropdown (lensColor)
-      if (lensColor && !isContact) {
-        return c.name.toLowerCase().includes(lensColor.toLowerCase());
-      }
-      return true;
-    })
-    .filter(c => c.name.toLowerCase().includes(crystalSearch.toLowerCase()) || c.sku.toLowerCase().includes(crystalSearch.toLowerCase()));
+  const filteredCrystals: any[] = []; // Crystal pricing is now rule-based, not stock-based
 
   // Placeholder: this will eventually come from the Auth Context based on the user's login selection
   const currentBranchId = '1'; 
@@ -217,6 +279,8 @@ export function NewOrder() {
       details: {
         client: selectedClient,
         prescriptionType: type || 'monofocal',
+        enableLejos,
+        enableCerca,
         lejosOD,
         lejosOI,
         cercaOD,
@@ -232,7 +296,10 @@ export function NewOrder() {
         medico,
         observaciones,
         lensColor,
-        selectedCrystal,
+        selectedMaterial,
+        selectedTratamiento,
+        crystalPriceOD,
+        crystalPriceOI,
         selectedFrame,
         assignedLab,
         deliveryDate,
@@ -243,8 +310,8 @@ export function NewOrder() {
       }
     });
 
-    alert("Recetado agregado al carrito de venta");
-    navigate('/orders');
+    setIsCartOpen(true);
+    setShowSuccessModal(true);
   };
 
   const handleSendToLab = () => {
@@ -461,7 +528,7 @@ export function NewOrder() {
               <div className="max-h-60 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredFrames.length > 0 ? (
                   filteredFrames.map(frame => {
-                    const totalStock = Object.values(frame.stocks).reduce((a, b) => a + b, 0);
+                    const totalStock = Object.values(frame.stocks || {}).reduce((a: any, b: any) => (a as number) + (b as number), 0) as number;
                     const parsedPrice = parseFloat(frame.price.replace('$', '')) || 0;
                     return (
                     <button
@@ -498,68 +565,7 @@ export function NewOrder() {
         </div>
       )}
 
-      {/* Crystal Modal */}
-      {isCrystalModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">
-              <h3 className="text-xl font-bold flex items-center gap-2">
-                <Eye className="w-6 h-6 text-emerald-600" /> Buscar Cristal en Stock
-              </h3>
-              <button onClick={() => setIsCrystalModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                <input
-                  type="text"
-                  value={crystalSearch}
-                  onChange={e => setCrystalSearch(e.target.value)}
-                  placeholder="Buscar por nombre o SKU..."
-                  className="w-full pl-9 h-10 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-emerald-600 outline-none text-slate-900 dark:text-white"
-                  autoFocus
-                />
-              </div>
-              <div className="max-h-60 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredCrystals.length > 0 ? (
-                  filteredCrystals.map(crystal => {
-                    const totalStock = Object.values(crystal.stocks as Record<string,number>).reduce((a, b) => a + b, 0);
-                    const parsedPrice = parseFloat(crystal.price.replace('$', '')) || 0;
-                    return (
-                      <button
-                        key={crystal.sku}
-                        onClick={() => {
-                          if (totalStock > 0) {
-                            setSelectedCrystal(crystal);
-                            setIsCrystalModalOpen(false);
-                          }
-                        }}
-                        disabled={totalStock === 0}
-                        className={`w-full flex items-center justify-between p-4 transition-colors text-left ${totalStock === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-                      >
-                        <div>
-                          <p className={`font-bold ${totalStock === 0 ? 'text-slate-400' : 'text-slate-900 dark:text-white'}`}>{crystal.name}</p>
-                          <p className="text-xs text-slate-500">{crystal.sku}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className={`text-sm font-bold ${totalStock === 0 ? 'text-slate-400' : 'text-slate-900 dark:text-white'} mb-1`}>${parsedPrice.toFixed(2)}</p>
-                          <div>
-                            {renderStockBreakdown(crystal.stocks as Record<string,number>)}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })
-                ) : (
-                  <div className="p-8 text-center text-slate-500 text-sm">No se encontraron cristales en inventario.</div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Crystal Modal removed — pricing is now dynamic, not stock-based */}
 
       {/* Lab Send Modal */}
       {isLabModalOpen && (
@@ -659,42 +665,46 @@ export function NewOrder() {
                 </div>
 
                 {/* Lejos */}
-                <div style={{ marginBottom: '14px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#444', borderBottom: '1.5px solid #000', paddingBottom: '3px', marginBottom: '8px' }}>Visión Lejos</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr', gap: '6px', marginBottom: '4px' }}>
-                    <div></div>
-                    <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Esférico</div>
-                    <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Cilíndrico</div>
-                    <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Eje</div>
-                  </div>
-                  {[{ label: 'Ojo Derecho', data: lejosOD }, { label: 'Ojo Izquierdo', data: lejosOI }].map(row => (
-                    <div key={row.label} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr', gap: '6px', marginBottom: '4px', alignItems: 'center' }}>
-                      <div style={{ fontWeight: '700', fontSize: '12px', background: '#f5f5f5', padding: '4px 8px', borderRadius: '4px', textAlign: 'center' }}>{row.label}</div>
-                      {[row.data.esf, row.data.cil, row.data.eje].map((v, i) => (
-                        <div key={i} style={{ textAlign: 'center', border: '1px solid #ddd', borderRadius: '4px', padding: '4px', fontSize: '13px', fontWeight: '600', minHeight: '28px' }}>{v || '-'}</div>
-                      ))}
+                {(type !== 'monofocal' || enableLejos) && (
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#444', borderBottom: '1.5px solid #000', paddingBottom: '3px', marginBottom: '8px' }}>Visión Lejos</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr', gap: '6px', marginBottom: '4px' }}>
+                      <div></div>
+                      <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Esférico</div>
+                      <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Cilíndrico</div>
+                      <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Eje</div>
                     </div>
-                  ))}
-                </div>
+                    {[{ label: 'Ojo Derecho', data: lejosOD }, { label: 'Ojo Izquierdo', data: lejosOI }].map(row => (
+                      <div key={row.label} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr', gap: '6px', marginBottom: '4px', alignItems: 'center' }}>
+                        <div style={{ fontWeight: '700', fontSize: '12px', background: '#f5f5f5', padding: '4px 8px', borderRadius: '4px', textAlign: 'center' }}>{row.label}</div>
+                        {[row.data.esf, row.data.cil, row.data.eje].map((v, i) => (
+                          <div key={i} style={{ textAlign: 'center', border: '1px solid #ddd', borderRadius: '4px', padding: '4px', fontSize: '13px', fontWeight: '600', minHeight: '28px' }}>{v || '-'}</div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Cerca */}
-                <div style={{ marginBottom: '14px' }}>
-                  <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#444', borderBottom: '1.5px solid #000', paddingBottom: '3px', marginBottom: '8px' }}>Visión Cerca</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr', gap: '6px', marginBottom: '4px' }}>
-                    <div></div>
-                    <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Esférico</div>
-                    <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Cilíndrico</div>
-                    <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Eje</div>
-                  </div>
-                  {[{ label: 'Ojo Derecho', data: cercaOD }, { label: 'Ojo Izquierdo', data: cercaOI }].map(row => (
-                    <div key={row.label} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr', gap: '6px', marginBottom: '4px', alignItems: 'center' }}>
-                      <div style={{ fontWeight: '700', fontSize: '12px', background: '#f5f5f5', padding: '4px 8px', borderRadius: '4px', textAlign: 'center' }}>{row.label}</div>
-                      {[row.data.esf, row.data.cil, row.data.eje].map((v, i) => (
-                        <div key={i} style={{ textAlign: 'center', border: '1px solid #ddd', borderRadius: '4px', padding: '4px', fontSize: '13px', fontWeight: '600', minHeight: '28px' }}>{v || '-'}</div>
-                      ))}
+                {(type !== 'monofocal' || enableCerca) && (
+                  <div style={{ marginBottom: '14px' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#444', borderBottom: '1.5px solid #000', paddingBottom: '3px', marginBottom: '8px' }}>Visión Cerca</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr', gap: '6px', marginBottom: '4px' }}>
+                      <div></div>
+                      <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Esférico</div>
+                      <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Cilíndrico</div>
+                      <div style={{ textAlign: 'center', fontWeight: '700', fontSize: '10px', color: '#555' }}>Eje</div>
                     </div>
-                  ))}
-                </div>
+                    {[{ label: 'Ojo Derecho', data: cercaOD }, { label: 'Ojo Izquierdo', data: cercaOI }].map(row => (
+                      <div key={row.label} style={{ display: 'grid', gridTemplateColumns: '110px 1fr 1fr 1fr', gap: '6px', marginBottom: '4px', alignItems: 'center' }}>
+                        <div style={{ fontWeight: '700', fontSize: '12px', background: '#f5f5f5', padding: '4px 8px', borderRadius: '4px', textAlign: 'center' }}>{row.label}</div>
+                        {[row.data.esf, row.data.cil, row.data.eje].map((v, i) => (
+                          <div key={i} style={{ textAlign: 'center', border: '1px solid #ddd', borderRadius: '4px', padding: '4px', fontSize: '13px', fontWeight: '600', minHeight: '28px' }}>{v || '-'}</div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                 {/* Adición Multifocal / Ocupacional */}
                 {(isMultifocal || isOccupational) && (
@@ -896,10 +906,26 @@ export function NewOrder() {
             {!isContact ? (
               <div className="space-y-6">
                 {/* Lejos */}
-                <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 shadow-sm">
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                    <ArrowUpFromLine className="w-5 h-5 text-blue-500" /> Visión Lejos
-                  </h4>
+                <div className={cn(
+                  "p-5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 shadow-sm transition-all",
+                  type === 'monofocal' && !enableLejos && "opacity-50 pointer-events-none bg-slate-100/50 dark:bg-slate-900/20"
+                )}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <ArrowUpFromLine className="w-5 h-5 text-blue-500" /> Visión Lejos
+                    </h4>
+                    {type === 'monofocal' && (
+                      <label className="flex items-center gap-2 cursor-pointer pointer-events-auto select-none">
+                        <input
+                          type="checkbox"
+                          checked={enableLejos}
+                          onChange={e => setEnableLejos(e.target.checked)}
+                          className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
+                        />
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Habilitar</span>
+                      </label>
+                    )}
+                  </div>
                   
                   {/* Desktop Headers */}
                   <div className="hidden sm:grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3 px-2">
@@ -925,7 +951,8 @@ export function NewOrder() {
                               <input 
                                 value={stateVal.esf}
                                 onChange={e => setVal({ ...stateVal, esf: e.target.value })}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                disabled={type === 'monofocal' && !enableLejos}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
                                 placeholder="0.00" 
                               />
                             </div>
@@ -934,7 +961,8 @@ export function NewOrder() {
                               <input 
                                 value={stateVal.cil}
                                 onChange={e => setVal({ ...stateVal, cil: e.target.value })}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                disabled={type === 'monofocal' && !enableLejos}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
                                 placeholder="0.00" 
                               />
                             </div>
@@ -943,7 +971,8 @@ export function NewOrder() {
                               <input 
                                 value={stateVal.eje}
                                 onChange={e => setVal({ ...stateVal, eje: e.target.value })}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                disabled={type === 'monofocal' && !enableLejos}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
                                 placeholder="0°" 
                               />
                             </div>
@@ -955,10 +984,26 @@ export function NewOrder() {
                 </div>
 
                 {/* Cerca */}
-                <div className="p-5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 shadow-sm">
-                  <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                    <ArrowDownToLine className="w-5 h-5 text-blue-500" /> Visión Cerca
-                  </h4>
+                <div className={cn(
+                  "p-5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 shadow-sm transition-all",
+                  type === 'monofocal' && !enableCerca && "opacity-50 pointer-events-none bg-slate-100/50 dark:bg-slate-900/20"
+                )}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <ArrowDownToLine className="w-5 h-5 text-blue-500" /> Visión Cerca
+                    </h4>
+                    {type === 'monofocal' && (
+                      <label className="flex items-center gap-2 cursor-pointer pointer-events-auto select-none">
+                        <input
+                          type="checkbox"
+                          checked={enableCerca}
+                          onChange={e => setEnableCerca(e.target.checked)}
+                          className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
+                        />
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Habilitar</span>
+                      </label>
+                    )}
+                  </div>
                   
                   {/* Desktop Headers */}
                   <div className="hidden sm:grid grid-cols-1 sm:grid-cols-4 gap-3 mb-3 px-2">
@@ -984,7 +1029,8 @@ export function NewOrder() {
                               <input 
                                 value={stateVal.esf}
                                 onChange={e => setVal({ ...stateVal, esf: e.target.value })}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                disabled={type === 'monofocal' && !enableCerca}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
                                 placeholder="0.00" 
                               />
                             </div>
@@ -993,7 +1039,8 @@ export function NewOrder() {
                               <input 
                                 value={stateVal.cil}
                                 onChange={e => setVal({ ...stateVal, cil: e.target.value })}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                disabled={type === 'monofocal' && !enableCerca}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
                                 placeholder="0.00" 
                               />
                             </div>
@@ -1002,7 +1049,8 @@ export function NewOrder() {
                               <input 
                                 value={stateVal.eje}
                                 onChange={e => setVal({ ...stateVal, eje: e.target.value })}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none" 
+                                disabled={type === 'monofocal' && !enableCerca}
+                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
                                 placeholder="0°" 
                               />
                             </div>
@@ -1229,25 +1277,57 @@ export function NewOrder() {
             </h3>
             <div className="space-y-2">
 
-              {/* Crystal */}
+              {/* Crystal — Material + Tratamiento + Dynamic Price */}
               {!isContact && (
-                <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Cristal</p>
-                    {selectedCrystal ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-800 dark:text-white truncate">{selectedCrystal.name}</span>
-                        <button onClick={() => setSelectedCrystal(null)} className="text-slate-400 hover:text-red-500 flex-shrink-0"><X className="w-3 h-3" /></button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setIsCrystalModalOpen(true)} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
-                        <Plus className="w-3 h-3" /> Agregar cristal del stock
-                      </button>
-                    )}
+                <div className="py-2 border-b border-slate-100 dark:border-slate-800">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Cristal</p>
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Material</label>
+                      <select
+                        value={selectedMaterial}
+                        onChange={e => {
+                          const newMat = e.target.value;
+                          const newTrats = [...new Set(crystalRules.filter(r => r.material === newMat).map(r => r.tratamiento))];
+                          setSelectedMaterial(newMat);
+                          setSelectedTratamiento(newTrats[0] || 'Blanco');
+                        }}
+                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-emerald-600 outline-none"
+                      >
+                        {availableMaterials.map(m => <option key={m}>{m}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Tratamiento</label>
+                      <select
+                        value={selectedTratamiento}
+                        onChange={e => setSelectedTratamiento(e.target.value)}
+                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-emerald-600 outline-none"
+                      >
+                        {availableTratamientos.map(t => <option key={t}>{t}</option>)}
+                      </select>
+                    </div>
                   </div>
-                  <span className="font-bold text-slate-900 dark:text-white ml-3 flex-shrink-0">
-                    {crystalPrice > 0 ? `$${crystalPrice.toFixed(2)}` : <span className="text-slate-400 text-sm font-normal">-</span>}
-                  </span>
+                  <div className="grid grid-cols-2 gap-1 text-xs">
+                    <div className="flex justify-between bg-slate-50 dark:bg-slate-800 rounded px-2 py-1">
+                      <span className="text-slate-500">OD:</span>
+                      <span className={`font-bold ${crystalPriceOD > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                        {crystalPriceOD > 0 ? `$${crystalPriceOD.toLocaleString('es-AR')}` : '—'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between bg-slate-50 dark:bg-slate-800 rounded px-2 py-1">
+                      <span className="text-slate-500">OI:</span>
+                      <span className={`font-bold ${crystalPriceOI > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
+                        {crystalPriceOI > 0 ? `$${crystalPriceOI.toLocaleString('es-AR')}` : '—'}
+                      </span>
+                    </div>
+                  </div>
+                  {crystalPrice === 0 && (
+                    ((type !== 'monofocal' || enableLejos) && (lejosOD.esf || lejosOI.esf)) ||
+                    ((type === 'monofocal' && enableCerca) && (cercaOD.esf || cercaOI.esf))
+                  ) && (
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">⚠️ La receta no encaja en ninguna regla configurada para este cristal.</p>
+                  )}
                 </div>
               )}
 
@@ -1419,6 +1499,53 @@ export function NewOrder() {
           </button>
         </div>
       </div>
+      
+      {/* Modal de Éxito al Agregar al Carrito */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-4">
+              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center mx-auto">
+                <Check className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">¡Recetado Agregado!</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                La orden de <strong>{selectedClient?.name || 'Cliente Mostrador'}</strong> ha sido agregada con éxito al carrito de venta.
+              </p>
+            </div>
+            
+            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex flex-col gap-2.5">
+              <button
+                onClick={() => {
+                  resetForm('sameClient');
+                  setShowSuccessModal(false);
+                }}
+                className="w-full h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition-all active:scale-[0.98]"
+              >
+                Cargar otra receta para este cliente
+              </button>
+              <button
+                onClick={() => {
+                  resetForm('all');
+                  setShowSuccessModal(false);
+                  navigate('/orders');
+                }}
+                className="w-full h-11 rounded-xl bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-sm transition-all active:scale-[0.98]"
+              >
+                Crear pedido para otro cliente
+              </button>
+              <button
+                onClick={() => {
+                  setShowSuccessModal(false);
+                }}
+                className="w-full h-11 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-850 font-bold text-sm transition-all active:scale-[0.98]"
+              >
+                Cerrar e ir al Carrito
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   </div>
 );

@@ -50,9 +50,9 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const tax = subtotal * 0.21;
-  const total = subtotal + tax;
+  const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const tax = total - (total / 1.21);
+  const subtotal = total - tax;
 
   const handleCheckoutClick = () => {
     const res = checkout();

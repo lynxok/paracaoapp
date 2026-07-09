@@ -24,15 +24,16 @@ export function Reports() {
       return acc;
     }, {} as Record<string, number>);
 
-  const sortedCategories = Object.entries(expensesByCategory)
-    .sort(([, a], [, b]) => b - a)
+  const sortedCategories = (Object.entries(expensesByCategory) as [string, number][])
+    .sort((a, b) => b[1] - a[1])
     .slice(0, 4); // Top 4 categories
 
   const categoryColors = ['#f43f5e', '#f59e0b', '#10b981', '#64748b']; // rose, amber, emerald, slate
   
   let currentPercentage = 0;
   const gradientStops = sortedCategories.length > 0 
-    ? sortedCategories.map(([cat, amount], idx) => {
+    ? sortedCategories.map((item, idx) => {
+        const amount = item[1];
         const percentage = (amount / totalExpenses) * 100;
         const stop = `${categoryColors[idx]} ${currentPercentage}% ${currentPercentage + percentage}%`;
         currentPercentage += percentage;
@@ -73,11 +74,11 @@ export function Reports() {
       return acc;
     }, {} as Record<string, number>);
 
-  const sortedDoctors = Object.entries(doctorReferrals)
-    .sort(([, a], [, b]) => b - a)
+  const sortedDoctors = (Object.entries(doctorReferrals) as [string, number][])
+    .sort((a, b) => b[1] - a[1])
     .slice(0, 5); // Top 5 doctors
 
-  const totalReferrals = Object.values(doctorReferrals).reduce((sum, count) => sum + count, 0);
+  const totalReferrals = (Object.values(doctorReferrals) as number[]).reduce((sum, count) => sum + count, 0);
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -163,17 +164,21 @@ export function Reports() {
           </div>
           
           <div className="w-full mt-8 space-y-3 text-sm">
-            {sortedCategories.length > 0 ? sortedCategories.map(([cat, amount], idx) => (
-              <div key={cat} className="flex justify-between items-center p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-medium">
-                  <span className="w-3 h-3 rounded-full" style={{backgroundColor: categoryColors[idx]}}></span> <span className="capitalize">{cat}</span>
+            {sortedCategories.length > 0 ? sortedCategories.map((item, idx) => {
+              const cat = item[0];
+              const amount = item[1];
+              return (
+                <div key={cat} className="flex justify-between items-center p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 font-medium">
+                    <span className="w-3 h-3 rounded-full" style={{backgroundColor: categoryColors[idx]}}></span> <span className="capitalize">{cat}</span>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <span className="font-bold text-slate-900 dark:text-white">{((amount / totalExpenses) * 100).toFixed(1)}%</span>
+                    <span className="text-[10px] text-slate-400">{formatCurrency(amount)}</span>
+                  </div>
                 </div>
-                <div className="flex flex-col items-end">
-                  <span className="font-bold text-slate-900 dark:text-white">{((amount / totalExpenses) * 100).toFixed(1)}%</span>
-                  <span className="text-[10px] text-slate-400">{formatCurrency(amount)}</span>
-                </div>
-              </div>
-            )) : (
+              );
+            }) : (
               <p className="text-center text-slate-500 text-sm py-4">No hay gastos registrados para desglosar.</p>
             )}
           </div>
@@ -197,7 +202,9 @@ export function Reports() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {sortedDoctors.map(([docName, count], idx) => {
+                  {sortedDoctors.map((item, idx) => {
+                    const docName = item[0];
+                    const count = item[1];
                     const pct = totalReferrals > 0 ? ((count / totalReferrals) * 100).toFixed(1) : "0.0";
                     return (
                       <tr key={docName} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
@@ -262,7 +269,7 @@ export function Reports() {
                 <span className="text-xs font-bold text-slate-500 uppercase">Tasa Derivación</span>
                 <span className="font-black text-emerald-600 font-mono">
                   {orders.filter(o => o.type !== 'sale').length > 0
-                    ? `${((totalReferrals / orders.filter(o => o.type !== 'sale').length) * 100).toFixed(0)}%`
+                    ? `${Math.round((totalReferrals / orders.filter(o => o.type !== 'sale').length) * 100)}%`
                     : "0%"
                   }
                 </span>

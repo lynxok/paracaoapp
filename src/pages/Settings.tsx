@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles, FileText } from "lucide-react";
+import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles, FileText, FlaskConical } from "lucide-react";
 import { cn } from "../lib/utils";
 import { logger } from "../lib/logger";
 import { useSettings } from "../context/SettingsContext";
 import { useAuth } from "../context/AuthContext";
+import { useLabs } from "../context/LabContext";
 import { generateInvoicePDF } from "../utils/pdfGenerator";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
@@ -21,6 +22,8 @@ const tabs = [
   { id: 'insurances', label: 'Obras Sociales', icon: Activity },
   { id: 'banks', label: 'Bancos', icon: Building2 },
   { id: 'inventory', label: 'Categorías', icon: Package },
+  { id: 'labs', label: 'Laboratorios', icon: FlaskConical },
+  { id: 'crystals', label: 'Tabla de Cristales', icon: Eye },
   { id: 'database', label: 'Base de Datos', icon: Database },
   { id: 'audit', label: 'Audit Log', icon: ScrollText },
 ];
@@ -59,7 +62,14 @@ export function Settings() {
   const [csrCuit, setCsrCuit] = useState("30712345678");
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, show: boolean, user: any }>({ x: 0, y: 0, show: false, user: null });
-  const { insurances, addInsurance, updateInsurance, removeInsurance, banks, addBank, updateBank, removeBank, inventoryCategories, addInventoryCategory, updateInventoryCategory, removeInventoryCategory, lensColors, addLensColor, updateLensColor, removeLensColor, contactLensColors, addContactLensColor, updateContactLensColor, removeContactLensColor, lensTypes, addLensType, updateLensType, removeLensType, opticaLogo, setOpticaLogo, opticaName, setOpticaName, opticaPhone, setOpticaPhone, opticaAddress, setOpticaAddress, appTheme, setAppTheme, pdfConfig, setPdfConfig } = useSettings();
+  const { insurances, addInsurance, updateInsurance, removeInsurance, banks, addBank, updateBank, removeBank, inventoryCategories, addInventoryCategory, updateInventoryCategory, removeInventoryCategory, lensColors, addLensColor, updateLensColor, removeLensColor, contactLensColors, addContactLensColor, updateContactLensColor, removeContactLensColor, lensTypes, addLensType, updateLensType, removeLensType, opticaLogo, setOpticaLogo, opticaName, setOpticaName, opticaPhone, setOpticaPhone, opticaAddress, setOpticaAddress, appTheme, setAppTheme, pdfConfig, setPdfConfig, crystalRules, addCrystalRule, updateCrystalRule, removeCrystalRule } = useSettings();
+  const { labs, addLab, updateLab, deleteLab } = useLabs();
+
+  // Crystal rules modal state
+  const EMPTY_CRYSTAL_RULE = { name: '', material: 'Orgánico', tratamiento: 'Blanco', precio: 0, conditions: [{ esfMin: -6, esfMax: 6, cilMax: 2 }] };
+  const [isCrystalRuleModalOpen, setIsCrystalRuleModalOpen] = useState(false);
+  const [editingCrystalRule, setEditingCrystalRule] = useState<any>(null);
+  const [crystalRuleForm, setCrystalRuleForm] = useState<any>(EMPTY_CRYSTAL_RULE);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const lynxLogoInputRef = useRef<HTMLInputElement>(null);
 
@@ -129,6 +139,9 @@ export function Settings() {
   const [newBank, setNewBank] = useState({ name: '', cbu: '', alias: '', accountNumber: '' });
   const [isBankEditModalOpen, setIsBankEditModalOpen] = useState(false);
   const [editingBank, setEditingBank] = useState({ id: '', name: '', cbu: '', alias: '', accountNumber: '' });
+  const [newLab, setNewLab] = useState({ name: '', contact: '' });
+  const [isLabEditModalOpen, setIsLabEditModalOpen] = useState(false);
+  const [editingLab, setEditingLab] = useState({ id: '', name: '', contact: '' });
   
   const [supabaseUrl, setSupabaseUrl] = useState('');
   const [supabaseKey, setSupabaseKey] = useState('');
@@ -1885,6 +1898,145 @@ export function Settings() {
           </section>
         )}
 
+        {activeTab === 'labs' && (
+          <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in duration-300">
+            <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <FlaskConical className="w-6 h-6 text-blue-600" /> Laboratorios
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Administra la lista de laboratorios ópticos con los que trabaja la óptica.</p>
+            </div>
+            
+            <div className="p-6 sm:p-8">
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (newLab.name.trim()) {
+                    addLab(newLab);
+                    setNewLab({ name: '', contact: '' });
+                  }
+                }}
+                className="flex flex-col gap-4 mb-8 bg-slate-50 dark:bg-slate-800/30 p-6 rounded-2xl border border-slate-100 dark:border-slate-800"
+              >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Laboratorio</label>
+                    <input 
+                      type="text" 
+                      value={newLab.name}
+                      onChange={e => setNewLab({...newLab, name: e.target.value})}
+                      placeholder="Ej: Laboratorio Óptico Central" 
+                      className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white"
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Contacto / Observaciones (Opcional)</label>
+                    <input 
+                      type="text" 
+                      value={newLab.contact}
+                      onChange={e => setNewLab({...newLab, contact: e.target.value})}
+                      placeholder="Ej: Tel: 4567-8901 / info@labcentral.com" 
+                      className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-700 mt-2 gap-3">
+                  <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm text-sm">
+                    <Plus className="w-4 h-4" /> Registrar Laboratorio
+                  </button>
+                </div>
+              </form>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {labs.map(lab => (
+                  <div key={lab.id} className="relative flex flex-col p-5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm group hover:border-blue-300 dark:hover:border-blue-900 transition-all">
+                    <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <button 
+                        onClick={() => {
+                          setEditingLab({ id: lab.id, name: lab.name, contact: lab.contact || '' });
+                          setIsLabEditModalOpen(true);
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (window.confirm(`¿Seguro que deseas eliminar el laboratorio ${lab.name}?`)) {
+                            deleteLab(lab.id);
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
+                        <FlaskConical className="w-5 h-5" />
+                      </div>
+                      <h4 className="font-bold text-slate-900 dark:text-white text-lg pr-12 truncate">{lab.name}</h4>
+                    </div>
+
+                    <div className="mt-1">
+                      <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Contacto</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300 mt-1 italic">
+                        {lab.contact || 'Sin información de contacto'}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+
+                {labs.length === 0 && (
+                  <div className="col-span-full py-12 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-center text-slate-500 dark:text-slate-400">
+                    No hay laboratorios registrados. Registra uno usando el formulario de arriba.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Editar Laboratorio */}
+            {isLabEditModalOpen && (
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
+                      <FlaskConical className="w-6 h-6 text-blue-600" /> Editar Laboratorio
+                    </h3>
+                    <button onClick={() => setIsLabEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (editingLab.name.trim()) {
+                      updateLab(editingLab);
+                      setIsLabEditModalOpen(false);
+                    }
+                  }}>
+                    <div className="p-6 space-y-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Laboratorio</label>
+                        <input type="text" value={editingLab.name} onChange={e => setEditingLab({...editingLab, name: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" required />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Contacto / Observaciones</label>
+                        <input type="text" value={editingLab.contact} onChange={e => setEditingLab({...editingLab, contact: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" />
+                      </div>
+                    </div>
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                      <button type="button" onClick={() => setIsLabEditModalOpen(false)} className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                      <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2"><Save className="w-4 h-4"/> Guardar Cambios</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
         {activeTab === 'inventory' && (
           <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in duration-300">
             <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800">
@@ -2324,8 +2476,167 @@ export function Settings() {
             </div>
           </section>
         )}
-        
-        {activeTab !== 'general' && activeTab !== 'appearance' && activeTab !== 'branches' && activeTab !== 'users' && activeTab !== 'permissions' && activeTab !== 'notifications' && activeTab !== 'billing' && activeTab !== 'audit' && activeTab !== 'insurances' && activeTab !== 'banks' && activeTab !== 'inventory' && activeTab !== 'database' && (
+
+        {activeTab === 'crystals' && (
+          <section className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-300">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <Eye className="w-6 h-6 text-emerald-600" /> Tabla de Precios de Cristales
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Definí el precio de cada tipo de cristal según material, tratamiento y rangos de receta. El precio se calcula automáticamente al crear un pedido recetado.</p>
+              </div>
+              <button
+                onClick={() => { setCrystalRuleForm(EMPTY_CRYSTAL_RULE); setEditingCrystalRule(null); setIsCrystalRuleModalOpen(true); }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors shadow-sm"
+              >
+                <Plus className="w-4 h-4" /> Nueva Regla
+              </button>
+            </div>
+
+            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-slate-800/60">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Nombre</th>
+                    <th className="text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Material</th>
+                    <th className="text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Tratamiento</th>
+                    <th className="text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Condiciones (OR)</th>
+                    <th className="text-right px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Precio</th>
+                    <th className="px-4 py-3"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {crystalRules.map(rule => (
+                    <tr key={rule.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{rule.name}</td>
+                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{rule.material}</td>
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold">{rule.tratamiento}</span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 max-w-xs">
+                        {rule.conditions.map((c, i) => (
+                          <div key={i} className="mb-0.5">
+                            ESF [{c.esfMin} / +{c.esfMax}] · CIL max {c.cilMax}{c.esfPlusCilMax ? ` · Suma ≤${c.esfPlusCilMax}` : ''}
+                          </div>
+                        ))}
+                      </td>
+                      <td className="px-4 py-3 text-right font-black text-emerald-600 dark:text-emerald-400">
+                        ${rule.precio.toLocaleString('es-AR')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            onClick={() => { setCrystalRuleForm({ ...rule }); setEditingCrystalRule(rule); setIsCrystalRuleModalOpen(true); }}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                          ><Edit2 className="w-4 h-4" /></button>
+                          <button
+                            onClick={() => { if (confirm('¿Eliminar esta regla?')) removeCrystalRule(rule.id); }}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                          ><Trash2 className="w-4 h-4" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {crystalRules.length === 0 && (
+                    <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400 text-sm">No hay reglas configuradas. Hacé click en "Nueva Regla" para agregar una.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Crystal Rule Modal */}
+            {isCrystalRuleModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Eye className="w-5 h-5 text-emerald-600" /> {editingCrystalRule ? 'Editar Regla' : 'Nueva Regla de Cristal'}
+                    </h3>
+                    <button onClick={() => setIsCrystalRuleModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
+                  </div>
+                  <div className="p-6 space-y-5">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">Nombre de la regla</label>
+                        <input type="text" value={crystalRuleForm.name} onChange={e => setCrystalRuleForm({...crystalRuleForm, name: e.target.value})} placeholder="Ej: Orgánico AR — Stock" className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">Material</label>
+                        <select value={crystalRuleForm.material} onChange={e => setCrystalRuleForm({...crystalRuleForm, material: e.target.value})} className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none">
+                          {['Orgánico','Orgánico 1.61','Orgánico 1.67','Fotocromatico'].map(m => <option key={m}>{m}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">Tratamiento</label>
+                        <select value={crystalRuleForm.tratamiento} onChange={e => setCrystalRuleForm({...crystalRuleForm, tratamiento: e.target.value})} className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none">
+                          {['Blanco','AR','AR + Blue Cut','Fotocromatico c/AR','Fotocromatico AR + Blue Cut'].map(t => <option key={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">Precio por ojo (ARS)</label>
+                        <input type="number" value={crystalRuleForm.precio} onChange={e => setCrystalRuleForm({...crystalRuleForm, precio: parseFloat(e.target.value) || 0})} className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none" />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Condiciones de Rango (OR — basta con que una se cumpla)</label>
+                        <button onClick={() => setCrystalRuleForm({...crystalRuleForm, conditions: [...crystalRuleForm.conditions, { esfMin: -6, esfMax: 6, cilMax: 2 }]})} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"><Plus className="w-3 h-3" /> Agregar condición</button>
+                      </div>
+                      <div className="space-y-2">
+                        {crystalRuleForm.conditions.map((cond: any, i: number) => (
+                          <div key={i} className="grid grid-cols-4 gap-2 items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF mín</label>
+                              <input type="number" step="0.25" value={cond.esfMin} onChange={e => { const c = [...crystalRuleForm.conditions]; c[i] = {...c[i], esfMin: parseFloat(e.target.value)}; setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 px-2 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-center font-mono text-slate-900 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF máx</label>
+                              <input type="number" step="0.25" value={cond.esfMax} onChange={e => { const c = [...crystalRuleForm.conditions]; c[i] = {...c[i], esfMax: parseFloat(e.target.value)}; setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 px-2 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-center font-mono text-slate-900 dark:text-white" />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CIL máx (abs)</label>
+                              <input type="number" step="0.25" value={cond.cilMax} onChange={e => { const c = [...crystalRuleForm.conditions]; c[i] = {...c[i], cilMax: parseFloat(e.target.value)}; setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 px-2 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-center font-mono text-slate-900 dark:text-white" />
+                            </div>
+                            <div className="flex items-end gap-1">
+                              <div className="flex-1">
+                                <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Suma máx (opc.)</label>
+                                <input type="number" step="0.25" value={cond.esfPlusCilMax ?? ''} placeholder="—" onChange={e => { const c = [...crystalRuleForm.conditions]; c[i] = {...c[i], esfPlusCilMax: e.target.value ? parseFloat(e.target.value) : undefined}; setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 px-2 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-center font-mono text-slate-900 dark:text-white" />
+                              </div>
+                              {crystalRuleForm.conditions.length > 1 && (
+                                <button onClick={() => { const c = crystalRuleForm.conditions.filter((_: any, idx: number) => idx !== i); setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 w-8 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"><X className="w-4 h-4" /></button>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-3 justify-end">
+                    <button onClick={() => setIsCrystalRuleModalOpen(false)} className="px-5 py-2.5 rounded-lg font-bold text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                    <button
+                      onClick={() => {
+                        if (!crystalRuleForm.name || crystalRuleForm.precio <= 0) return alert('Completá el nombre y el precio.');
+                        if (editingCrystalRule) {
+                          updateCrystalRule({ ...crystalRuleForm, id: editingCrystalRule.id });
+                        } else {
+                          addCrystalRule(crystalRuleForm);
+                        }
+                        setIsCrystalRuleModalOpen(false);
+                      }}
+                      className="px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-colors shadow-sm"
+                    >
+                      {editingCrystalRule ? 'Guardar Cambios' : 'Crear Regla'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab !== 'general' && activeTab !== 'appearance' && activeTab !== 'branches' && activeTab !== 'users' && activeTab !== 'permissions' && activeTab !== 'notifications' && activeTab !== 'billing' && activeTab !== 'audit' && activeTab !== 'insurances' && activeTab !== 'banks' && activeTab !== 'inventory' && activeTab !== 'labs' && activeTab !== 'crystals' && activeTab !== 'database' && (
           <div className="bg-white dark:bg-slate-900 p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center animate-in fade-in duration-300 min-h-[400px]">
             <CircleAlert className="w-12 h-12 text-slate-300 dark:text-slate-600 mb-4" />
             <h3 className="text-xl font-bold text-slate-700 dark:text-slate-300">Sección en Construcción</h3>

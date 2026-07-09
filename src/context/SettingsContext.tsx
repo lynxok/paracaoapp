@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Insurance } from '../types';
+import { Insurance, CrystalPricingRule } from '../types';
 
 export interface BankEntity {
   id: string;
@@ -69,6 +69,11 @@ interface SettingsContextType {
   setAppTheme: (theme: string) => void;
   pdfConfig: PDFConfig;
   setPdfConfig: (config: PDFConfig) => void;
+  // Crystal pricing rules
+  crystalRules: CrystalPricingRule[];
+  addCrystalRule: (rule: Omit<CrystalPricingRule, 'id'>) => void;
+  updateCrystalRule: (rule: CrystalPricingRule) => void;
+  removeCrystalRule: (id: string) => void;
 }
 
 const INITIAL_INSURANCES: Insurance[] = [
@@ -112,6 +117,69 @@ const INITIAL_INVENTORY_CATEGORIES = ["Armazones", "Anteojos de Sol", "Anteojos 
 const INITIAL_LENS_COLORS = ["Blanco", "Fotocromático", "Antireflex", "Gris", "Marrón", "Verde"];
 const INITIAL_CONTACT_LENS_COLORS = ["Transparente", "Celeste", "Miel", "Gris", "Verde", "Avellana"];
 const INITIAL_LENS_TYPES = ["Monofocal", "Bifocal", "Multifocal", "Ocupacional"];
+
+const INITIAL_CRYSTAL_RULES: CrystalPricingRule[] = [
+  {
+    id: 'cr-1',
+    name: 'Orgánico Blanco — Stock',
+    material: 'Orgánico',
+    tratamiento: 'Blanco',
+    precio: 26000,
+    conditions: [{ esfMin: -6, esfMax: 6, cilMax: 2, esfPlusCilMax: 6 }],
+  },
+  {
+    id: 'cr-2',
+    name: 'Orgánico c/AR — Stock',
+    material: 'Orgánico',
+    tratamiento: 'AR',
+    precio: 41000,
+    conditions: [{ esfMin: -6, esfMax: 6, cilMax: 2, esfPlusCilMax: 6 }],
+  },
+  {
+    id: 'cr-3',
+    name: 'Orgánico AR + Blue Cut — Stock',
+    material: 'Orgánico',
+    tratamiento: 'AR + Blue Cut',
+    precio: 49900,
+    conditions: [{ esfMin: -4, esfMax: 4, cilMax: 2, esfPlusCilMax: 6 }],
+  },
+  {
+    id: 'cr-4',
+    name: 'Orgánico c/AR — Extendido (ESF altos)',
+    material: 'Orgánico',
+    tratamiento: 'AR',
+    precio: 62000,
+    conditions: [
+      { esfMin: -10, esfMax: 0, cilMax: 4 },
+      { esfMin: -8, esfMax: 0, cilMax: 4 },
+    ],
+  },
+  {
+    id: 'cr-5',
+    name: 'Orgánico AR + Blue Cut — Extendido (CIL altos)',
+    material: 'Orgánico',
+    tratamiento: 'AR + Blue Cut',
+    precio: 68800,
+    conditions: [
+      { esfMin: -4, esfMax: 4, cilMax: 4 },
+      { esfMin: -6, esfMax: 6, cilMax: 2 },
+    ],
+  },
+  {
+    id: 'cr-6',
+    name: 'Orgánico 1.67 AR + Blue Cut — Más extendido',
+    material: 'Orgánico 1.67',
+    tratamiento: 'AR + Blue Cut',
+    precio: 155000,
+    conditions: [
+      { esfMin: -15, esfMax: 6, cilMax: 0 },
+      { esfMin: -12, esfMax: 0, cilMax: 2 },
+      { esfMin: -10, esfMax: 0, cilMax: 3 },
+      { esfMin: -8,  esfMax: 0, cilMax: 4 },
+      { esfMin: 0,   esfMax: 6, cilMax: 2 },
+    ],
+  },
+];
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
@@ -185,6 +253,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('optica_pdf_config', JSON.stringify(newConfig));
   };
 
+  const [crystalRules, setCrystalRules] = useState<CrystalPricingRule[]>(() => {
+    const saved = localStorage.getItem('optica_crystal_rules');
+    return saved ? JSON.parse(saved) : INITIAL_CRYSTAL_RULES;
+  });
+
+  const addCrystalRule = (rule: Omit<CrystalPricingRule, 'id'>) => {
+    setCrystalRules(prev => [...prev, { ...rule, id: `cr-${Date.now()}` }]);
+  };
+  const updateCrystalRule = (rule: CrystalPricingRule) => {
+    setCrystalRules(prev => prev.map(r => r.id === rule.id ? rule : r));
+  };
+  const removeCrystalRule = (id: string) => {
+    setCrystalRules(prev => prev.filter(r => r.id !== id));
+  };
+
   useEffect(() => { localStorage.setItem('optica_insurances', JSON.stringify(insurances)); }, [insurances]);
 
   useEffect(() => {
@@ -204,6 +287,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [contactLensColors]);
 
   useEffect(() => { localStorage.setItem('optica_lens_types', JSON.stringify(lensTypes)); }, [lensTypes]);
+  useEffect(() => { localStorage.setItem('optica_crystal_rules', JSON.stringify(crystalRules)); }, [crystalRules]);
   useEffect(() => { localStorage.setItem('optica_logo', opticaLogo); }, [opticaLogo]);
   useEffect(() => { localStorage.setItem('optica_name', opticaName); }, [opticaName]);
   useEffect(() => { localStorage.setItem('optica_phone', opticaPhone); }, [opticaPhone]);
@@ -354,7 +438,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       appTheme,
       setAppTheme,
       pdfConfig,
-      setPdfConfig
+      setPdfConfig,
+      crystalRules,
+      addCrystalRule,
+      updateCrystalRule,
+      removeCrystalRule,
     }}>
       {children}
     </SettingsContext.Provider>

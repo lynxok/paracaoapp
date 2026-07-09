@@ -32,15 +32,64 @@ import { useSettings } from "../context/SettingsContext";
 import { generateInvoicePDF } from "../utils/pdfGenerator";
 
 const INITIAL_CAMPAIGNS = [
-  { id: 1, name: "Recordatorio Control Anual", status: "Active", sent: 145, conversion: "12%", type: "WhatsApp" },
-  { id: 2, name: "Promo Lentes de Contacto", status: "Scheduled", sent: 0, conversion: "0%", type: "Email" },
-  { id: 3, name: "Renovación Multifocales", status: "Active", sent: 89, conversion: "8%", type: "WhatsApp" },
+  { 
+    id: 1, 
+    name: "Recordatorio Control Anual", 
+    status: "Active", 
+    sent: 145, 
+    conversion: "12%", 
+    type: "WhatsApp",
+    timeValue: 12,
+    timeUnit: "months",
+    productType: "any",
+    template: "¡Hola {nombre_cliente}! Te escribimos de la Óptica. Notamos que tu último control para tus {producto} fue en {fecha}. ¿Te gustaría agendar una cita para revisar tu graduación visual? 👓"
+  },
+  { 
+    id: 2, 
+    name: "Promo Lentes de Contacto", 
+    status: "Scheduled", 
+    sent: 0, 
+    conversion: "0%", 
+    type: "WhatsApp",
+    timeValue: 6,
+    timeUnit: "months",
+    productType: "contact",
+    template: "Hola {nombre_cliente}, te recordamos que ya pasó un tiempo desde tu última visita por tus lentes de contacto. ¡Te esperamos!"
+  },
+  { 
+    id: 3, 
+    name: "Renovación Multifocales", 
+    status: "Active", 
+    sent: 89, 
+    conversion: "8%", 
+    type: "WhatsApp",
+    timeValue: 12,
+    timeUnit: "months",
+    productType: "multifocal",
+    template: "Estimado/a {nombre_cliente}, ya ha transcurrido un año desde que adquirió sus lentes multifocales. Le recomendamos agendar su cita de control anual."
+  },
 ];
 
 export function Marketing() {
   const { clients, orders } = useClients();
   const [search, setSearch] = useState("");
-  const [campaigns, setCampaigns] = useState(INITIAL_CAMPAIGNS);
+  
+  const [campaigns, setCampaigns] = useState<any[]>(() => {
+    const saved = localStorage.getItem('optica_campaigns');
+    return saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
+  });
+
+  const saveCampaigns = (newCampaigns: any[]) => {
+    setCampaigns(newCampaigns);
+    localStorage.setItem('optica_campaigns', JSON.stringify(newCampaigns));
+  };
+
+  const [activeCampaignId, setActiveCampaignId] = useState<number | string>(() => {
+    const saved = localStorage.getItem('optica_campaigns');
+    const list = saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
+    return list[0]?.id || "";
+  });
+
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
 
   const [activeTab, setActiveTab] = useState<'marketing' | 'consolidation'>('marketing');
@@ -150,18 +199,49 @@ export function Marketing() {
   };
 
   const today = new Date();
+  const activeCampaign = campaigns.find(c => c.id === Number(activeCampaignId) || c.id === activeCampaignId) || campaigns[0];
+
   const customersPending = orders.map(order => {
     const client = clients.find(c => c.id === order.clientId);
     if (!client) return null;
     
+    // Filter by product type if campaign config is available
+    if (activeCampaign) {
+      const pType = activeCampaign.productType || 'any';
+      const orderType = order.type;
+      const isContactSearch = order.service.toLowerCase().includes('contacto');
+
+      if (pType !== 'any') {
+        if (pType === 'contact' && orderType !== 'contact' && !isContactSearch) return null;
+        if (pType === 'monofocal' && orderType !== 'monofocal') return null;
+        if (pType === 'multifocal' && orderType !== 'multifocal') return null;
+        if (pType === 'ocupacional' && orderType !== 'ocupacional') return null;
+        if (pType === 'sale' && orderType !== 'sale') return null;
+        if (pType === 'any_glasses' && !['monofocal', 'multifocal', 'ocupacional'].includes(orderType)) return null;
+      }
+    }
+
     const orderDate = new Date(order.date);
     let nextControlDate = new Date(orderDate);
     
-    // Si es lente de contacto (asumimos por texto o tipo), 6 meses, sino 1 año
-    if (order.service.toLowerCase().includes('contacto')) {
-      nextControlDate.setMonth(nextControlDate.getMonth() + 6);
+    // Add dynamic time offset
+    if (activeCampaign) {
+      const timeVal = Number(activeCampaign.timeValue) || 12;
+      const timeUnit = activeCampaign.timeUnit || 'months';
+      
+      if (timeUnit === 'days') {
+        nextControlDate.setDate(nextControlDate.getDate() + timeVal);
+      } else if (timeUnit === 'years') {
+        nextControlDate.setFullYear(nextControlDate.getFullYear() + timeVal);
+      } else { // months
+        nextControlDate.setMonth(nextControlDate.getMonth() + timeVal);
+      }
     } else {
-      nextControlDate.setFullYear(nextControlDate.getFullYear() + 1);
+      if (order.service.toLowerCase().includes('contacto')) {
+        nextControlDate.setMonth(nextControlDate.getMonth() + 6);
+      } else {
+        nextControlDate.setFullYear(nextControlDate.getFullYear() + 1);
+      }
     }
 
     const diffDays = Math.ceil((nextControlDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
@@ -176,6 +256,7 @@ export function Marketing() {
       product: order.service,
       status: diffDays < 0 ? 'Vencido' : 'Próximo',
       contact: client.phone,
+      birthDate: client.birthDate,
       nextDate: nextControlDate
     };
   }).filter(Boolean)
@@ -187,14 +268,42 @@ export function Marketing() {
   );
 
   const handleWhatsApp = (customer: any) => {
-    const message = encodeURIComponent(`¡Hola ${customer.name}! Te escribimos de la Óptica. Notamos que tu último control para tus ${customer.product} fue en ${new Date(customer.lastPurchase).toLocaleDateString('es-ES')}. ¿Te gustaría agendar una cita para revisar tu graduación visual? 👓`);
+    let text = "";
+    if (activeCampaign && activeCampaign.template) {
+      text = activeCampaign.template;
+    } else {
+      text = "¡Hola {nombre_cliente}! Te escribimos de la Óptica. Notamos que tu último control para tus {producto} fue en {fecha}. ¿Te gustaría agendar una cita para revisar tu graduación visual? 👓";
+    }
+    
+    // Replace variables
+    text = text
+      .replace(/{nombre_cliente}/g, customer.name)
+      .replace(/{producto}/g, customer.product)
+      .replace(/{fecha}/g, new Date(customer.lastPurchase).toLocaleDateString('es-ES'))
+      .replace(/{fecha_cumpleaños}/g, customer.birthDate || '')
+      .replace(/{fecha_hoy}/g, new Date().toLocaleDateString('es-ES'));
+
+    const message = encodeURIComponent(text);
     window.open(`https://wa.me/${customer.contact.replace(/\D/g, '')}?text=${message}`, '_blank');
   };
 
   const handleNewCampaign = () => {
     const name = window.prompt("Ingrese el nombre de la nueva campaña:");
     if (name) {
-      setCampaigns([...campaigns, { id: Date.now(), name, status: "Scheduled", sent: 0, conversion: "0%", type: "WhatsApp" }]);
+      const newCampaign = { 
+        id: Date.now(), 
+        name, 
+        status: "Scheduled", 
+        sent: 0, 
+        conversion: "0%", 
+        type: "WhatsApp",
+        timeValue: 12,
+        timeUnit: "months",
+        productType: "any",
+        template: "¡Hola {nombre_cliente}! Te escribimos de la Óptica..."
+      };
+      saveCampaigns([...campaigns, newCampaign]);
+      setActiveCampaignId(newCampaign.id);
     }
   };
 
@@ -326,7 +435,18 @@ export function Marketing() {
               {/* Próximos Seguimientos */}
               <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                 <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-4 justify-between items-center">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white">Recordatorios del Día</h3>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Recordatorios del Día</h3>
+                    <select
+                      value={activeCampaignId}
+                      onChange={e => setActiveCampaignId(e.target.value)}
+                      className="h-8 px-2 py-0 rounded bg-slate-50 dark:bg-slate-800 text-xs font-bold text-blue-600 dark:text-blue-400 border border-slate-200 dark:border-slate-700 focus:ring-1 focus:ring-blue-500 outline-none"
+                    >
+                      {campaigns.map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
                   <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <input 
@@ -441,7 +561,7 @@ export function Marketing() {
                 </div>
                 <form onSubmit={(e) => {
                   e.preventDefault();
-                  setCampaigns(campaigns.map(c => c.id === selectedCampaign.id ? selectedCampaign : c));
+                  saveCampaigns(campaigns.map(c => c.id === selectedCampaign.id ? selectedCampaign : c));
                   setSelectedCampaign(null);
                 }}>
                   <div className="p-6 space-y-4">
@@ -449,30 +569,68 @@ export function Marketing() {
                       <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nombre de Campaña</label>
                       <input type="text" value={selectedCampaign.name} onChange={e => setSelectedCampaign({...selectedCampaign, name: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" required />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="flex flex-col gap-1.5">
-                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Condición / Disparador</label>
-                        <select className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm">
-                          <option>12 meses post-compra</option>
-                          <option>6 meses post-compra (Lentes de Contacto)</option>
-                          <option>Día de cumpleaños</option>
-                        </select>
+                    
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="flex flex-col gap-1.5 col-span-2">
+                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Tiempo Post-Compra</label>
+                        <div className="flex gap-2">
+                          <input 
+                            type="number" 
+                            min="1"
+                            value={selectedCampaign.timeValue || 1} 
+                            onChange={e => setSelectedCampaign({...selectedCampaign, timeValue: parseInt(e.target.value) || 1})}
+                            className="w-20 h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-center font-bold" 
+                            required 
+                          />
+                          <select 
+                            value={selectedCampaign.timeUnit || 'months'} 
+                            onChange={e => setSelectedCampaign({...selectedCampaign, timeUnit: e.target.value})}
+                            className="flex-1 h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm"
+                          >
+                            <option value="days">Días</option>
+                            <option value="months">Meses</option>
+                            <option value="years">Años</option>
+                          </select>
+                        </div>
                       </div>
+                      
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center gap-1.5 group/tooltip relative">
                           <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Ventana de Atribución</label>
                           <Info className="w-4 h-4 text-slate-400 hover:text-blue-500 cursor-help transition-colors" />
-                          <div className="absolute bottom-full mb-2 left-0 w-48 p-2 bg-slate-800 text-white text-[10px] rounded shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-10 pointer-events-none">
+                          <div className="absolute bottom-full mb-2 right-0 w-48 p-2 bg-slate-800 text-white text-[10px] rounded shadow-xl opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible transition-all z-10 pointer-events-none">
                             Tiempo máximo posterior al envío del mensaje en el cual, si el cliente compra, la venta se contará como un éxito de esta campaña.
                           </div>
                         </div>
-                        <select className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm">
-                          <option>15 días</option>
-                          <option>7 días</option>
-                          <option>30 días</option>
+                        <select 
+                          value={selectedCampaign.attributionWindow || 15}
+                          onChange={e => setSelectedCampaign({...selectedCampaign, attributionWindow: parseInt(e.target.value) || 15})}
+                          className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm"
+                        >
+                          <option value="7">7 días</option>
+                          <option value="15">15 días</option>
+                          <option value="30">30 días</option>
                         </select>
                       </div>
                     </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Tipo de Producto Adquirido</label>
+                      <select 
+                        value={selectedCampaign.productType || 'any'}
+                        onChange={e => setSelectedCampaign({...selectedCampaign, productType: e.target.value})}
+                        className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm"
+                      >
+                        <option value="any">Cualquier Producto / Venta</option>
+                        <option value="any_glasses">Cualquier Anteojo Recetado</option>
+                        <option value="monofocal">Lentes Monofocales</option>
+                        <option value="multifocal">Lentes Multifocales / Bifocales</option>
+                        <option value="ocupacional">Lentes Ocupacionales</option>
+                        <option value="contact">Lentes de Contacto</option>
+                        <option value="sale">Venta Directa / Accesorios</option>
+                      </select>
+                    </div>
+
                     <div className="flex flex-col gap-1.5">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Plantilla de Mensaje</label>
@@ -498,7 +656,7 @@ export function Marketing() {
                       type="button" 
                       onClick={() => {
                         if(confirm('¿Estás seguro de que deseas eliminar esta campaña?')) {
-                          setCampaigns(campaigns.filter(c => c.id !== selectedCampaign.id));
+                          saveCampaigns(campaigns.filter(c => c.id !== selectedCampaign.id));
                           setSelectedCampaign(null);
                         }
                       }} 
