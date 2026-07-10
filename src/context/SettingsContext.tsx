@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Insurance, CrystalPricingRule } from '../types';
+import { Insurance, CrystalPricingRule, CrystalItem } from '../types';
 
 export interface BankEntity {
   id: string;
@@ -74,6 +74,25 @@ interface SettingsContextType {
   addCrystalRule: (rule: Omit<CrystalPricingRule, 'id'>) => void;
   updateCrystalRule: (rule: CrystalPricingRule) => void;
   removeCrystalRule: (id: string) => void;
+  // Refactored Crystals
+  crystalItems: CrystalItem[];
+  addCrystalItem: (item: Omit<CrystalItem, 'id'>) => void;
+  updateCrystalItem: (item: CrystalItem) => void;
+  removeCrystalItem: (id: string) => void;
+  treatments: string[];
+  addTreatment: (name: string) => void;
+  updateTreatment: (oldName: string, newName: string) => void;
+  removeTreatment: (name: string) => void;
+  brands: string[];
+  setBrands: (brands: string[]) => void;
+  materials: string[];
+  setMaterials: (materials: string[]) => void;
+  indices: string[];
+  setIndices: (indices: string[]) => void;
+  designs: string[];
+  setDesigns: (designs: string[]) => void;
+  colors: string[];
+  setColors: (colors: string[]) => void;
 }
 
 const INITIAL_INSURANCES: Insurance[] = [
@@ -181,6 +200,88 @@ const INITIAL_CRYSTAL_RULES: CrystalPricingRule[] = [
   },
 ];
 
+const INITIAL_CRYSTAL_ITEMS: CrystalItem[] = [
+  {
+    id: 'cr-1',
+    name: 'Monofocal Essilor Orgánico 1.49 Esférico Blanco',
+    type: 'monofocal',
+    material: 'Orgánico',
+    index: '1.49',
+    brand: 'Essilor',
+    design: 'Esférico',
+    color: 'Blanco',
+    basePrice: 15000,
+    active: true,
+    sphMin: -6.00,
+    sphMax: 6.00,
+    cylMax: 2.00
+  },
+  {
+    id: 'cr-2',
+    name: 'Monofocal Zeiss Policarbonato 1.59 Esférico Blanco',
+    type: 'monofocal',
+    material: 'Policarbonato',
+    index: '1.59',
+    brand: 'Zeiss',
+    design: 'Esférico',
+    color: 'Blanco',
+    basePrice: 22000,
+    active: true,
+    sphMin: -8.00,
+    sphMax: 4.00,
+    cylMax: 4.00
+  },
+  {
+    id: 'cr-3',
+    name: 'Multifocal Novar Orgánico 1.67 Digital Blanco',
+    type: 'multifocal',
+    material: 'Orgánico',
+    index: '1.67',
+    brand: 'Novar',
+    design: 'Digital',
+    color: 'Blanco',
+    basePrice: 45000,
+    active: true,
+    sphMin: -10.00,
+    sphMax: 6.00,
+    cylMax: 4.00,
+    addMin: 1.00,
+    addMax: 3.00
+  },
+  {
+    id: 'cr-4',
+    name: 'Ocupacional Kodak Orgánico 1.56 Esférico Blanco',
+    type: 'ocupacional',
+    material: 'Orgánico',
+    index: '1.56',
+    brand: 'Kodak',
+    design: 'Esférico',
+    color: 'Blanco',
+    basePrice: 32000,
+    active: true,
+    sphMin: -4.00,
+    sphMax: 4.00,
+    cylMax: 2.00,
+    addMin: 1.00,
+    addMax: 2.50
+  }
+];
+
+const INITIAL_TREATMENTS: string[] = [
+  'Antirreflejo',
+  'Blue Cut',
+  'Fotocromático',
+  'Endurecido / Anti-rayas',
+  'Polarizado',
+  'Espejado'
+];
+
+const INITIAL_BRANDS_MASTERS = ['Essilor', 'Zeiss', 'Kodak', 'Novar', 'Hoya', 'Genérico'];
+const INITIAL_MATERIALS_MASTERS = ['Orgánico', 'Policarbonato', 'Mineral', 'Trivex'];
+const INITIAL_INDICES_MASTERS = ['1.49', '1.56', '1.59', '1.61', '1.67', '1.74'];
+const INITIAL_DESIGNS_MASTERS = ['Esférico', 'Asférico', 'Digital', 'Progresivo'];
+const INITIAL_COLORS_MASTERS = ['Blanco', 'Gris', 'Marrón', 'Verde', 'Azul', 'Rosa'];
+
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
@@ -257,6 +358,85 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const saved = localStorage.getItem('optica_crystal_rules');
     return saved ? JSON.parse(saved) : INITIAL_CRYSTAL_RULES;
   });
+
+  const [crystalItems, setCrystalItems] = useState<CrystalItem[]>(() => {
+    const saved = localStorage.getItem('optica_crystal_items');
+    return saved ? JSON.parse(saved) : INITIAL_CRYSTAL_ITEMS;
+  });
+
+  const [treatments, setTreatments] = useState<string[]>(() => {
+    const saved = localStorage.getItem('optica_treatments');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.map((item: any) => {
+            if (typeof item === 'object' && item !== null) {
+              return item.name || '';
+            }
+            return String(item);
+          }).filter(Boolean);
+        }
+      } catch (e) {
+        // Ignorar error y usar iniciales
+      }
+    }
+    return INITIAL_TREATMENTS;
+  });
+
+  const [brands, setBrandsState] = useState<string[]>(() => {
+    const saved = localStorage.getItem('optica_brands_masters');
+    return saved ? JSON.parse(saved) : INITIAL_BRANDS_MASTERS;
+  });
+
+  const [materials, setMaterialsState] = useState<string[]>(() => {
+    const saved = localStorage.getItem('optica_materials_masters');
+    return saved ? JSON.parse(saved) : INITIAL_MATERIALS_MASTERS;
+  });
+
+  const [indices, setIndicesState] = useState<string[]>(() => {
+    const saved = localStorage.getItem('optica_indices_masters');
+    return saved ? JSON.parse(saved) : INITIAL_INDICES_MASTERS;
+  });
+
+  const [designs, setDesignsState] = useState<string[]>(() => {
+    const saved = localStorage.getItem('optica_designs_masters');
+    return saved ? JSON.parse(saved) : INITIAL_DESIGNS_MASTERS;
+  });
+
+  const [colors, setColorsState] = useState<string[]>(() => {
+    const saved = localStorage.getItem('optica_colors_masters');
+    return saved ? JSON.parse(saved) : INITIAL_COLORS_MASTERS;
+  });
+
+  const setBrands = (newVal: string[]) => { setBrandsState(newVal); localStorage.setItem('optica_brands_masters', JSON.stringify(newVal)); };
+  const setMaterials = (newVal: string[]) => { setMaterialsState(newVal); localStorage.setItem('optica_materials_masters', JSON.stringify(newVal)); };
+  const setIndices = (newVal: string[]) => { setIndicesState(newVal); localStorage.setItem('optica_indices_masters', JSON.stringify(newVal)); };
+  const setDesigns = (newVal: string[]) => { setDesignsState(newVal); localStorage.setItem('optica_designs_masters', JSON.stringify(newVal)); };
+  const setColors = (newVal: string[]) => { setColorsState(newVal); localStorage.setItem('optica_colors_masters', JSON.stringify(newVal)); };
+
+  const addCrystalItem = (item: Omit<CrystalItem, 'id'>) => {
+    setCrystalItems(prev => [...prev, { ...item, id: `cri-${Date.now()}` }]);
+  };
+  const updateCrystalItem = (item: CrystalItem) => {
+    setCrystalItems(prev => prev.map(r => r.id === item.id ? item : r));
+  };
+  const removeCrystalItem = (id: string) => {
+    setCrystalItems(prev => prev.filter(r => r.id !== id));
+  };
+
+  const addTreatment = (name: string) => {
+    setTreatments(prev => [...prev, name]);
+  };
+  const updateTreatment = (oldName: string, newName: string) => {
+    setTreatments(prev => prev.map(t => t === oldName ? newName : t));
+  };
+  const removeTreatment = (name: string) => {
+    setTreatments(prev => prev.filter(t => t !== name));
+  };
+
+  useEffect(() => { localStorage.setItem('optica_crystal_items', JSON.stringify(crystalItems)); }, [crystalItems]);
+  useEffect(() => { localStorage.setItem('optica_treatments', JSON.stringify(treatments)); }, [treatments]);
 
   const addCrystalRule = (rule: Omit<CrystalPricingRule, 'id'>) => {
     setCrystalRules(prev => [...prev, { ...rule, id: `cr-${Date.now()}` }]);
@@ -443,6 +623,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       addCrystalRule,
       updateCrystalRule,
       removeCrystalRule,
+      crystalItems,
+      addCrystalItem,
+      updateCrystalItem,
+      removeCrystalItem,
+      treatments,
+      addTreatment,
+      updateTreatment,
+      removeTreatment,
+      brands,
+      setBrands,
+      materials,
+      setMaterials,
+      indices,
+      setIndices,
+      designs,
+      setDesigns,
+      colors,
+      setColors,
     }}>
       {children}
     </SettingsContext.Provider>

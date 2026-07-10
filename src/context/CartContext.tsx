@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useFinance } from "./FinanceContext";
+import { BillingDraft } from "../types";
 import { useClients } from "./ClientContext";
 import { useInventory } from "./InventoryContext";
 import { useLabs } from "./LabContext";
@@ -43,6 +44,7 @@ interface CartContextType {
   addToCart: (item: CartItem) => void;
   removeFromCart: (id: string) => void;
   updateQuantity: (id: string, delta: number) => void;
+  updateCartItem: (id: string, updatedItem: CartItem) => void;
   clearCart: () => void;
   selectedClient: any | null;
   setSelectedClient: (client: any | null) => void;
@@ -51,6 +53,8 @@ interface CartContextType {
   checkout: () => { success: boolean; message: string };
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
+  billingDrafts: BillingDraft[];
+  markDraftsAsBilled: (draftIds: string[], billingData: { isConsumidorFinal: boolean; identificador?: string; direccion?: string; billingDate: string }) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -66,6 +70,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
   const [isCartOpen, setIsCartOpen] = useState<boolean>(true);
+
+  const [billingDrafts, setBillingDrafts] = useState<BillingDraft[]>(() => {
+    const saved = localStorage.getItem('optica_billing_drafts');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('optica_billing_drafts', JSON.stringify(billingDrafts));
+  }, [billingDrafts]);
+
+  const markDraftsAsBilled = (draftIds: string[], billingData: { isConsumidorFinal: boolean; identificador?: string; direccion?: string; billingDate: string }) => {
+    setBillingDrafts(prev => prev.map(draft => {
+      if (draftIds.includes(draft.id)) {
+        return {
+          ...draft,
+          billed: true,
+          billingData
+        };
+      }
+      return draft;
+    }));
+  };
 
   useEffect(() => {
     if (boxes.length > 0 && !paymentMethodId) {
@@ -101,6 +127,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return i;
     }));
+  };
+
+  const updateCartItem = (id: string, updatedItem: CartItem) => {
+    setCart(prev => prev.map(item => item.id === id ? updatedItem : item));
   };
 
   const clearCart = () => {
@@ -149,11 +179,58 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           addJob({
             labId: details.assignedLab.id,
             date: new Date().toISOString().split('T')[0],
-            orderId: `#PED-${Math.floor(10000 + Math.random() * 90000)}`,
+            orderId: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
             concept: `${item.name} - ${clientObj?.name || 'Cliente'}`,
-            cost: 0,
+            cost: details.labCost || 0,
             status: 'Pendiente',
-          });
+            labName: details.assignedLab.name,
+            clientName: clientObj?.name || 'Cliente Mostrador',
+            clientDni: clientObj?.dni || '',
+            prescription: {
+              type: details.prescriptionType || 'monofocal',
+              lejosOD: details.lejosOD,
+              lejosOI: details.lejosOI,
+              cercaOD: details.cercaOD,
+              cercaOI: details.cercaOI,
+              adicionOD: details.adicionOD,
+              adicionOI: details.adicionOI,
+              alturaOD: details.alturaOD,
+              alturaOI: details.alturaOI,
+              diOD: details.diOD,
+              diOI: details.diOI,
+              apOD: details.apOD,
+              apOI: details.apOI,
+            },
+            crystalDetails: details.selectedCrystalItem ? {
+              id: details.selectedCrystalItem.id,
+              name: details.selectedCrystalItem.name,
+              type: details.selectedCrystalItem.type,
+              material: details.selectedCrystalItem.material,
+              index: details.selectedCrystalItem.index,
+              brand: details.selectedCrystalItem.brand,
+              design: details.selectedCrystalItem.design,
+              color: details.selectedCrystalItem.color,
+              eyes: details.eyesCharged || 'ambos',
+              basePrice: details.selectedCrystalItem.basePrice,
+              totalPrice: item.price
+            } : {
+              id: '',
+              name: item.name,
+              type: details.prescriptionType || 'monofocal',
+              material: details.material || 'Orgánico',
+              index: details.index || '1.49',
+              brand: details.marca || 'Genérico',
+              design: details.diseno || 'Esférico',
+              color: details.color || 'Blanco',
+              eyes: details.eyesCharged || 'ambos',
+              basePrice: item.price,
+              totalPrice: item.price
+            },
+            treatments: details.selectedTreatments || [],
+            observaciones: details.observaciones || item.observaciones || '',
+            branchName: currentBranch?.name || 'Sucursal Única',
+            sellerName: localStorage.getItem('optica_user_name') || 'Vendedor'
+          } as any);
         }
       } else if (item.type === 'product') {
         // Simple product stock deduction (optional, if catalog SKUs match inventory)
@@ -181,6 +258,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       clientName: selectedClient?.name || cart.find(c => c.details?.client)?.details?.client?.name || 'Cliente Mostrador'
     });
 
+    // Registrar en Borradores de Facturación
+    const newDraft: BillingDraft = {
+      id: `draft-${Date.now()}`,
+      date: dateStr,
+      clientName: selectedClient?.name || cart.find(c => c.details?.client)?.details?.client?.name || 'Cliente Mostrador',
+      concept: `Venta Consolidada: ${cart.map(i => `${i.quantity}x ${i.name}`).join(', ')}`,
+      amount: totalAmount,
+      paymentMethod: boxName,
+      billed: false,
+      items: cart.map(i => ({
+        name: i.name,
+        quantity: i.quantity,
+        price: i.price
+      }))
+    };
+    setBillingDrafts(prev => [newDraft, ...prev]);
+
     clearCart();
     return { success: true, message: `Venta cobrada por $${totalAmount.toLocaleString()} vía ${boxName}` };
   };
@@ -191,6 +285,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       addToCart,
       removeFromCart,
       updateQuantity,
+      updateCartItem,
       clearCart,
       selectedClient,
       setSelectedClient,
@@ -198,7 +293,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setPaymentMethodId,
       checkout,
       isCartOpen,
-      setIsCartOpen
+      setIsCartOpen,
+      billingDrafts,
+      markDraftsAsBilled
     }}>
       {children}
     </CartContext.Provider>

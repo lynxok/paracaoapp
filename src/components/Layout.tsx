@@ -32,7 +32,8 @@ import {
   Save,
   KeyRound,
   Plus,
-  Info
+  Info,
+  FileText
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useAuth } from "../context/AuthContext";
@@ -49,6 +50,7 @@ const menuItems = [
   { path: "/suppliers", icon: Truck, label: "Proveedores" },
   { path: "/lab-management", icon: FlaskConical, label: "Laboratorios" },
   { path: "/finance", icon: Wallet, label: "Caja/Finanzas" },
+  { path: "/billing-drafts", icon: FileText, label: "Borradores Facturación" },
   { path: "/reports", icon: BarChart3, label: "Reportes" },
   { path: "/marketing", icon: Sparkles, label: "CRM & Marketing" },
   { path: "/settings", icon: Settings, label: "Ajustes" },

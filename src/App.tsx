@@ -19,6 +19,7 @@ import { Settings } from "./pages/Settings";
 import { StatusLookup } from "./pages/StatusLookup";
 import { Sales } from "./pages/Sales";
 import { Marketing } from "./pages/Marketing";
+import { BillingDrafts } from "./pages/BillingDrafts";
 
 import { FinanceProvider } from "./context/FinanceContext";
 import { ClientProvider } from "./context/ClientContext";
@@ -47,6 +48,7 @@ function AppContent() {
           <Route path="/orders" element={<Layout title="Nuevo Pedido" subtitle="Seleccione el tipo de lente"><Orders /></Layout>} />
           <Route path="/orders/new" element={<Layout title="Nuevo Pedido" subtitle="Seleccione el tipo de lente"><Orders /></Layout>} />
           <Route path="/orders/new/:type" element={<Layout title="Detalle de Pedido" subtitle="#PED-2023-884"><NewOrder /></Layout>} />
+          <Route path="/orders/edit/:cartItemId" element={<Layout title="Editar Pedido" subtitle="Edición de receta en carrito"><NewOrder /></Layout>} />
           <Route path="/inventory" element={<Layout title="Gestión de Stock" subtitle="1.240 SKUs en catálogo"><Inventory /></Layout>} />
           <Route path="/inventory/reception" element={<Layout title="Recepción de Mercadería" subtitle="Actualización de stock"><Inventory /></Layout>} />
           <Route path="/suppliers" element={<Layout title="Proveedores" subtitle="Directorio de proveedores"><Suppliers /></Layout>} />
@@ -56,6 +58,7 @@ function AppContent() {
           <Route path="/reports" element={<Layout title="Reportes de Rentabilidad" subtitle="Análisis financiero detallado"><Reports /></Layout>} />
           <Route path="/marketing" element={<Layout title="CRM & Marketing" subtitle="Fidelización y recordatorios"><Marketing /></Layout>} />
           <Route path="/settings" element={<Layout title="Configuración" subtitle="Ajustes generales del sistema"><Settings /></Layout>} />
+          <Route path="/billing-drafts" element={<Layout title="Borradores de Facturación" subtitle="Ventas pendientes de registrar facturas"><BillingDrafts /></Layout>} />
           
           {/* External View */}
           <Route path="/status-lookup" element={<StatusLookup />} />

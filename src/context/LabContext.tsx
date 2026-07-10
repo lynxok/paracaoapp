@@ -7,6 +7,8 @@ export interface Lab {
   contact?: string;
 }
 
+export type LabJobStatus = 'Pendiente' | 'Enviado al laboratorio' | 'En producción' | 'Recibido' | 'Entregado';
+
 export interface LabJob {
   id: string;
   labId: string;
@@ -14,7 +16,42 @@ export interface LabJob {
   orderId: string;
   concept: string;
   cost: number;
-  status: 'Pendiente' | 'Procesado';
+  status: LabJobStatus;
+  labName?: string;
+  clientName?: string;
+  clientDni?: string;
+  prescription?: {
+    type: string;
+    lejosOD?: any;
+    lejosOI?: any;
+    cercaOD?: any;
+    cercaOI?: any;
+    adicionOD?: string;
+    adicionOI?: string;
+    alturaOD?: string;
+    alturaOI?: string;
+    diOD?: string;
+    diOI?: string;
+    apOD?: string;
+    apOI?: string;
+  };
+  crystalDetails?: {
+    id: string;
+    name: string;
+    type: string;
+    material: string;
+    index: string;
+    brand: string;
+    design: string;
+    color: string;
+    eyes: 'ambos' | 'od' | 'oi';
+    basePrice: number;
+    totalPrice: number;
+  };
+  treatments?: Array<{ id: string; name: string; price: number }>;
+  observaciones?: string;
+  branchName?: string;
+  sellerName?: string;
 }
 
 export interface LabPayment {
@@ -33,7 +70,7 @@ interface LabContextType {
   updateLab: (lab: Lab) => void;
   deleteLab: (id: string) => void;
   addJob: (job: Omit<LabJob, 'id'>) => void;
-  updateJobStatus: (id: string, status: 'Pendiente' | 'Procesado') => void;
+  updateJobStatus: (id: string, status: LabJobStatus) => void;
   addPayment: (payment: Omit<LabPayment, 'id'>) => void;
   getLabBalance: (labId: string) => { totalJobs: number; totalCost: number; totalPaid: number; balance: number };
 }
@@ -67,23 +104,32 @@ export function LabProvider({ children }: { children: ReactNode }) {
   const deleteLab = (id: string) => setLabs(labs.filter(l => l.id !== id));
 
   const addJob = (job: Omit<LabJob, 'id'>) => setJobs([...jobs, { ...job, id: Date.now().toString() }]);
-  const updateJobStatus = (id: string, status: 'Pendiente' | 'Procesado') => {
+  const updateJobStatus = (id: string, status: LabJobStatus) => {
     setJobs(prevJobs => {
       const updated = prevJobs.map(j => j.id === id ? { ...j, status } : j);
       
-      if (status === 'Procesado') {
-        const job = prevJobs.find(j => j.id === id);
-        if (job && job.status !== 'Procesado') {
-          addNotification({
-            title: "Trabajo de Laboratorio Procesado",
-            desc: `El trabajo de ${job.concept} (Pedido #${job.orderId}) ha sido procesado por el laboratorio.`,
-            type: "success",
-            category: "Info",
-            iconName: "Truck",
-            color: "text-blue-500",
-            bg: "bg-blue-50 dark:bg-blue-900/20"
-          });
+      const job = prevJobs.find(j => j.id === id);
+      if (job && job.status !== status) {
+        let notifType: 'info' | 'success' | 'warning' = 'info';
+        let notifIcon = 'Truck';
+        
+        if (status === 'Recibido') {
+          notifType = 'success';
+          notifIcon = 'CheckCircle';
+        } else if (status === 'Entregado') {
+          notifType = 'success';
+          notifIcon = 'ShoppingBag';
         }
+        
+        addNotification({
+          title: `Pedido ${status}`,
+          desc: `El trabajo de ${job.concept} (Pedido #${job.orderId}) ha cambiado su estado a ${status}.`,
+          type: notifType,
+          category: "Info",
+          iconName: notifIcon,
+          color: "text-blue-500",
+          bg: "bg-blue-50 dark:bg-blue-900/20"
+        });
       }
       
       return updated;

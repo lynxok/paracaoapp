@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useCart, CartItem } from "../context/CartContext";
 import { useFinance } from "../context/FinanceContext";
 import { useClients } from "../context/ClientContext";
@@ -17,11 +18,13 @@ import {
   ChevronDown, 
   Eye, 
   Sparkles, 
-  AlertCircle 
+  AlertCircle,
+  Edit
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
 export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: () => void }) {
+  const navigate = useNavigate();
   const { 
     cart, 
     removeFromCart, 
@@ -30,7 +33,8 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
     setSelectedClient, 
     paymentMethodId, 
     setPaymentMethodId, 
-    checkout 
+    checkout,
+    setIsCartOpen
   } = useCart();
 
   const { boxes } = useFinance();
@@ -155,13 +159,25 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
                 </div>
 
                 {item.type === 'prescription' && item.details && (
-                  <div className="mt-2.5 pt-2 border-t border-slate-200/30 dark:border-slate-700/30">
+                  <div className="mt-2.5 pt-2 border-t border-slate-200/30 dark:border-slate-700/30 flex items-center justify-between">
                     <button 
                       onClick={() => toggleExpandItem(item.id)}
                       className="text-[10px] font-black text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
                     >
                       <Eye className="w-3 h-3" />
                       {isExpanded ? 'Ocultar Receta' : 'Ver Detalles de Receta'}
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        setIsCartOpen(false);
+                        if (onClose) onClose();
+                        navigate(`/orders/edit/${item.id}`);
+                      }}
+                      className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                    >
+                      <Edit className="w-3 h-3" />
+                      Editar Recetado
                     </button>
 
                     {isExpanded && (

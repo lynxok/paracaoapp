@@ -50,6 +50,7 @@ export interface Order {
   paid: number;
   medico?: string;
   branchId?: string;
+  prescriptionDetails?: any;
 }
 
 export type TransactionType = 'income' | 'expense';
@@ -141,3 +142,48 @@ export interface CrystalPricingRule {
   conditions: CrystalPricingCondition[]; // OR: first matching condition wins
   precio: number;         // price in ARS
 }
+
+// --- New crystals refactoring models ---
+
+export interface CrystalItem {
+  id: string;
+  name: string;
+  type: 'monofocal' | 'multifocal' | 'ocupacional' | 'contact';
+  material: string;
+  index: string;
+  brand: string;
+  design: string;
+  color: string;
+  basePrice: number;
+  active: boolean;
+  sphMin: number;
+  sphMax: number;
+  cylMax: number;
+  addMin?: number;
+  addMax?: number;
+  treatments?: string[];
+}
+
+export interface BillingDraftItem {
+  name: string;
+  quantity: number;
+  price: number;
+}
+
+export interface BillingDraft {
+  id: string;
+  date: string;
+  clientName: string;
+  concept: string;
+  amount: number;
+  paymentMethod: string;
+  billed: boolean;
+  billingData?: {
+    isConsumidorFinal: boolean;
+    identificador?: string;
+    direccion?: string;
+    billingDate: string;
+  };
+  items?: BillingDraftItem[];
+}
+

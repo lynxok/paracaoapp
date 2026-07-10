@@ -62,10 +62,67 @@ export function Settings() {
   const [csrCuit, setCsrCuit] = useState("30712345678");
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number, y: number, show: boolean, user: any }>({ x: 0, y: 0, show: false, user: null });
-  const { insurances, addInsurance, updateInsurance, removeInsurance, banks, addBank, updateBank, removeBank, inventoryCategories, addInventoryCategory, updateInventoryCategory, removeInventoryCategory, lensColors, addLensColor, updateLensColor, removeLensColor, contactLensColors, addContactLensColor, updateContactLensColor, removeContactLensColor, lensTypes, addLensType, updateLensType, removeLensType, opticaLogo, setOpticaLogo, opticaName, setOpticaName, opticaPhone, setOpticaPhone, opticaAddress, setOpticaAddress, appTheme, setAppTheme, pdfConfig, setPdfConfig, crystalRules, addCrystalRule, updateCrystalRule, removeCrystalRule } = useSettings();
+  const { 
+    insurances, addInsurance, updateInsurance, removeInsurance, 
+    banks, addBank, updateBank, removeBank, 
+    inventoryCategories, addInventoryCategory, updateInventoryCategory, removeInventoryCategory, 
+    lensColors, addLensColor, updateLensColor, removeLensColor, 
+    contactLensColors, addContactLensColor, updateContactLensColor, removeContactLensColor, 
+    lensTypes, addLensType, updateLensType, removeLensType, 
+    opticaLogo, setOpticaLogo, opticaName, setOpticaName, opticaPhone, setOpticaPhone, opticaAddress, setOpticaAddress, 
+    appTheme, setAppTheme, pdfConfig, setPdfConfig, 
+    crystalRules, addCrystalRule, updateCrystalRule, removeCrystalRule,
+    crystalItems, addCrystalItem, updateCrystalItem, removeCrystalItem,
+    treatments, addTreatment, updateTreatment, removeTreatment,
+    brands, setBrands, materials, setMaterials, indices, setIndices, designs, setDesigns, colors, setColors
+  } = useSettings();
   const { labs, addLab, updateLab, deleteLab } = useLabs();
 
-  // Crystal rules modal state
+  // Crystal refactored state
+  const [crystalSubTab, setCrystalSubTab] = useState<'catalog' | 'masters'>('catalog');
+  
+  const EMPTY_CRYSTAL_ITEM = {
+    name: '',
+    type: 'monofocal',
+    material: 'Orgánico',
+    index: '1.49',
+    brand: 'Essilor',
+    design: 'Esférico',
+    color: 'Blanco',
+    basePrice: 0,
+    active: true,
+    sphMin: -6.00,
+    sphMax: 6.00,
+    cylMax: 2.00,
+    addMin: 1.00,
+    addMax: 3.00,
+    treatments: []
+  };
+  const [isCrystalItemModalOpen, setIsCrystalItemModalOpen] = useState(false);
+  const [editingCrystalItem, setEditingCrystalItem] = useState<any>(null);
+  const [crystalItemForm, setCrystalItemForm] = useState<any>(EMPTY_CRYSTAL_ITEM);
+
+  const EMPTY_TREATMENT = {
+    name: '',
+    price: 0,
+    active: true,
+    incompatibleMaterials: [],
+    incompatibleTreatments: []
+  };
+  const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
+  const [editingTreatment, setEditingTreatment] = useState<any>(null);
+  const [treatmentForm, setTreatmentForm] = useState<any>(EMPTY_TREATMENT);
+
+  const [masterInputValues, setMasterInputValues] = useState({
+    brand: '',
+    material: '',
+    index: '',
+    design: '',
+    color: '',
+    treatment: ''
+  });
+
+  // Legacy Crystal rules modal state
   const EMPTY_CRYSTAL_RULE = { name: '', material: 'Orgánico', tratamiento: 'Blanco', precio: 0, conditions: [{ esfMin: -6, esfMax: 6, cilMax: 2 }] };
   const [isCrystalRuleModalOpen, setIsCrystalRuleModalOpen] = useState(false);
   const [editingCrystalRule, setEditingCrystalRule] = useState<any>(null);
@@ -2472,7 +2529,6 @@ export function Settings() {
             </div>
             <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 flex justify-between items-center text-xs text-slate-500">
                <p>Mostrando los últimos 50 eventos</p>
-               <button className="font-bold text-blue-600 hover:underline">Cargar más eventos</button>
             </div>
           </section>
         )}
@@ -2482,152 +2538,594 @@ export function Settings() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Eye className="w-6 h-6 text-emerald-600" /> Tabla de Precios de Cristales
+                  <Eye className="w-6 h-6 text-emerald-600" /> Administración del Módulo Cristales
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Definí el precio de cada tipo de cristal según material, tratamiento y rangos de receta. El precio se calcula automáticamente al crear un pedido recetado.</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Configurá el catálogo de cristales, tratamientos disponibles y las opciones de selección para las sucursales.</p>
               </div>
-              <button
-                onClick={() => { setCrystalRuleForm(EMPTY_CRYSTAL_RULE); setEditingCrystalRule(null); setIsCrystalRuleModalOpen(true); }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors shadow-sm"
+            </div>
+
+            {/* Sub-pestañas */}
+            <div className="flex flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800 pb-4 mb-6">
+              <button 
+                onClick={() => setCrystalSubTab('catalog')} 
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${crystalSubTab === 'catalog' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-850'}`}
               >
-                <Plus className="w-4 h-4" /> Nueva Regla
+                Catálogo de Precios
+              </button>
+              <button 
+                onClick={() => setCrystalSubTab('masters')} 
+                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${crystalSubTab === 'masters' ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600' : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-850'}`}
+              >
+                Listas Maestras
               </button>
             </div>
 
-            <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-              <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-slate-800/60">
-                  <tr>
-                    <th className="text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Nombre</th>
-                    <th className="text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Material</th>
-                    <th className="text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Tratamiento</th>
-                    <th className="text-left px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Condiciones (OR)</th>
-                    <th className="text-right px-4 py-3 text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">Precio</th>
-                    <th className="px-4 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {crystalRules.map(rule => (
-                    <tr key={rule.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
-                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">{rule.name}</td>
-                      <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{rule.material}</td>
-                      <td className="px-4 py-3">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold">{rule.tratamiento}</span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 max-w-xs">
-                        {rule.conditions.map((c, i) => (
-                          <div key={i} className="mb-0.5">
-                            ESF [{c.esfMin} / +{c.esfMax}] · CIL max {c.cilMax}{c.esfPlusCilMax ? ` · Suma ≤${c.esfPlusCilMax}` : ''}
-                          </div>
-                        ))}
-                      </td>
-                      <td className="px-4 py-3 text-right font-black text-emerald-600 dark:text-emerald-400">
-                        ${rule.precio.toLocaleString('es-AR')}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1 justify-end">
-                          <button
-                            onClick={() => { setCrystalRuleForm({ ...rule }); setEditingCrystalRule(rule); setIsCrystalRuleModalOpen(true); }}
-                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
-                          ><Edit2 className="w-4 h-4" /></button>
-                          <button
-                            onClick={() => { if (confirm('¿Eliminar esta regla?')) removeCrystalRule(rule.id); }}
-                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                          ><Trash2 className="w-4 h-4" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {crystalRules.length === 0 && (
-                    <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400 text-sm">No hay reglas configuradas. Hacé click en "Nueva Regla" para agregar una.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            {/* SUB-TAB: CATALOG (CRYSTAL ITEMS) */}
+            {crystalSubTab === 'catalog' && (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-bold text-slate-900 dark:text-white">Precios de Lentes / Cristales</h4>
+                  <button
+                    onClick={() => { setCrystalItemForm(EMPTY_CRYSTAL_ITEM); setEditingCrystalItem(null); setIsCrystalItemModalOpen(true); }}
+                    className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors shadow-sm"
+                  >
+                    <Plus className="w-4 h-4" /> Nuevo Cristal
+                  </button>
+                </div>
 
-            {/* Crystal Rule Modal */}
-            {isCrystalRuleModalOpen && (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 dark:bg-slate-800/60 text-xs uppercase text-slate-500">
+                      <tr>
+                        <th className="text-left px-4 py-3">Nombre / Tipo</th>
+                        <th className="text-left px-4 py-3">Marca / Diseño</th>
+                        <th className="text-left px-4 py-3">Material / Índice / Color</th>
+                        <th className="text-left px-4 py-3">Rango de Receta (OD/OI)</th>
+                        <th className="text-right px-4 py-3">Precio Par</th>
+                        <th className="px-4 py-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {crystalItems.map(item => (
+                        <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                          <td className="px-4 py-3 font-bold text-slate-900 dark:text-white">
+                            <div>{item.name}</div>
+                            <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">{item.type}</span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-650 dark:text-slate-400">
+                            <div>{item.brand}</div>
+                            <div className="text-xs text-slate-400">{item.design}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-650 dark:text-slate-400">
+                            <div>{item.material} (índice {item.index})</div>
+                            <div className="text-xs text-slate-400">Color: {item.color}</div>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-500">
+                            <div>ESF: {item.sphMin >= 0 ? `+${item.sphMin}` : item.sphMin} a {item.sphMax >= 0 ? `+${item.sphMax}` : item.sphMax}</div>
+                            <div>CIL máx: {item.cylMax}</div>
+                            {(item.type === 'multifocal' || item.type === 'ocupacional') && (
+                              <div className="text-[10px] text-blue-600 font-bold">ADD: {item.addMin} a {item.addMax}</div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right font-black text-emerald-600">
+                            ${item.basePrice.toLocaleString('es-AR')}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1 justify-end">
+                              <button
+                                onClick={() => { setCrystalItemForm({ ...item }); setEditingCrystalItem(item); setIsCrystalItemModalOpen(true); }}
+                                className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              ><Edit2 className="w-4 h-4" /></button>
+                              <button
+                                onClick={() => { if (confirm('¿Eliminar este cristal del catálogo?')) removeCrystalItem(item.id); }}
+                                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              ><Trash2 className="w-4 h-4" /></button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {crystalItems.length === 0 && (
+                        <tr><td colSpan={6} className="px-4 py-12 text-center text-slate-400">No hay cristales registrados en el catálogo. Hacé click en "Nuevo Cristal" para comenzar.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-TAB: MASTERS */}
+            {crystalSubTab === 'masters' && (
+              <div className="space-y-6">
+                <h4 className="font-bold text-slate-900 dark:text-white">Gestión de Opciones para Selectores</h4>
+                <p className="text-xs text-slate-500">Agregá o eliminá elementos de los menús desplegables del cotizador para mantenerlos alineados con tus proveedores.</p>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* BRANDS */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <h5 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-3">Marcas</h5>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto mb-4 p-2 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                      {brands.map(b => (
+                        <div key={b} className="flex justify-between items-center text-xs p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded font-medium">
+                          <span>{b}</span>
+                          <button onClick={() => setBrands(brands.filter(x => x !== b))} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nueva Marca..." 
+                        value={masterInputValues.brand}
+                        onChange={e => setMasterInputValues({...masterInputValues, brand: e.target.value})}
+                        className="h-9 px-3 text-xs flex-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          if (masterInputValues.brand.trim() && !brands.includes(masterInputValues.brand.trim())) {
+                            setBrands([...brands, masterInputValues.brand.trim()]);
+                            setMasterInputValues({...masterInputValues, brand: ''});
+                          }
+                        }}
+                        className="px-3 bg-emerald-600 text-white rounded text-xs font-bold"
+                      >Agregar</button>
+                    </div>
+                  </div>
+
+                  {/* MATERIALS */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <h5 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-3">Materiales</h5>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto mb-4 p-2 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                      {materials.map(b => (
+                        <div key={b} className="flex justify-between items-center text-xs p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded font-medium">
+                          <span>{b}</span>
+                          <button onClick={() => setMaterials(materials.filter(x => x !== b))} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nuevo Material..." 
+                        value={masterInputValues.material}
+                        onChange={e => setMasterInputValues({...masterInputValues, material: e.target.value})}
+                        className="h-9 px-3 text-xs flex-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          if (masterInputValues.material.trim() && !materials.includes(masterInputValues.material.trim())) {
+                            setMaterials([...materials, masterInputValues.material.trim()]);
+                            setMasterInputValues({...masterInputValues, material: ''});
+                          }
+                        }}
+                        className="px-3 bg-emerald-600 text-white rounded text-xs font-bold"
+                      >Agregar</button>
+                    </div>
+                  </div>
+
+                  {/* INDICES */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <h5 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-3">Índices</h5>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto mb-4 p-2 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                      {indices.map(b => (
+                        <div key={b} className="flex justify-between items-center text-xs p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded font-medium">
+                          <span>{b}</span>
+                          <button onClick={() => setIndices(indices.filter(x => x !== b))} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nuevo Índice..." 
+                        value={masterInputValues.index}
+                        onChange={e => setMasterInputValues({...masterInputValues, index: e.target.value})}
+                        className="h-9 px-3 text-xs flex-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          if (masterInputValues.index.trim() && !indices.includes(masterInputValues.index.trim())) {
+                            setIndices([...indices, masterInputValues.index.trim()]);
+                            setMasterInputValues({...masterInputValues, index: ''});
+                          }
+                        }}
+                        className="px-3 bg-emerald-600 text-white rounded text-xs font-bold"
+                      >Agregar</button>
+                    </div>
+                  </div>
+
+                  {/* DESIGNS */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <h5 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-3">Diseños</h5>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto mb-4 p-2 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                      {designs.map(b => (
+                        <div key={b} className="flex justify-between items-center text-xs p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded font-medium">
+                          <span>{b}</span>
+                          <button onClick={() => setDesigns(designs.filter(x => x !== b))} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nuevo Diseño..." 
+                        value={masterInputValues.design}
+                        onChange={e => setMasterInputValues({...masterInputValues, design: e.target.value})}
+                        className="h-9 px-3 text-xs flex-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          if (masterInputValues.design.trim() && !designs.includes(masterInputValues.design.trim())) {
+                            setDesigns([...designs, masterInputValues.design.trim()]);
+                            setMasterInputValues({...masterInputValues, design: ''});
+                          }
+                        }}
+                        className="px-3 bg-emerald-600 text-white rounded text-xs font-bold"
+                      >Agregar</button>
+                    </div>
+                  </div>
+
+                  {/* COLORS */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <h5 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-3">Colores</h5>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto mb-4 p-2 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                      {colors.map(b => (
+                        <div key={b} className="flex justify-between items-center text-xs p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded font-medium">
+                          <span>{b}</span>
+                          <button onClick={() => setColors(colors.filter(x => x !== b))} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nuevo Color..." 
+                        value={masterInputValues.color}
+                        onChange={e => setMasterInputValues({...masterInputValues, color: e.target.value})}
+                        className="h-9 px-3 text-xs flex-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          if (masterInputValues.color.trim() && !colors.includes(masterInputValues.color.trim())) {
+                            setColors([...colors, masterInputValues.color.trim()]);
+                            setMasterInputValues({...masterInputValues, color: ''});
+                          }
+                        }}
+                        className="px-3 bg-emerald-600 text-white rounded text-xs font-bold"
+                      >Agregar</button>
+                    </div>
+                  </div>
+
+                  {/* TREATMENTS */}
+                  <div className="bg-slate-50 dark:bg-slate-900/40 p-5 rounded-xl border border-slate-200 dark:border-slate-800">
+                    <h5 className="font-bold text-sm text-slate-700 dark:text-slate-300 mb-3">Tratamientos</h5>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto mb-4 p-2 bg-white dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-800">
+                      {treatments.map(t => (
+                        <div key={t} className="flex justify-between items-center text-xs p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 rounded font-medium">
+                          <span>{t}</span>
+                          <button onClick={() => removeTreatment(t)} className="text-red-500 hover:text-red-600"><X className="w-3.5 h-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Nuevo Tratamiento..." 
+                        value={masterInputValues.treatment}
+                        onChange={e => setMasterInputValues({...masterInputValues, treatment: e.target.value})}
+                        className="h-9 px-3 text-xs flex-1 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          if (masterInputValues.treatment.trim() && !treatments.includes(masterInputValues.treatment.trim())) {
+                            addTreatment(masterInputValues.treatment.trim());
+                            setMasterInputValues({...masterInputValues, treatment: ''});
+                          }
+                        }}
+                        className="px-3 bg-emerald-600 text-white rounded text-xs font-bold"
+                      >Agregar</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL: NUEVO / EDITAR CRISTAL */}
+            {isCrystalItemModalOpen && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
                   <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
                     <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                      <Eye className="w-5 h-5 text-emerald-600" /> {editingCrystalRule ? 'Editar Regla' : 'Nueva Regla de Cristal'}
+                      <Eye className="w-5 h-5 text-emerald-600" /> {editingCrystalItem ? 'Editar Cristal' : 'Cargar Nuevo Cristal'}
                     </h3>
-                    <button onClick={() => setIsCrystalRuleModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
+                    <button onClick={() => setIsCrystalItemModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
                   </div>
                   <div className="p-6 space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="md:col-span-2">
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">Nombre de la regla</label>
-                        <input type="text" value={crystalRuleForm.name} onChange={e => setCrystalRuleForm({...crystalRuleForm, name: e.target.value})} placeholder="Ej: Orgánico AR — Stock" className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none" />
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Nombre Comercial del Cristal</label>
+                        <input 
+                          type="text" 
+                          value={crystalItemForm.name} 
+                          onChange={e => setCrystalItemForm({...crystalItemForm, name: e.target.value})} 
+                          placeholder="Ej: Essilor Crizal Sapphire Monofocal 1.67" 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none" 
+                        />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">Material</label>
-                        <select value={crystalRuleForm.material} onChange={e => setCrystalRuleForm({...crystalRuleForm, material: e.target.value})} className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none">
-                          {['Orgánico','Orgánico 1.61','Orgánico 1.67','Fotocromatico'].map(m => <option key={m}>{m}</option>)}
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Tipo de Lente</label>
+                        <select 
+                          value={crystalItemForm.type} 
+                          onChange={e => setCrystalItemForm({...crystalItemForm, type: e.target.value})} 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none"
+                        >
+                          <option value="monofocal">Monofocal</option>
+                          <option value="bifocal">Bifocal</option>
+                          <option value="multifocal">Multifocal</option>
+                          <option value="ocupacional">Ocupacional</option>
                         </select>
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">Tratamiento</label>
-                        <select value={crystalRuleForm.tratamiento} onChange={e => setCrystalRuleForm({...crystalRuleForm, tratamiento: e.target.value})} className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none">
-                          {['Blanco','AR','AR + Blue Cut','Fotocromatico c/AR','Fotocromatico AR + Blue Cut'].map(t => <option key={t}>{t}</option>)}
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Marca</label>
+                        <select 
+                          value={crystalItemForm.brand} 
+                          onChange={e => setCrystalItemForm({...crystalItemForm, brand: e.target.value})} 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none"
+                        >
+                          {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Material</label>
+                        <select 
+                          value={crystalItemForm.material} 
+                          onChange={e => setCrystalItemForm({...crystalItemForm, material: e.target.value})} 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none"
+                        >
+                          {materials.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Índice de Refracción</label>
+                        <select 
+                          value={crystalItemForm.index} 
+                          onChange={e => setCrystalItemForm({...crystalItemForm, index: e.target.value})} 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none"
+                        >
+                          {indices.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Diseño</label>
+                        <select 
+                          value={crystalItemForm.design} 
+                          onChange={e => setCrystalItemForm({...crystalItemForm, design: e.target.value})} 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none"
+                        >
+                          {designs.map(b => <option key={b} value={b}>{b}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Color Base</label>
+                        <select 
+                          value={crystalItemForm.color} 
+                          onChange={e => setCrystalItemForm({...crystalItemForm, color: e.target.value})} 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none"
+                        >
+                          {colors.map(b => <option key={b} value={b}>{b}</option>)}
                         </select>
                       </div>
                       <div className="md:col-span-2">
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400 block mb-1">Precio por ojo (ARS)</label>
-                        <input type="number" value={crystalRuleForm.precio} onChange={e => setCrystalRuleForm({...crystalRuleForm, precio: parseFloat(e.target.value) || 0})} className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none" />
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Precio Base del Par (ARS)</label>
+                        <input 
+                          type="number" 
+                          value={crystalItemForm.basePrice || ''} 
+                          onChange={e => setCrystalItemForm({...crystalItemForm, basePrice: parseFloat(e.target.value) || 0})} 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none font-mono font-bold" 
+                        />
                       </div>
                     </div>
 
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Condiciones de Rango (OR — basta con que una se cumpla)</label>
-                        <button onClick={() => setCrystalRuleForm({...crystalRuleForm, conditions: [...crystalRuleForm.conditions, { esfMin: -6, esfMax: 6, cilMax: 2 }]})} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1"><Plus className="w-3 h-3" /> Agregar condición</button>
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
+                      <h5 className="font-bold text-xs text-slate-700 dark:text-slate-300">Límites y Rangos Técnicos de la Receta</h5>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF Mínimo (ej: -12.00)</label>
+                          <input type="number" step="0.25" value={crystalItemForm.sphMin} onChange={e => setCrystalItemForm({...crystalItemForm, sphMin: parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF Máximo (ej: 6.00)</label>
+                          <input type="number" step="0.25" value={crystalItemForm.sphMax} onChange={e => setCrystalItemForm({...crystalItemForm, sphMax: parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CIL Máximo (Abs) (ej: 4.00)</label>
+                          <input type="number" step="0.25" min="0" value={crystalItemForm.cylMax} onChange={e => setCrystalItemForm({...crystalItemForm, cylMax: parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        {crystalRuleForm.conditions.map((cond: any, i: number) => (
-                          <div key={i} className="grid grid-cols-4 gap-2 items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700">
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF mín</label>
-                              <input type="number" step="0.25" value={cond.esfMin} onChange={e => { const c = [...crystalRuleForm.conditions]; c[i] = {...c[i], esfMin: parseFloat(e.target.value)}; setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 px-2 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-center font-mono text-slate-900 dark:text-white" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF máx</label>
-                              <input type="number" step="0.25" value={cond.esfMax} onChange={e => { const c = [...crystalRuleForm.conditions]; c[i] = {...c[i], esfMax: parseFloat(e.target.value)}; setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 px-2 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-center font-mono text-slate-900 dark:text-white" />
-                            </div>
-                            <div>
-                              <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CIL máx (abs)</label>
-                              <input type="number" step="0.25" value={cond.cilMax} onChange={e => { const c = [...crystalRuleForm.conditions]; c[i] = {...c[i], cilMax: parseFloat(e.target.value)}; setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 px-2 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-center font-mono text-slate-900 dark:text-white" />
-                            </div>
-                            <div className="flex items-end gap-1">
-                              <div className="flex-1">
-                                <label className="text-[10px] font-bold text-slate-500 block mb-0.5">Suma máx (opc.)</label>
-                                <input type="number" step="0.25" value={cond.esfPlusCilMax ?? ''} placeholder="—" onChange={e => { const c = [...crystalRuleForm.conditions]; c[i] = {...c[i], esfPlusCilMax: e.target.value ? parseFloat(e.target.value) : undefined}; setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 px-2 w-full rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-xs text-center font-mono text-slate-900 dark:text-white" />
-                              </div>
-                              {crystalRuleForm.conditions.length > 1 && (
-                                <button onClick={() => { const c = crystalRuleForm.conditions.filter((_: any, idx: number) => idx !== i); setCrystalRuleForm({...crystalRuleForm, conditions: c}); }} className="h-8 w-8 flex items-center justify-center text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition-colors"><X className="w-4 h-4" /></button>
-                              )}
-                            </div>
+                      {(crystalItemForm.type === 'multifocal' || crystalItemForm.type === 'ocupacional') && (
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ADD Mínima (ej: 1.00)</label>
+                            <input type="number" step="0.25" min="0" value={crystalItemForm.addMin || ''} onChange={e => setCrystalItemForm({...crystalItemForm, addMin: parseFloat(e.target.value) || undefined})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
                           </div>
-                        ))}
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ADD Máxima (ej: 3.50)</label>
+                            <input type="number" step="0.25" min="0" value={crystalItemForm.addMax || ''} onChange={e => setCrystalItemForm({...crystalItemForm, addMax: parseFloat(e.target.value) || undefined})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Tratamientos Compatibles */}
+                    <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                      <h5 className="font-bold text-xs text-slate-700 dark:text-slate-300 uppercase tracking-wider">Tratamientos Compatibles / Incluidos</h5>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {treatments.map(t => {
+                          const formTreatments = crystalItemForm.treatments || [];
+                          const isChecked = formTreatments.includes(t);
+                          return (
+                            <label key={t} className="flex items-center gap-2 text-xs font-semibold text-slate-650 dark:text-slate-400 cursor-pointer p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-all">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  if (isChecked) {
+                                    setCrystalItemForm({
+                                      ...crystalItemForm,
+                                      treatments: formTreatments.filter((x: string) => x !== t)
+                                    });
+                                  } else {
+                                    setCrystalItemForm({
+                                      ...crystalItemForm,
+                                      treatments: [...formTreatments, t]
+                                    });
+                                  }
+                                }}
+                                className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                              />
+                              <span>{t}</span>
+                            </label>
+                          );
+                        })}
+                        {treatments.length === 0 && (
+                          <span className="text-xs text-slate-400 col-span-3">No hay tratamientos creados en la lista maestra.</span>
+                        )}
                       </div>
                     </div>
                   </div>
-                  <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-3 justify-end">
-                    <button onClick={() => setIsCrystalRuleModalOpen(false)} className="px-5 py-2.5 rounded-lg font-bold text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancelar</button>
+                  <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-3 justify-end bg-slate-50 dark:bg-slate-900/50">
+                    <button onClick={() => setIsCrystalItemModalOpen(false)} className="px-5 py-2.5 rounded-lg font-bold text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-200 transition-colors">Cancelar</button>
                     <button
                       onClick={() => {
-                        if (!crystalRuleForm.name || crystalRuleForm.precio <= 0) return alert('Completá el nombre y el precio.');
-                        if (editingCrystalRule) {
-                          updateCrystalRule({ ...crystalRuleForm, id: editingCrystalRule.id });
+                        if (!crystalItemForm.name.trim() || crystalItemForm.basePrice <= 0) return alert('Por favor, completá el nombre y el precio.');
+                        if (editingCrystalItem) {
+                          updateCrystalItem({ ...crystalItemForm, id: editingCrystalItem.id });
                         } else {
-                          addCrystalRule(crystalRuleForm);
+                          addCrystalItem(crystalItemForm);
                         }
-                        setIsCrystalRuleModalOpen(false);
+                        setIsCrystalItemModalOpen(false);
                       }}
                       className="px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-colors shadow-sm"
                     >
-                      {editingCrystalRule ? 'Guardar Cambios' : 'Crear Regla'}
+                      {editingCrystalItem ? 'Guardar Cambios' : 'Registrar Cristal'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODAL: NUEVO / EDITAR TRATAMIENTO */}
+            {isTreatmentModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                      <Eye className="w-5 h-5 text-emerald-600" /> {editingTreatment ? 'Editar Tratamiento' : 'Nuevo Tratamiento'}
+                    </h3>
+                    <button onClick={() => setIsTreatmentModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500"><X className="w-5 h-5" /></button>
+                  </div>
+                  <div className="p-6 space-y-5">
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Nombre del Tratamiento</label>
+                        <input 
+                          type="text" 
+                          value={treatmentForm.name} 
+                          onChange={e => setTreatmentForm({...treatmentForm, name: e.target.value})} 
+                          placeholder="Ej: Antirreflejo Sapphire, Blue Cut..." 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none" 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-650 block mb-1">Precio Adicional del Par (ARS)</label>
+                        <input 
+                          type="number" 
+                          value={treatmentForm.price || ''} 
+                          onChange={e => setTreatmentForm({...treatmentForm, price: parseFloat(e.target.value) || 0})} 
+                          className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-emerald-600 outline-none font-mono font-bold" 
+                        />
+                      </div>
+                      
+                      {/* Checkboxes de Materiales Incompatibles */}
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Materiales Incompatibles</label>
+                        <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                          {materials.map(mat => {
+                            const isChecked = treatmentForm.incompatibleMaterials.includes(mat);
+                            return (
+                              <label key={mat} className="flex items-center gap-2 text-xs font-medium cursor-pointer py-1">
+                                <input 
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    const nextList = isChecked 
+                                      ? treatmentForm.incompatibleMaterials.filter((x: string) => x !== mat)
+                                      : [...treatmentForm.incompatibleMaterials, mat];
+                                    setTreatmentForm({...treatmentForm, incompatibleMaterials: nextList});
+                                  }}
+                                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                                />
+                                <span>{mat}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Checkboxes de Tratamientos Incompatibles */}
+                      <div>
+                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-2">Tratamientos Incompatibles (Cruzados)</label>
+                        <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800">
+                          {treatments.filter(t => t.id !== treatmentForm.id).map(t => {
+                            const isChecked = treatmentForm.incompatibleTreatments.includes(t.id);
+                            return (
+                              <label key={t.id} className="flex items-center gap-2 text-xs font-medium cursor-pointer py-1">
+                                <input 
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    const nextList = isChecked 
+                                      ? treatmentForm.incompatibleTreatments.filter((x: string) => x !== t.id)
+                                      : [...treatmentForm.incompatibleTreatments, t.id];
+                                    setTreatmentForm({...treatmentForm, incompatibleTreatments: nextList});
+                                  }}
+                                  className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                                />
+                                <span>{t.name}</span>
+                              </label>
+                            );
+                          })}
+                          {treatments.filter(t => t.id !== treatmentForm.id).length === 0 && (
+                            <span className="text-xs text-slate-400 col-span-2">No hay otros tratamientos creados para excluir.</span>
+                          )}
+                        </div>
+                      </div>
+
+                      <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer pt-2">
+                        <input 
+                          type="checkbox"
+                          checked={treatmentForm.active}
+                          onChange={e => setTreatmentForm({...treatmentForm, active: e.target.checked})}
+                          className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300"
+                        />
+                        <span>Tratamiento Activo (disponible para venta)</span>
+                      </label>
+                    </div>
+                  </div>
+                  <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex gap-3 justify-end bg-slate-50 dark:bg-slate-900/50">
+                    <button onClick={() => setIsTreatmentModalOpen(false)} className="px-5 py-2.5 rounded-lg font-bold text-sm text-slate-600 dark:text-slate-400 hover:bg-slate-200 transition-colors">Cancelar</button>
+                    <button
+                      onClick={() => {
+                        if (!treatmentForm.name.trim() || treatmentForm.price < 0) return alert('Por favor, completá el nombre y el precio.');
+                        if (editingTreatment) {
+                          updateTreatment({ ...treatmentForm, id: editingTreatment.id });
+                        } else {
+                          addTreatment(treatmentForm);
+                        }
+                        setIsTreatmentModalOpen(false);
+                      }}
+                      className="px-5 py-2.5 rounded-lg bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition-colors shadow-sm"
+                    >
+                      {editingTreatment ? 'Guardar Cambios' : 'Registrar Tratamiento'}
                     </button>
                   </div>
                 </div>

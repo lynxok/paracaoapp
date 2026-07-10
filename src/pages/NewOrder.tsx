@@ -1,6 +1,6 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays } from "lucide-react";
+import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays, AlertTriangle } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useFinance } from "../context/FinanceContext";
 import { useClients } from "../context/ClientContext";
@@ -13,32 +13,21 @@ import { CrystalPricingCondition } from "../types";
 export function NewOrder() {
   const { boxes, addTransaction } = useFinance();
   const { clients, addOrder } = useClients();
-  const { insurances, lensColors, contactLensColors, opticaLogo, opticaName, opticaPhone, opticaAddress, crystalRules } = useSettings();
+  const { 
+    insurances, lensColors, contactLensColors, opticaLogo, opticaName, opticaPhone, opticaAddress,
+    crystalItems, treatments, brands, materials, indices, designs, colors 
+  } = useSettings();
   const { inventory, deductStock } = useInventory();
   const { labs, addJob } = useLabs();
-  const { addToCart, setIsCartOpen } = useCart();
+  const { cart, updateCartItem, addToCart, setIsCartOpen } = useCart();
   const navigate = useNavigate();
-  const { type } = useParams<{ type: string }>();
+  const { type, cartItemId } = useParams<{ type?: string; cartItemId?: string }>();
+  const isEditMode = !!cartItemId;
+  const editingItem = isEditMode ? cart.find(item => item.id === cartItemId) : null;
 
-  // Helper: evaluate a prescription eye against all crystal rules
-  const getCrystalPrice = (esf: number, cil: number, material: string, tratamiento: string): number => {
-    const matchingRules = crystalRules.filter(r => r.material === material && r.tratamiento === tratamiento);
-    for (const rule of matchingRules) {
-      const matches = rule.conditions.some((cond: CrystalPricingCondition) => {
-        const absEsf = Math.abs(esf);
-        const absCil = Math.abs(cil);
-        const inEsfRange = esf >= cond.esfMin && esf <= cond.esfMax;
-        const inCilRange = absCil <= cond.cilMax;
-        const sumOk = cond.esfPlusCilMax === undefined || (absEsf + absCil) <= cond.esfPlusCilMax;
-        return inEsfRange && inCilRange && sumOk;
-      });
-      if (matches) return rule.precio;
-    }
-    return 0;
-  };
-  const isMultifocal = type === 'multifocal';
-  const isOccupational = type === 'ocupacional';
-  const isContact = type === 'contact';
+  const isMultifocal = type === 'multifocal' || editingItem?.details?.prescriptionType === 'multifocal';
+  const isOccupational = type === 'ocupacional' || editingItem?.details?.prescriptionType === 'ocupacional';
+  const isContact = type === 'contact' || editingItem?.details?.prescriptionType === 'contact';
   const title = isContact ? "Lentes de Contacto" : isMultifocal ? "Multifocales / Bifocales" : isOccupational ? "Ocupacionales" : "Monofocales";
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +37,18 @@ export function NewOrder() {
   const [clientSearch, setClientSearch] = useState("");
   const [tempDni, setTempDni] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+
+  // Cristal and Validation state
+  const [selectedOjos, setSelectedOjos] = useState<'ambos' | 'od' | 'oi'>('ambos');
+  const [selectedTreatmentNames, setSelectedTreatmentNames] = useState<string[]>([]);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Local state for crystal selectors
+  const [selBrand, setSelBrand] = useState("");
+  const [selMaterial, setSelMaterial] = useState("");
+  const [selIndex, setSelIndex] = useState("");
+  const [selDesign, setSelDesign] = useState("");
+  const [selColor, setSelColor] = useState("");
 
   const resetForm = (mode: 'sameClient' | 'all') => {
     setLejosOD({ esf: "", cil: "", eje: "" });
@@ -66,9 +67,14 @@ export function NewOrder() {
     setAssignedLab(null);
     setDeliveryDate("");
     setObservaciones("");
-    setSelectedMaterial('Orgánico');
-    setSelectedTratamiento('Blanco');
+    setSelBrand("");
+    setSelMaterial("");
+    setSelIndex("");
+    setSelDesign("");
+    setSelColor("");
+    setSelectedTreatmentNames([]);
     setInternalLabCost('');
+    setSelectedOjos('ambos');
     
     if (mode === 'all') {
       setSelectedClient(null);
@@ -77,6 +83,68 @@ export function NewOrder() {
       setSelectedDoctor(null);
     }
   };
+
+  // Pre-load form values when in edit mode
+  useEffect(() => {
+    if (editingItem && editingItem.details) {
+      const details = editingItem.details;
+      if (details.client) setSelectedClient(details.client);
+      if (details.enableLejos !== undefined) setEnableLejos(details.enableLejos);
+      if (details.enableCerca !== undefined) setEnableCerca(details.enableCerca);
+      if (details.lejosOD) setLejosOD(details.lejosOD);
+      if (details.lejosOI) setLejosOI(details.lejosOI);
+      if (details.cercaOD) setCercaOD(details.cercaOD);
+      if (details.cercaOI) setCercaOI(details.cercaOI);
+      if (details.adicionOD) setAdicionOD(details.adicionOD);
+      if (details.adicionOI) setAdicionOI(details.adicionOI);
+      if (details.alturaOD) setAlturaOD(details.alturaOD);
+      if (details.alturaOI) setAlturaOI(details.alturaOI);
+      if (details.diOD) setDiOD(details.diOD);
+      if (details.diOI) setDiOI(details.diOI);
+      if (details.apOD) setApOD(details.apOD);
+      if (details.apOI) setApOI(details.apOI);
+      if (details.medico) setMedico(details.medico);
+      if (details.observaciones) setObservaciones(details.observaciones);
+      if (details.lensColor) setLensColor(details.lensColor);
+      if (details.internalLabCost) setInternalLabCost(String(details.internalLabCost));
+      
+      // Load new crystal refactored states
+      if (details.selectedOjos) setSelectedOjos(details.selectedOjos);
+      if (details.selectedTreatments) setSelectedTreatmentNames(details.selectedTreatments);
+      if (details.selectedCrystalItem) {
+        setSelBrand(details.selectedCrystalItem.brand);
+        setSelMaterial(details.selectedCrystalItem.material);
+        setSelIndex(details.selectedCrystalItem.index);
+        setSelDesign(details.selectedCrystalItem.design);
+        setSelColor(details.selectedCrystalItem.color);
+      }
+      if (details.selectedFrame) setSelectedFrame(details.selectedFrame);
+      if (details.assignedLab) setAssignedLab(details.assignedLab);
+      if (details.deliveryDate) setDeliveryDate(details.deliveryDate);
+    }
+  }, [editingItem]);
+
+  // Cascada inteligente simplificada: solo Modelo (brand) y Material
+  const crystalsOfType = crystalItems.filter(c => c.type === (type || editingItem?.details?.prescriptionType || 'monofocal') && c.active);
+  const availableBrandsForSelect = [...new Set(crystalsOfType.map(c => c.brand))];
+  const availableMaterialsForSelect = [...new Set(crystalsOfType.filter(c => !selBrand || c.brand === selBrand).map(c => c.material))];
+
+  useEffect(() => {
+    if (crystalsOfType.length > 0) {
+      if (!selBrand || !availableBrandsForSelect.includes(selBrand)) setSelBrand(availableBrandsForSelect[0] || "");
+    }
+  }, [type, crystalItems, editingItem]);
+
+  useEffect(() => {
+    if (availableMaterialsForSelect.length > 0) {
+      if (!selMaterial || !availableMaterialsForSelect.includes(selMaterial)) setSelMaterial(availableMaterialsForSelect[0] || "");
+    }
+  }, [selBrand]);
+
+  const selectedCrystal = crystalsOfType.find(c => 
+    c.brand === selBrand &&
+    c.material === selMaterial
+  ) || null;
 
   const handleDniSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -178,35 +246,29 @@ export function NewOrder() {
   const [observaciones, setObservaciones] = useState("");
   const [lensColor, setLensColor] = useState(lensColors[0] || '');
 
-  // Crystal selectors (material + tratamiento — price calculated dynamically)
-  const [selectedMaterial, setSelectedMaterial] = useState('Orgánico');
-  const [selectedTratamiento, setSelectedTratamiento] = useState('Blanco');
-
-  // Derive available unique materials and tratamientos from crystalRules
-  const availableMaterials = [...new Set(crystalRules.map(r => r.material))];
-  const availableTratamientos = [...new Set(crystalRules.filter(r => r.material === selectedMaterial).map(r => r.tratamiento))];
-
   // Internal lab cost (when no external lab used)
   const [internalLabCost, setInternalLabCost] = useState('');
 
-  // Derived values — crystal price calculated per eye from prescription + rules
-  const lejosPriceOD = (!isContact && (type !== 'monofocal' || enableLejos))
-    ? getCrystalPrice(parseFloat(lejosOD.esf) || 0, parseFloat(lejosOD.cil) || 0, selectedMaterial, selectedTratamiento)
-    : 0;
-  const lejosPriceOI = (!isContact && (type !== 'monofocal' || enableLejos))
-    ? getCrystalPrice(parseFloat(lejosOI.esf) || 0, parseFloat(lejosOI.cil) || 0, selectedMaterial, selectedTratamiento)
-    : 0;
+  // Detectar si hay receta cargada para lejos y/o cerca
+  const hasLejosCharged = !!(enableLejos && (lejosOD.esf || lejosOD.cil || lejosOI.esf || lejosOI.cil));
+  const hasCercaCharged = !!(enableCerca && (cercaOD.esf || cercaOD.cil || cercaOI.esf || cercaOI.cil));
+  const hasPrescriptionCharged = hasLejosCharged || hasCercaCharged;
 
-  const cercaPriceOD = (!isContact && type === 'monofocal' && enableCerca)
-    ? getCrystalPrice(parseFloat(cercaOD.esf) || 0, parseFloat(cercaOD.cil) || 0, selectedMaterial, selectedTratamiento)
-    : 0;
-  const cercaPriceOI = (!isContact && type === 'monofocal' && enableCerca)
-    ? getCrystalPrice(parseFloat(cercaOI.esf) || 0, parseFloat(cercaOI.cil) || 0, selectedMaterial, selectedTratamiento)
-    : 0;
+  // Si se carga tanto para lejos como para cerca (lente de dos focos/monofocal doble), sumamos ambos cristales
+  const isDoubleFocusCharged = hasLejosCharged && hasCercaCharged && (type === 'monofocal' || editingItem?.details?.prescriptionType === 'monofocal');
 
-  const crystalPriceOD = lejosPriceOD + cercaPriceOD;
-  const crystalPriceOI = lejosPriceOI + cercaPriceOI;
-  const crystalPrice = crystalPriceOD + crystalPriceOI;
+  // Detectar si solo se cargaron datos en un ojo
+  const hasODData = !!(lejosOD.esf || lejosOD.cil || cercaOD.esf || cercaOD.cil);
+  const hasOIData = !!(lejosOI.esf || lejosOI.cil || cercaOI.esf || cercaOI.cil);
+  const isSingleEyeCharged = selectedOjos === 'od' || selectedOjos === 'oi' || (selectedOjos === 'ambos' && ((hasODData && !hasOIData) || (!hasODData && hasOIData)));
+
+  const eyesFactor = isSingleEyeCharged ? 0.5 : 1.0;
+
+  // El precio base se duplica si es lejos + cerca a la vez (monofocal doble)
+  const baseCrystalPrice = selectedCrystal ? (selectedCrystal.basePrice * (isDoubleFocusCharged ? 2 : 1)) : 0;
+
+  // Calculamos el precio total del cristal (solo si hay alguna receta cargada)
+  const crystalPrice = hasPrescriptionCharged ? (baseCrystalPrice * eyesFactor) : 0;
 
   const framePrice = selectedFrame ? selectedFrame.numericPrice : 0;
   const labIntCost = parseFloat(internalLabCost) || 0;
@@ -230,15 +292,12 @@ export function NewOrder() {
   const totalCoverage = crystalCoverage + frameCoverage;
   const orderTotal = Math.max(0, subtotal - totalCoverage);
 
-  const filteredCrystals: any[] = []; // Crystal pricing is now rule-based, not stock-based
-
-  // Placeholder: this will eventually come from the Auth Context based on the user's login selection
+  const filteredCrystals: any[] = []; 
   const currentBranchId = '1'; 
 
   const renderStockBreakdown = (stocks: Record<string, number>) => {
     const branchesMap: Record<string, string> = { '1': 'Casa Central', '2': 'Shopping' };
     const currentStock = stocks[currentBranchId] || 0;
-    
     const otherBranches = Object.entries(stocks).filter(([bId, qty]) => bId !== currentBranchId && qty > 0);
     const hasOtherStock = otherBranches.length > 0;
     
@@ -269,16 +328,68 @@ export function NewOrder() {
   const [apOD, setApOD] = useState("");
   const [apOI, setApOI] = useState("");
 
+  // Live Prescription Validation
+  useEffect(() => {
+    const errors: string[] = [];
+    if (selectedCrystal) {
+      const validateEye = (eyeName: string, esfVal: string, cilVal: string, addVal: string) => {
+        const esf = parseFloat(esfVal) || 0;
+        const cil = parseFloat(cilVal) || 0;
+        const add = parseFloat(addVal) || 0;
+
+        if (esf < selectedCrystal.sphMin || esf > selectedCrystal.sphMax) {
+          errors.push(
+            `Ojo ${eyeName}: El esférico (${esf >= 0 ? `+${esf}` : esf}) está fuera del rango [${selectedCrystal.sphMin} / +${selectedCrystal.sphMax}] de este cristal.`
+          );
+        }
+        if (Math.abs(cil) > selectedCrystal.cylMax) {
+          errors.push(
+            `Ojo ${eyeName}: El cilíndrico (${cil}) excede el límite permitido (máx ${selectedCrystal.cylMax}) de este cristal.`
+          );
+        }
+        if (selectedCrystal.type === 'multifocal' || selectedCrystal.type === 'ocupacional') {
+          if (selectedCrystal.addMin !== undefined && selectedCrystal.addMax !== undefined) {
+            if (add < selectedCrystal.addMin || add > selectedCrystal.addMax) {
+              errors.push(
+                `Ojo ${eyeName}: La adición (+${add.toFixed(2)}) está fuera del rango [+${selectedCrystal.addMin.toFixed(2)} / +${selectedCrystal.addMax.toFixed(2)}] de este cristal.`
+              );
+            }
+          }
+        }
+      };
+
+      if (selectedOjos === 'ambos' || selectedOjos === 'od') {
+        const esf = lejosOD.esf || cercaOD.esf;
+        const cil = lejosOD.cil || cercaOD.cil;
+        const add = adicionOD;
+        if (esf || cil || add) validateEye('Derecho', esf, cil, add);
+      }
+      if (selectedOjos === 'ambos' || selectedOjos === 'oi') {
+        const esf = lejosOI.esf || cercaOI.esf;
+        const cil = lejosOI.cil || cercaOI.cil;
+        const add = adicionOI;
+        if (esf || cil || add) validateEye('Izquierdo', esf, cil, add);
+      }
+    }
+    setValidationErrors(errors);
+  }, [selectedCrystal, lejosOD, lejosOI, cercaOD, cercaOI, adicionOD, adicionOI, selectedOjos]);
+
   const handleConfirm = () => {
-    addToCart({
-      id: `prescription-${Date.now()}`,
-      type: 'prescription',
+    // Alerta de confirmación si es solo un ojo
+    if (isSingleEyeCharged) {
+      const confirmSingle = window.confirm("¿Estás seguro que deseas cargar solamente los datos de un cristal?");
+      if (!confirmSingle) return;
+    }
+
+    const itemData = {
+      id: isEditMode ? cartItemId! : `prescription-${Date.now()}`,
+      type: 'prescription' as const,
       name: `${title}: ${selectedClient?.name || 'Cliente Mostrador'}`,
-      price: orderTotal || 4500,
+      price: orderTotal || 0,
       quantity: 1,
       details: {
         client: selectedClient,
-        prescriptionType: type || 'monofocal',
+        prescriptionType: type || editingItem?.details?.prescriptionType || 'monofocal',
         enableLejos,
         enableCerca,
         lejosOD,
@@ -296,22 +407,31 @@ export function NewOrder() {
         medico,
         observaciones,
         lensColor,
-        selectedMaterial,
-        selectedTratamiento,
-        crystalPriceOD,
-        crystalPriceOI,
+        selectedOjos,
+        selectedCrystalItem: selectedCrystal,
+        selectedTreatments: selectedTreatmentNames,
         selectedFrame,
         assignedLab,
         deliveryDate,
         crystalCoverage,
         frameCoverage,
         subtotal,
-        totalCoverage
+        totalCoverage,
+        internalLabCost,
+        labCost: internalLabCost ? parseFloat(internalLabCost) || 0 : 0
       }
-    });
+    };
 
-    setIsCartOpen(true);
-    setShowSuccessModal(true);
+    if (isEditMode) {
+      updateCartItem(cartItemId!, itemData);
+      setIsCartOpen(true);
+      alert("Receta modificada correctamente en el carrito.");
+      navigate('/orders');
+    } else {
+      addToCart(itemData);
+      setIsCartOpen(true);
+      setShowSuccessModal(true);
+    }
   };
 
   const handleSendToLab = () => {
@@ -422,8 +542,6 @@ export function NewOrder() {
       frame.name.toLowerCase().includes(frameSearch.toLowerCase()) || 
       frame.sku.toLowerCase().includes(frameSearch.toLowerCase())
     );
-
-  const isEditMode = false;
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-20">
@@ -903,6 +1021,34 @@ export function NewOrder() {
           </h3>
           
           <div className="space-y-8">
+            {/* Ojos a procesar */}
+            {!isContact && (
+              <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                <label className="text-xs font-bold text-slate-655 block mb-1">Ojos a procesar</label>
+                <div className="flex gap-2">
+                  {[
+                    { id: 'ambos', label: 'Ambos Ojos (Par Completo)' },
+                    { id: 'od', label: 'Solo Ojo Derecho (1 Cristal)' },
+                    { id: 'oi', label: 'Solo Ojo Izquierdo (1 Cristal)' }
+                  ].map(o => (
+                    <button
+                      key={o.id}
+                      type="button"
+                      onClick={() => setSelectedOjos(o.id as any)}
+                      className={cn(
+                        "flex-1 h-10 rounded-lg text-xs font-bold transition-all border",
+                        selectedOjos === o.id
+                          ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900"
+                          : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-655"
+                      )}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {!isContact ? (
               <div className="space-y-6">
                 {/* Lejos */}
@@ -1229,38 +1375,30 @@ export function NewOrder() {
                 ))}
               </div>
             )}
-
-            {!isContact && (
-              <div className="pt-6 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Color del Cristal</label>
-                  <select className="h-10 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white">
-                    {lensColors.map(c => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Marco (Armazón)</label>
-                  {selectedFrame ? (
-                    <div className="flex items-center justify-between p-2 rounded-lg border border-blue-200 dark:border-blue-900/50 bg-blue-50/50 dark:bg-blue-900/10">
-                      <div>
-                        <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedFrame.name}</p>
-                        <p className="text-xs text-slate-500">{selectedFrame.sku} - ${selectedFrame.numericPrice.toFixed(2)}</p>
-                      </div>
-                      <button onClick={() => setSelectedFrame(null)} className="p-1.5 text-slate-400 hover:text-red-500 rounded-md transition-colors">
-                        <X className="w-4 h-4" />
-                      </button>
+            
+            {/* ALERTAS DE VALIDACIÓN DE GRADUACIÓN / COMPATIBILIDAD (SIEMPRE VISIBLE EN LA COLUMNA DE RECETA) */}
+            {!isContact && hasPrescriptionCharged && (
+              <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                {validationErrors.length > 0 && (
+                  <div className="p-4 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-200 dark:border-red-900/40 space-y-2 animate-in shake duration-300">
+                    <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-black text-sm">
+                      <AlertTriangle className="w-5 h-5 flex-shrink-0" />
+                      <span>Incompatibilidad Técnica de Receta</span>
                     </div>
-                  ) : (
-                    <button 
-                      onClick={() => setIsFrameModalOpen(true)}
-                      className="h-10 px-3 w-full rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-slate-500 dark:text-slate-400 flex items-center justify-center gap-2 transition-colors text-sm font-medium"
-                    >
-                      <Search className="w-4 h-4" /> Buscar Marco en Stock
-                    </button>
-                  )}
-                </div>
+                    <ul className="list-disc pl-5 text-xs text-red-650 dark:text-red-400 space-y-1 font-semibold">
+                      {validationErrors.map((err, i) => (
+                        <li key={i}>{err}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {selectedCrystal === null && (
+                  <div className="p-4 bg-amber-50 dark:bg-amber-955/30 rounded-xl border border-amber-200 dark:border-amber-900/40 flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-xs animate-in fade-in">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                    <span>La combinación de Modelo y Material elegida no existe en el catálogo de cristales de administración.</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1277,56 +1415,102 @@ export function NewOrder() {
             </h3>
             <div className="space-y-2">
 
-              {/* Crystal — Material + Tratamiento + Dynamic Price */}
+              {/* Crystal — Modelo + Material direct selection */}
               {!isContact && (
-                <div className="py-2 border-b border-slate-100 dark:border-slate-800">
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Cristal</p>
-                  <div className="grid grid-cols-2 gap-2 mb-2">
+                <div className="py-2 border-b border-slate-100 dark:border-slate-800 space-y-3">
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cristal Seleccionado</p>
+                  
+                  <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Material</label>
+                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Modelo</label>
                       <select
-                        value={selectedMaterial}
-                        onChange={e => {
-                          const newMat = e.target.value;
-                          const newTrats = [...new Set(crystalRules.filter(r => r.material === newMat).map(r => r.tratamiento))];
-                          setSelectedMaterial(newMat);
-                          setSelectedTratamiento(newTrats[0] || 'Blanco');
-                        }}
-                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-emerald-600 outline-none"
+                        value={selBrand}
+                        onChange={e => setSelBrand(e.target.value)}
+                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none"
                       >
-                        {availableMaterials.map(m => <option key={m}>{m}</option>)}
+                        {availableBrandsForSelect.map(b => <option key={b} value={b}>{b}</option>)}
+                        {availableBrandsForSelect.length === 0 && <option value="">No disponible</option>}
                       </select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Tratamiento</label>
+                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Material</label>
                       <select
-                        value={selectedTratamiento}
-                        onChange={e => setSelectedTratamiento(e.target.value)}
-                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-emerald-600 outline-none"
+                        value={selMaterial}
+                        onChange={e => setSelMaterial(e.target.value)}
+                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none"
                       >
-                        {availableTratamientos.map(t => <option key={t}>{t}</option>)}
+                        {availableMaterialsForSelect.map(m => <option key={m} value={m}>{m}</option>)}
+                        {availableMaterialsForSelect.length === 0 && <option value="">No disponible</option>}
                       </select>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-1 text-xs">
-                    <div className="flex justify-between bg-slate-50 dark:bg-slate-800 rounded px-2 py-1">
-                      <span className="text-slate-500">OD:</span>
-                      <span className={`font-bold ${crystalPriceOD > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
-                        {crystalPriceOD > 0 ? `$${crystalPriceOD.toLocaleString('es-AR')}` : '—'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between bg-slate-50 dark:bg-slate-800 rounded px-2 py-1">
-                      <span className="text-slate-500">OI:</span>
-                      <span className={`font-bold ${crystalPriceOI > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-400'}`}>
-                        {crystalPriceOI > 0 ? `$${crystalPriceOI.toLocaleString('es-AR')}` : '—'}
-                      </span>
+
+                  {/* Tratamientos */}
+                  <div className="pt-1.5">
+                    <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Tratamientos Adicionales</label>
+                    <div className="flex flex-wrap gap-1">
+                      {(selectedCrystal?.treatments || []).map(t => {
+                        const isSelected = selectedTreatmentNames.includes(t);
+                        return (
+                          <button
+                            key={t}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedTreatmentNames(selectedTreatmentNames.filter(x => x !== t));
+                              } else {
+                                setSelectedTreatmentNames([...selectedTreatmentNames, t]);
+                              }
+                            }}
+                            className={cn(
+                              "px-2 py-1 rounded-lg text-[9px] font-bold border transition-all",
+                              isSelected
+                                ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
+                                : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300"
+                            )}
+                          >
+                            {t}
+                          </button>
+                        );
+                      })}
+                      {(!selectedCrystal || !selectedCrystal.treatments || selectedCrystal.treatments.length === 0) && (
+                        <span className="text-[10px] text-slate-400 font-semibold bg-slate-50 dark:bg-slate-950 p-2 rounded w-full text-center">
+                          Sin tratamientos configurados para este cristal.
+                        </span>
+                      )}
                     </div>
                   </div>
-                  {crystalPrice === 0 && (
-                    ((type !== 'monofocal' || enableLejos) && (lejosOD.esf || lejosOI.esf)) ||
-                    ((type === 'monofocal' && enableCerca) && (cercaOD.esf || cercaOI.esf))
-                  ) && (
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-1">⚠️ La receta no encaja en ninguna regla configurada para este cristal.</p>
+
+                  {/* Resumen e información del cristal */}
+                  {selectedCrystal && hasPrescriptionCharged ? (
+                    <div className="space-y-1 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-850">
+                      <p className="text-xs font-bold text-slate-900 dark:text-white">{selectedCrystal.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Ojos a procesar: {isSingleEyeCharged ? '1 Cristal' : 'Ambos Ojos (Par)'}
+                      </p>
+                      {selectedTreatmentNames.length > 0 && (
+                        <p className="text-[10px] text-emerald-600 dark:text-emerald-450 font-bold">
+                          Tratamientos: {selectedTreatmentNames.join(', ')}
+                        </p>
+                      )}
+                      {isDoubleFocusCharged && (
+                        <p className="text-[10px] text-blue-600 dark:text-blue-450 font-bold">
+                          ✓ Cotizando Lejos + Cerca (Suma)
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-500 font-semibold bg-amber-50/50 dark:bg-amber-950/20 p-2 rounded border border-amber-100 dark:border-amber-900/50">
+                      {!hasPrescriptionCharged 
+                        ? "Esperando que cargues dioptrías en la receta." 
+                        : "La combinación de Modelo y Material no está configurada en administración."}
+                    </p>
+                  )}
+                  {crystalPrice > 0 && (
+                    <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 mt-2">
+                      <span className="text-xs text-slate-500 font-bold">Total Cristales:</span>
+                      <span className="text-sm font-black text-emerald-600">${crystalPrice.toLocaleString('es-AR')}</span>
+                    </div>
                   )}
                 </div>
               )}
@@ -1491,11 +1675,27 @@ export function NewOrder() {
             </div>
           )}
 
+          {(!isContact && validationErrors.length > 0) && (
+            <p className="text-[10px] text-red-500 font-bold text-center">⚠️ No podés guardar el pedido porque hay incompatibilidades de graduación.</p>
+          )}
+          {!selectedClient && (
+            <p className="text-[10px] text-amber-500 font-bold text-center">⚠️ Seleccioná un cliente para continuar.</p>
+          )}
+          {(!isContact && selectedCrystal === null) && (
+            <p className="text-[10px] text-amber-500 font-bold text-center">⚠️ Elegí una combinación válida de cristal para continuar.</p>
+          )}
+          
           <button 
+            disabled={!selectedClient || (!isContact && (selectedCrystal === null || validationErrors.length > 0))}
             onClick={handleConfirm}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-blue-600 text-white font-black h-14 hover:bg-blue-700 shadow-xl shadow-blue-500/20 transition-all active:scale-95"
+            className={cn(
+              "w-full flex items-center justify-center gap-2 rounded-xl text-white font-black h-14 shadow-xl transition-all",
+              (!selectedClient || (!isContact && (selectedCrystal === null || validationErrors.length > 0)))
+                ? "bg-slate-350 dark:bg-slate-800 cursor-not-allowed opacity-50 shadow-none"
+                : "bg-blue-600 hover:bg-blue-700 shadow-blue-500/20 active:scale-95 cursor-pointer"
+            )}
           >
-            <Check className="w-6 h-6" /> Agregar al Carrito de Venta
+            <Check className="w-6 h-6" /> {isEditMode ? 'Guardar Cambios' : 'Agregar al Carrito de Venta'}
           </button>
         </div>
       </div>
