@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Insurance, CrystalPricingRule, CrystalItem } from '../types';
+import { supabase } from '../lib/supabase';
 
 export interface BankEntity {
   id: string;
@@ -300,14 +301,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const [banks, setBanks] = useState<BankEntity[]>(() => {
     const saved = localStorage.getItem('optica_banks');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (parsed.length > 0 && typeof parsed[0] === 'string') {
-        return parsed.map((name: string, idx: number) => ({ id: String(idx+1), name, cbu: '', alias: '', accountNumber: '' }));
-      }
-      return parsed;
-    }
-    return INITIAL_BANKS;
+    return saved ? JSON.parse(saved) : INITIAL_BANKS;
   });
 
   const [inventoryCategories, setInventoryCategories] = useState<string[]>(() => {
@@ -409,6 +403,296 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : INITIAL_COLORS_MASTERS;
   });
 
+  // Load everything from Supabase on mount
+  useEffect(() => {
+    async function loadAllFromSupabase() {
+      try {
+        // 1. Banks
+        const { data: bankData } = await supabase.from('banks').select('*');
+        if (bankData && bankData.length > 0) {
+          setBanks(bankData.map((b: any) => ({
+            id: String(b.id),
+            name: b.name,
+            cbu: b.cbu || '',
+            alias: b.alias || '',
+            accountNumber: b.accountNumber || b.account_number || ''
+          })));
+        }
+
+        // 2. Insurances
+        const { data: insData } = await supabase.from('insurances').select('*');
+        if (insData && insData.length > 0) {
+          setInsurances(insData.map((i: any) => ({
+            id: String(i.id),
+            name: i.name,
+            active: i.active !== undefined ? i.active : true,
+            coverages: i.coverages || []
+          })));
+        }
+
+        // 3. Inventory Categories
+        const { data: catData } = await supabase.from('inventory_categories').select('*');
+        if (catData && catData.length > 0) {
+          setInventoryCategories(catData.map((c: any) => c.name || c.id));
+        }
+
+        // 4. Crystal Rules
+        const { data: rulesData } = await supabase.from('crystal_rules').select('*');
+        if (rulesData && rulesData.length > 0) {
+          setCrystalRules(rulesData.map((r: any) => ({
+            id: String(r.id),
+            name: r.name,
+            material: r.material,
+            tratamiento: r.tratamiento,
+            precio: Number(r.precio || r.price || 0),
+            conditions: r.conditions || []
+          })));
+        }
+
+        // 5. Crystal Items
+        const { data: itemsData } = await supabase.from('crystal_items').select('*');
+        if (itemsData && itemsData.length > 0) {
+          setCrystalItems(itemsData.map((i: any) => ({
+            id: String(i.id),
+            name: i.name,
+            type: i.type,
+            material: i.material,
+            index: i.index,
+            brand: i.brand,
+            design: i.design,
+            color: i.color,
+            basePrice: Number(i.basePrice || i.base_price || 0),
+            active: i.active !== undefined ? i.active : true,
+            sphMin: Number(i.sphMin || i.sph_min || 0),
+            sphMax: Number(i.sphMax || i.sph_max || 0),
+            cylMax: Number(i.cylMax || i.cyl_max || 0),
+            addMin: i.addMin !== undefined ? Number(i.addMin) : undefined,
+            addMax: i.addMax !== undefined ? Number(i.addMax) : undefined,
+            treatments: i.treatments || []
+          })));
+        }
+
+        // 6. System settings key-value store
+        const { data: sysData } = await supabase.from('system_settings').select('*');
+        if (sysData && sysData.length > 0) {
+          sysData.forEach((row: any) => {
+            const val = row.value;
+            switch (row.key) {
+              case 'optica_logo': setOpticaLogo(val || ''); break;
+              case 'optica_name': setOpticaName(val || 'Óptica Paracáo'); break;
+              case 'optica_phone': setOpticaPhone(val || ''); break;
+              case 'optica_address': setOpticaAddress(val || 'Av. Principal 123'); break;
+              case 'optica_theme': {
+                setAppTheme(val || 'default');
+                document.documentElement.setAttribute('data-theme', val || 'default');
+                break;
+              }
+              case 'optica_pdf_config': setPdfConfigState(val || INITIAL_PDF_CONFIG); break;
+              case 'optica_lens_colors': setLensColors(val || INITIAL_LENS_COLORS); break;
+              case 'optica_contact_lens_colors': setContactLensColors(val || INITIAL_CONTACT_LENS_COLORS); break;
+              case 'optica_lens_types': setLensTypes(val || INITIAL_LENS_TYPES); break;
+              case 'optica_treatments': setTreatments(val || INITIAL_TREATMENTS); break;
+              case 'optica_brands_masters': setBrandsState(val || INITIAL_BRANDS_MASTERS); break;
+              case 'optica_materials_masters': setMaterialsState(val || INITIAL_MATERIALS_MASTERS); break;
+              case 'optica_indices_masters': setIndicesState(val || INITIAL_INDICES_MASTERS); break;
+              case 'optica_designs_masters': setDesignsState(val || INITIAL_DESIGNS_MASTERS); break;
+              case 'optica_colors_masters': setColorsState(val || INITIAL_COLORS_MASTERS); break;
+              case 'optica_afip_cuit': if (val) localStorage.setItem('optica_afip_cuit', val); break;
+              case 'optica_afip_env': if (val) localStorage.setItem('optica_afip_env', val); break;
+              case 'optica_afip_cert': if (val) localStorage.setItem('optica_afip_cert', val); break;
+              case 'optica_afip_key': if (val) localStorage.setItem('optica_afip_key', val); break;
+              case 'optica_inicio_actividad': if (val) localStorage.setItem('optica_inicio_actividad', val); break;
+              case 'optica_iibb': if (val) localStorage.setItem('optica_iibb', val); break;
+              case 'optica_puntos_venta': if (val) localStorage.setItem('optica_puntos_venta', typeof val === 'string' ? val : JSON.stringify(val)); break;
+              case 'optica_default_pv': if (val) localStorage.setItem('optica_default_pv', val); break;
+            }
+          });
+        }
+      } catch (err) {
+        console.warn("Could not fully load settings from Supabase:", err);
+      }
+    }
+    loadAllFromSupabase();
+  }, []);
+
+  // Helper to sync to system_settings table
+  const syncSetting = async (key: string, value: any) => {
+    try {
+      await supabase.from('system_settings').upsert([{ key, value, updated_at: new Date().toISOString() }]);
+    } catch (e) {
+      console.error(`Error syncing system setting ${key}:`, e);
+    }
+  };
+
+  // Sync state changes to local storage & Supabase
+  useEffect(() => {
+    localStorage.setItem('optica_banks', JSON.stringify(banks));
+    async function syncBanks() {
+      if (banks.length > 0) {
+        try {
+          await supabase.from('banks').upsert(banks.map(b => ({
+            id: b.id,
+            name: b.name,
+            cbu: b.cbu,
+            alias: b.alias,
+            accountNumber: b.accountNumber
+          })));
+        } catch (e) {
+          console.error("Error syncing banks to Supabase:", e);
+        }
+      }
+    }
+    syncBanks();
+  }, [banks]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_insurances', JSON.stringify(insurances));
+  }, [insurances]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_inventory_categories', JSON.stringify(inventoryCategories));
+    async function syncCategories() {
+      if (inventoryCategories.length > 0) {
+        try {
+          await supabase.from('inventory_categories').upsert(
+            inventoryCategories.map(c => ({ id: c, name: c }))
+          );
+        } catch (e) {
+          console.error("Error syncing inventory categories:", e);
+        }
+      }
+    }
+    syncCategories();
+  }, [inventoryCategories]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_lens_colors', JSON.stringify(lensColors));
+    syncSetting('optica_lens_colors', lensColors);
+  }, [lensColors]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_contact_lens_colors', JSON.stringify(contactLensColors));
+    syncSetting('optica_contact_lens_colors', contactLensColors);
+  }, [contactLensColors]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_lens_types', JSON.stringify(lensTypes));
+    syncSetting('optica_lens_types', lensTypes);
+  }, [lensTypes]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_crystal_rules', JSON.stringify(crystalRules));
+    async function syncRules() {
+      if (crystalRules.length > 0) {
+        try {
+          await supabase.from('crystal_rules').upsert(
+            crystalRules.map(r => ({
+              id: r.id,
+              name: r.name,
+              material: r.material,
+              tratamiento: r.tratamiento,
+              precio: r.precio,
+              conditions: r.conditions
+            }))
+          );
+        } catch (e) {
+          console.error("Error syncing crystal rules to Supabase:", e);
+        }
+      }
+    }
+    syncRules();
+  }, [crystalRules]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_crystal_items', JSON.stringify(crystalItems));
+    async function syncItems() {
+      if (crystalItems.length > 0) {
+        try {
+          await supabase.from('crystal_items').upsert(
+            crystalItems.map(i => ({
+              id: i.id,
+              name: i.name,
+              type: i.type,
+              material: i.material,
+              index: i.index,
+              brand: i.brand,
+              design: i.design,
+              color: i.color,
+              basePrice: i.basePrice,
+              active: i.active,
+              sphMin: i.sphMin,
+              sphMax: i.sphMax,
+              cylMax: i.cylMax,
+              addMin: i.addMin,
+              addMax: i.addMax,
+              treatments: i.treatments || []
+            }))
+          );
+        } catch (e) {
+          console.error("Error syncing crystal items to Supabase:", e);
+        }
+      }
+    }
+    syncItems();
+  }, [crystalItems]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_treatments', JSON.stringify(treatments));
+    syncSetting('optica_treatments', treatments);
+  }, [treatments]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_logo', opticaLogo);
+    syncSetting('optica_logo', opticaLogo);
+  }, [opticaLogo]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_name', opticaName);
+    syncSetting('optica_name', opticaName);
+  }, [opticaName]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_phone', opticaPhone);
+    syncSetting('optica_phone', opticaPhone);
+  }, [opticaPhone]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_address', opticaAddress);
+    syncSetting('optica_address', opticaAddress);
+  }, [opticaAddress]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_theme', appTheme);
+    document.documentElement.setAttribute('data-theme', appTheme);
+    syncSetting('optica_theme', appTheme);
+  }, [appTheme]);
+
+  useEffect(() => {
+    localStorage.setItem('optica_pdf_config', JSON.stringify(pdfConfig));
+    syncSetting('optica_pdf_config', pdfConfig);
+  }, [pdfConfig]);
+
+  // Sync Masters changes
+  useEffect(() => {
+    syncSetting('optica_brands_masters', brands);
+  }, [brands]);
+
+  useEffect(() => {
+    syncSetting('optica_materials_masters', materials);
+  }, [materials]);
+
+  useEffect(() => {
+    syncSetting('optica_indices_masters', indices);
+  }, [indices]);
+
+  useEffect(() => {
+    syncSetting('optica_designs_masters', designs);
+  }, [designs]);
+
+  useEffect(() => {
+    syncSetting('optica_colors_masters', colors);
+  }, [colors]);
+
   const setBrands = (newVal: string[]) => { setBrandsState(newVal); localStorage.setItem('optica_brands_masters', JSON.stringify(newVal)); };
   const setMaterials = (newVal: string[]) => { setMaterialsState(newVal); localStorage.setItem('optica_materials_masters', JSON.stringify(newVal)); };
   const setIndices = (newVal: string[]) => { setIndicesState(newVal); localStorage.setItem('optica_indices_masters', JSON.stringify(newVal)); };
@@ -421,8 +705,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const updateCrystalItem = (item: CrystalItem) => {
     setCrystalItems(prev => prev.map(r => r.id === item.id ? item : r));
   };
-  const removeCrystalItem = (id: string) => {
+  const removeCrystalItem = async (id: string) => {
     setCrystalItems(prev => prev.filter(r => r.id !== id));
+    try {
+      await supabase.from('crystal_items').delete().eq('id', id);
+    } catch (e) {
+      console.error("Supabase removeCrystalItem error:", e);
+    }
   };
 
   const addTreatment = (name: string) => {
@@ -435,62 +724,47 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setTreatments(prev => prev.filter(t => t !== name));
   };
 
-  useEffect(() => { localStorage.setItem('optica_crystal_items', JSON.stringify(crystalItems)); }, [crystalItems]);
-  useEffect(() => { localStorage.setItem('optica_treatments', JSON.stringify(treatments)); }, [treatments]);
-
   const addCrystalRule = (rule: Omit<CrystalPricingRule, 'id'>) => {
     setCrystalRules(prev => [...prev, { ...rule, id: `cr-${Date.now()}` }]);
   };
   const updateCrystalRule = (rule: CrystalPricingRule) => {
     setCrystalRules(prev => prev.map(r => r.id === rule.id ? rule : r));
   };
-  const removeCrystalRule = (id: string) => {
+  const removeCrystalRule = async (id: string) => {
     setCrystalRules(prev => prev.filter(r => r.id !== id));
+    try {
+      await supabase.from('crystal_rules').delete().eq('id', id);
+    } catch (e) {
+      console.error("Supabase removeCrystalRule error:", e);
+    }
   };
 
-  useEffect(() => { localStorage.setItem('optica_insurances', JSON.stringify(insurances)); }, [insurances]);
+  const addInsurance = async (ins: Omit<Insurance, 'id'>) => {
+    const newIns: Insurance = { ...ins, id: Date.now().toString() };
+    setInsurances(prev => [...prev, newIns]);
+    try {
+      await supabase.from('insurances').upsert([{ id: newIns.id, name: newIns.name, active: newIns.active, coverages: newIns.coverages }]);
+    } catch (e) {
+      console.error("Supabase addInsurance error:", e);
+    }
+  };
 
-  useEffect(() => {
-    localStorage.setItem('optica_banks', JSON.stringify(banks));
-  }, [banks]);
-
-  useEffect(() => {
-    localStorage.setItem('optica_inventory_categories', JSON.stringify(inventoryCategories));
-  }, [inventoryCategories]);
-
-  useEffect(() => {
-    localStorage.setItem('optica_lens_colors', JSON.stringify(lensColors));
-  }, [lensColors]);
-
-  useEffect(() => {
-    localStorage.setItem('optica_contact_lens_colors', JSON.stringify(contactLensColors));
-  }, [contactLensColors]);
-
-  useEffect(() => { localStorage.setItem('optica_lens_types', JSON.stringify(lensTypes)); }, [lensTypes]);
-  useEffect(() => { localStorage.setItem('optica_crystal_rules', JSON.stringify(crystalRules)); }, [crystalRules]);
-  useEffect(() => { localStorage.setItem('optica_logo', opticaLogo); }, [opticaLogo]);
-  useEffect(() => { localStorage.setItem('optica_name', opticaName); }, [opticaName]);
-  useEffect(() => { localStorage.setItem('optica_phone', opticaPhone); }, [opticaPhone]);
-  useEffect(() => { localStorage.setItem('optica_address', opticaAddress); }, [opticaAddress]);
-  useEffect(() => { 
-    localStorage.setItem('optica_theme', appTheme); 
-    document.documentElement.setAttribute('data-theme', appTheme);
-  }, [appTheme]);
-
-  // Initial theme application
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', appTheme);
-  }, []);
-
-  const addInsurance = (ins: Omit<Insurance, 'id'>) => setInsurances([...insurances, { ...ins, id: Date.now().toString() }]);
-
-  const updateInsurance = (insurance: Insurance) => {
+  const updateInsurance = async (insurance: Insurance) => {
     setInsurances(prev => prev.map(i => i.id === insurance.id ? insurance : i));
+    try {
+      await supabase.from('insurances').upsert([{ id: insurance.id, name: insurance.name, active: insurance.active, coverages: insurance.coverages }]);
+    } catch (e) {
+      console.error("Supabase updateInsurance error:", e);
+    }
   };
 
-  const removeInsurance = (id: string) => {
-    // Soft delete
-    setInsurances(prev => prev.map(i => i.id === id ? { ...i, active: false } : i));
+  const removeInsurance = async (id: string) => {
+    setInsurances(prev => prev.filter(i => i.id !== id));
+    try {
+      await supabase.from('insurances').delete().eq('id', id);
+    } catch (e) {
+      console.error("Supabase removeInsurance error:", e);
+    }
   };
 
   const addInventoryCategory = (name: string) => {
@@ -507,8 +781,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const removeInventoryCategory = (name: string) => {
+  const removeInventoryCategory = async (name: string) => {
     setInventoryCategories(inventoryCategories.filter(c => c !== name));
+    try {
+      await supabase.from('inventory_categories').delete().eq('id', name);
+    } catch (e) {
+      console.error("Supabase removeInventoryCategory error:", e);
+    }
   };
 
   const addLensColor = (name: string) => {
@@ -565,20 +844,47 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     setLensTypes(lensTypes.filter(c => c !== name));
   };
 
-  const addBank = (bank: Omit<BankEntity, 'id'>) => {
+  const addBank = async (bank: Omit<BankEntity, 'id'>) => {
     const newBank: BankEntity = {
       ...bank,
       id: Date.now().toString(),
     };
-    setBanks([...banks, newBank]);
+    setBanks(prev => [...prev, newBank]);
+    try {
+      await supabase.from('banks').upsert([{
+        id: newBank.id,
+        name: newBank.name,
+        cbu: newBank.cbu,
+        alias: newBank.alias,
+        account_number: newBank.accountNumber
+      }]);
+    } catch (e) {
+      console.error("Supabase add bank error:", e);
+    }
   };
 
-  const updateBank = (updatedBank: BankEntity) => {
-    setBanks(banks.map(b => b.id === updatedBank.id ? updatedBank : b));
+  const updateBank = async (updatedBank: BankEntity) => {
+    setBanks(prev => prev.map(b => b.id === updatedBank.id ? updatedBank : b));
+    try {
+      await supabase.from('banks').upsert([{
+        id: updatedBank.id,
+        name: updatedBank.name,
+        cbu: updatedBank.cbu,
+        alias: updatedBank.alias,
+        account_number: updatedBank.accountNumber
+      }]);
+    } catch (e) {
+      console.error("Supabase update bank error:", e);
+    }
   };
 
-  const removeBank = (id: string) => {
-    setBanks(banks.filter(b => b.id !== id));
+  const removeBank = async (id: string) => {
+    setBanks(prev => prev.filter(b => b.id !== id));
+    try {
+      await supabase.from('banks').delete().eq('id', id);
+    } catch (e) {
+      console.error("Supabase remove bank error:", e);
+    }
   };
 
   return (

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Client, Order, Transaction } from '../types';
+import { supabase } from '../lib/supabase';
 
 interface ClientContextType {
   clients: Client[];
@@ -17,46 +18,62 @@ interface ClientContextType {
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
 
 const INITIAL_CLIENTS: Client[] = [];
-
 const INITIAL_ORDERS: Order[] = [];
 
 export function ClientProvider({ children }: { children: ReactNode }) {
-  const [clients, setClients] = useState<Client[]>(() => {
-    const saved = localStorage.getItem('optica_clients');
-    if (saved) return JSON.parse(saved);
-    return INITIAL_CLIENTS;
-  });
+  const [clients, setClients] = useState<Client[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
 
-  const [orders, setOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('optica_orders');
-    if (saved) return JSON.parse(saved);
-    return INITIAL_ORDERS;
-  });
-
-  // Save to localStorage whenever clients or orders change
+  // Fetch initial data from Supabase
   useEffect(() => {
-    localStorage.setItem('optica_clients', JSON.stringify(clients));
-  }, [clients]);
+    async function loadSupabaseData() {
+      try {
+        const { data: dbClients, error: cErr } = await supabase.from('clients').select('*');
+        if (!cErr && dbClients) {
+          setClients(dbClients);
+        }
+        const { data: dbOrders, error: oErr } = await supabase.from('orders').select('*');
+        if (!oErr && dbOrders) {
+          setOrders(dbOrders);
+        }
+      } catch (err) {
+        console.warn("Could not sync with Supabase:", err);
+      }
+    }
+    loadSupabaseData();
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('optica_orders', JSON.stringify(orders));
-  }, [orders]);
 
-  const addClient = (clientData: Omit<Client, 'id' | 'balance'>) => {
+  const addClient = async (clientData: Omit<Client, 'id' | 'balance'>) => {
     const newClient: Client = {
       ...clientData,
       id: Date.now().toString(),
       balance: 0,
     };
     setClients(prev => [...prev, newClient]);
+    try {
+      await supabase.from('clients').upsert([newClient]);
+    } catch (e) {
+      console.error("Supabase client insert error:", e);
+    }
   };
 
-  const updateClient = (updatedClient: Client) => {
+  const updateClient = async (updatedClient: Client) => {
     setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
+    try {
+      await supabase.from('clients').upsert([updatedClient]);
+    } catch (e) {
+      console.error("Supabase client update error:", e);
+    }
   };
 
-  const deleteClient = (id: string) => {
+  const deleteClient = async (id: string) => {
     setClients(prev => prev.filter(c => c.id !== id));
+    try {
+      await supabase.from('clients').delete().eq('id', id);
+    } catch (e) {
+      console.error("Supabase client delete error:", e);
+    }
   };
 
   const getClientOrders = (clientId: string) => {
@@ -72,16 +89,26 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     return client?.balance || 0;
   };
 
-  const addOrder = (orderData: Omit<Order, 'id'>) => {
+  const addOrder = async (orderData: Omit<Order, 'id'>) => {
     const newOrder: Order = {
       ...orderData,
       id: `ORD-${Math.floor(Math.random() * 10000)}`,
     };
     setOrders(prev => [newOrder, ...prev]);
+    try {
+      await supabase.from('orders').upsert([newOrder]);
+    } catch (e) {
+      console.error("Supabase order insert error:", e);
+    }
   };
 
-  const updateOrderStatus = (orderId: string, status: string) => {
+  const updateOrderStatus = async (orderId: string, status: string) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
+    try {
+      await supabase.from('orders').update({ status }).eq('id', orderId);
+    } catch (e) {
+      console.error("Supabase order update status error:", e);
+    }
   };
 
   return (

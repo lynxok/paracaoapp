@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles, FileText, FlaskConical } from "lucide-react";
+import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles, FileText, FlaskConical, Check } from "lucide-react";
 import { cn } from "../lib/utils";
+import { getSavedConnections, saveConnections, getActiveConnectionId, switchConnection, SupabaseConnection } from "../lib/supabase";
 import { logger } from "../lib/logger";
 import { useSettings } from "../context/SettingsContext";
 import { useAuth } from "../context/AuthContext";
@@ -31,6 +32,14 @@ const tabs = [
 export function Settings() {
   const currentUser = { name: "Ignacio Valente", role: "superadmin" }; // User Mock for permissions
   const [activeTab, setActiveTab] = useState('general');
+  const [connections, setConnections] = useState<SupabaseConnection[]>(() => getSavedConnections());
+  const activeConnectionId = getActiveConnectionId();
+  const [isConnModalOpen, setIsConnModalOpen] = useState(false);
+  const [editingConn, setEditingConn] = useState<SupabaseConnection | null>(null);
+  const [connName, setConnName] = useState('');
+  const [connUrl, setConnUrl] = useState('');
+  const [connAnonKey, setConnAnonKey] = useState('');
+
   
   // Load points of sale from CRM/Marketing context
   const [puntosVenta] = useState<string[]>(() => {
@@ -327,35 +336,427 @@ export function Settings() {
   };
 
   const handleGenerateSupabaseSQL = () => {
-    if (!supabaseUrl || !supabaseKey) {
-      alert("Por favor ingresa la URL y la Key de Supabase.");
-      return;
-    }
-    const clients = JSON.parse(localStorage.getItem('optica_clients') || '[]');
-    const inventory = JSON.parse(localStorage.getItem('optica_inventory') || '[]');
-    const orders = JSON.parse(localStorage.getItem('optica_orders') || '[]');
+    let sql = `-- MIGRACIÓN COMPLETA PARA SUPABASE (SIN LOCALSTORAGE)\n`;
+    sql += `-- Instrucciones: Copiá y pegá este código completo en el SQL Editor de tu consola de Supabase y hacé clic en RUN.\n\n`;
 
-    let sql = `-- MIGRACIÓN PARA SUPABASE\\n`;
-    sql += `-- Instrucciones: Pegá este código en el SQL Editor de Supabase y ejecutalo.\\n\\n`;
+    sql += `-- OTORGAR PERMISOS GLOBALES DE LECTURA Y ESCRITURA EN EL ESQUEMA PUBLIC\n`;
+    sql += `GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;\n`;
+    sql += `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;\n`;
+    sql += `GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;\n`;
+    sql += `GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;\n`;
+    sql += `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;\n\n`;
 
-    sql += `CREATE TABLE IF NOT EXISTS clients (\\n  id text PRIMARY KEY,\\n  name text,\\n  dni text,\\n  phone text,\\n  email text,\\n  lastVisit text,\\n  balance numeric\\n);\\n\\n`;
-    sql += `CREATE TABLE IF NOT EXISTS inventory (\\n  sku text PRIMARY KEY,\\n  name text,\\n  cat text,\\n  price text,\\n  color text\\n);\\n\\n`;
-    sql += `CREATE TABLE IF NOT EXISTS orders (\\n  id text PRIMARY KEY,\\n  clientId text REFERENCES clients(id),\\n  clientName text,\\n  date text,\\n  type text,\\n  service text,\\n  status text,\\n  amount numeric,\\n  paid numeric\\n);\\n\\n`;
 
-    if (clients.length > 0) {
-      sql += `INSERT INTO clients (id, name, dni, phone, email, lastVisit, balance) VALUES\\n`;
-      sql += clients.map((c: any) => `('${c.id}', '${c.name.replace(/'/g, "''")}', '${c.dni}', '${c.phone}', '${c.email}', '${c.lastVisit}', ${c.balance})`).join(',\\n') + `\\nON CONFLICT (id) DO NOTHING;\\n\\n`;
-    }
+    sql += `-- 1. Tabla de Perfiles de Usuario\n`;
+    sql += `CREATE TABLE IF NOT EXISTS profiles (
+  id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username text,
+  name text,
+  email text,
+  role text DEFAULT 'standard',
+  default_branch_id text DEFAULT '1',
+  status text DEFAULT 'Activo',
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en profiles" ON profiles;\n`;
+    sql += `CREATE POLICY "Permitir todo en profiles" ON profiles FOR ALL USING (true) WITH CHECK (true);\n\n`;
 
-    if (inventory.length > 0) {
-      sql += `INSERT INTO inventory (sku, name, cat, price, color) VALUES\\n`;
-      sql += inventory.map((i: any) => `('${i.sku}', '${i.name.replace(/'/g, "''")}', '${i.cat}', '${i.price}', '${i.color}')`).join(',\\n') + `\\nON CONFLICT (sku) DO NOTHING;\\n\\n`;
-    }
+    sql += `-- 2. Tabla de Clientes\n`;
+    sql += `CREATE TABLE IF NOT EXISTS clients (
+  id text PRIMARY KEY,
+  name text,
+  dni text,
+  phone text,
+  email text,
+  lastVisit text,
+  balance numeric DEFAULT 0
+);\n`;
+    sql += `ALTER TABLE clients ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en clients" ON clients;\n`;
+    sql += `CREATE POLICY "Permitir todo en clients" ON clients FOR ALL USING (true) WITH CHECK (true);\n\n`;
 
-    if (orders.length > 0) {
-      sql += `INSERT INTO orders (id, clientId, clientName, date, type, service, status, amount, paid) VALUES\\n`;
-      sql += orders.map((o: any) => `('${o.id}', '${o.clientId}', '${o.clientName.replace(/'/g, "''")}', '${o.date}', '${o.type}', '${o.service.replace(/'/g, "''")}', '${o.status}', ${o.amount}, ${o.paid})`).join(',\\n') + `\\nON CONFLICT (id) DO NOTHING;\\n\\n`;
-    }
+    sql += `-- 3. Tabla de Inventario / Productos\n`;
+    sql += `CREATE TABLE IF NOT EXISTS inventory (
+  sku text PRIMARY KEY,
+  name text,
+  cat text,
+  price text,
+  color text,
+  buyPrice numeric DEFAULT 0,
+  criticalStock numeric DEFAULT 5,
+  stocks jsonb DEFAULT '{"1": 0, "2": 0}'::jsonb
+);\n`;
+    sql += `ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en inventory" ON inventory;\n`;
+    sql += `CREATE POLICY "Permitir todo en inventory" ON inventory FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 4. Tabla de Órdenes y Pedidos\n`;
+    sql += `CREATE TABLE IF NOT EXISTS orders (
+  id text PRIMARY KEY,
+  clientId text,
+  clientName text,
+  date text,
+  type text,
+  service text,
+  status text,
+  amount numeric DEFAULT 0,
+  paid numeric DEFAULT 0
+);\n`;
+    sql += `ALTER TABLE orders ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en orders" ON orders;\n`;
+    sql += `CREATE POLICY "Permitir todo en orders" ON orders FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 5. Tabla de Campañas de Marketing / Promociones\n`;
+    sql += `CREATE TABLE IF NOT EXISTS campaigns (
+  id text PRIMARY KEY,
+  name text,
+  status text DEFAULT 'Active',
+  sent numeric DEFAULT 0,
+  conversion text DEFAULT '0%',
+  type text DEFAULT 'WhatsApp',
+  timeValue numeric DEFAULT 6,
+  timeUnit text DEFAULT 'months',
+  productType text DEFAULT 'any',
+  template text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en campaigns" ON campaigns;\n`;
+    sql += `CREATE POLICY "Permitir todo en campaigns" ON campaigns FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 6. Tabla de Médicos / Oftalmólogos\n`;
+    sql += `CREATE TABLE IF NOT EXISTS doctors (
+  id text PRIMARY KEY,
+  name text,
+  mp text,
+  specialty text,
+  clinic text,
+  phone text,
+  email text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE doctors ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en doctors" ON doctors;\n`;
+    sql += `CREATE POLICY "Permitir todo en doctors" ON doctors FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 7. Tabla de Bancos y Entidades Financieras\n`;
+    sql += `CREATE TABLE IF NOT EXISTS banks (
+  id text PRIMARY KEY,
+  name text,
+  accountNumber text,
+  cbu text,
+  alias text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE banks ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en banks" ON banks;\n`;
+    sql += `CREATE POLICY "Permitir todo en banks" ON banks FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 8. Tabla de Obras Sociales y Mutuas\n`;
+    sql += `CREATE TABLE IF NOT EXISTS insurances (
+  id text PRIMARY KEY,
+  name text,
+  code text,
+  discount numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE insurances ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en insurances" ON insurances;\n`;
+    sql += `CREATE POLICY "Permitir todo en insurances" ON insurances FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 9. Tabla de Proveedores\n`;
+    sql += `CREATE TABLE IF NOT EXISTS suppliers (
+  id text PRIMARY KEY,
+  name text,
+  phone text,
+  email text,
+  address text,
+  contact text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en suppliers" ON suppliers;\n`;
+    sql += `CREATE POLICY "Permitir todo en suppliers" ON suppliers FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 10. Tabla de Laboratorios Ópticos\n`;
+    sql += `CREATE TABLE IF NOT EXISTS labs (
+  id text PRIMARY KEY,
+  name text,
+  phone text,
+  email text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE labs ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en labs" ON labs;\n`;
+    sql += `CREATE POLICY "Permitir todo en labs" ON labs FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 11. Tabla de Catálogo de Cristales\n`;
+    sql += `CREATE TABLE IF NOT EXISTS crystal_items (
+  id text PRIMARY KEY,
+  name text,
+  type text,
+  material text,
+  index text,
+  brand text,
+  design text,
+  color text,
+  basePrice numeric DEFAULT 0,
+  active boolean DEFAULT true,
+  sphMin numeric,
+  sphMax numeric,
+  cylMax numeric,
+  addMin numeric,
+  addMax numeric,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE crystal_items ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en crystal_items" ON crystal_items;\n`;
+    sql += `CREATE POLICY "Permitir todo en crystal_items" ON crystal_items FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 12. Tabla de Reglas de Precio de Cristales\n`;
+    sql += `CREATE TABLE IF NOT EXISTS crystal_rules (
+  id text PRIMARY KEY,
+  name text,
+  material text,
+  tratamiento text,
+  precio numeric DEFAULT 0,
+  conditions jsonb DEFAULT '[]'::jsonb,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE crystal_rules ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en crystal_rules" ON crystal_rules;\n`;
+    sql += `CREATE POLICY "Permitir todo en crystal_rules" ON crystal_rules FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 13. Tabla de Tratamientos de Cristales\n`;
+    sql += `CREATE TABLE IF NOT EXISTS crystal_treatments (
+  id text PRIMARY KEY,
+  name text,
+  price numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE crystal_treatments ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en crystal_treatments" ON crystal_treatments;\n`;
+    sql += `CREATE POLICY "Permitir todo en crystal_treatments" ON crystal_treatments FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 14. Tabla de Maestros de Cristales (Marcas, Materiales, Índices, Diseños, Colores)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS crystal_masters (
+  id text PRIMARY KEY,
+  category text, -- 'brand', 'material', 'index', 'design', 'color'
+  name text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE crystal_masters ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en crystal_masters" ON crystal_masters;\n`;
+    sql += `CREATE POLICY "Permitir todo en crystal_masters" ON crystal_masters FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 15. Tabla de Sucursales y Bocas de Venta\n`;
+    sql += `CREATE TABLE IF NOT EXISTS branches (
+  id text PRIMARY KEY,
+  name text,
+  address text,
+  phone text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE branches ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en branches" ON branches;\n`;
+    sql += `CREATE POLICY "Permitir todo en branches" ON branches FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 16. Tabla de Categorías de Inventario\n`;
+    sql += `CREATE TABLE IF NOT EXISTS inventory_categories (
+  id text PRIMARY KEY,
+  name text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE inventory_categories ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en inventory_categories" ON inventory_categories;\n`;
+    sql += `CREATE POLICY "Permitir todo en inventory_categories" ON inventory_categories FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 17. Tabla de Ajustes del Sistema y Datos Corporativos\n`;
+    sql += `CREATE TABLE IF NOT EXISTS system_settings (
+  key text PRIMARY KEY,
+  value jsonb,
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en system_settings" ON system_settings;\n`;
+    sql += `CREATE POLICY "Permitir todo en system_settings" ON system_settings FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 18. Tabla de Logs de Auditoría\n`;
+    sql += `CREATE TABLE IF NOT EXISTS audit_logs (
+  id text PRIMARY KEY,
+  timestamp text,
+  user_name text,
+  user_role text,
+  action text,
+  module text,
+  details text,
+  ip text
+);\n`;
+    sql += `ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en audit_logs" ON audit_logs;\n`;
+    sql += `CREATE POLICY "Permitir todo en audit_logs" ON audit_logs FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 19. Tabla de Transacciones Financieras de Caja\n`;
+    sql += `CREATE TABLE IF NOT EXISTS transactions (
+  id text PRIMARY KEY,
+  date text,
+  time text,
+  concept text,
+  method text,
+  amount numeric,
+  type text,
+  category text,
+  box_id text,
+  client_id text,
+  client_name text,
+  reconciled boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en transactions" ON transactions;\n`;
+    sql += `CREATE POLICY "Permitir todo en transactions" ON transactions FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 20. Tabla de Proveedores\n`;
+    sql += `CREATE TABLE IF NOT EXISTS suppliers (
+  id text PRIMARY KEY,
+  code text,
+  name text,
+  cuit text,
+  cbu text,
+  contact text,
+  email text,
+  phone text,
+  category text,
+  payment_terms text,
+  balance numeric DEFAULT 0,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en suppliers" ON suppliers;\n`;
+    sql += `CREATE POLICY "Permitir todo en suppliers" ON suppliers FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 21. Tabla de Transacciones de Proveedores (Cuentas Corrientes)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS supplier_transactions (
+  id text PRIMARY KEY,
+  supplier_id text REFERENCES suppliers(id) ON DELETE CASCADE,
+  date text,
+  due_date text,
+  payment_terms text,
+  voucher_number text,
+  amount numeric,
+  type text,
+  status text,
+  description text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE supplier_transactions ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en supplier_transactions" ON supplier_transactions;\n`;
+    sql += `CREATE POLICY "Permitir todo en supplier_transactions" ON supplier_transactions FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- 22. Tabla de Borradores de Facturación (Billing Drafts)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS billing_drafts (
+  id text PRIMARY KEY,
+  date text,
+  client_name text,
+  concept text,
+  amount numeric,
+  payment_method text,
+  billed boolean DEFAULT false,
+  billing_data jsonb,
+  items jsonb,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE billing_drafts ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en billing_drafts" ON billing_drafts;\n`;
+    sql += `CREATE POLICY "Permitir todo en billing_drafts" ON billing_drafts FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
+    sql += `-- DATOS INICIALES PREDETERMINADOS (SEED DATA)\n\n`;
+
+    sql += `-- Bancos y Entidades\n`;
+    sql += `INSERT INTO banks (id, name, accountNumber, cbu, alias) VALUES
+('1', 'Banco Galicia', '', '', ''),
+('2', 'Banco Santander', '', '', ''),
+('3', 'Mercado Pago', '', '', '')
+ON CONFLICT (id) DO NOTHING;\n\n`;
+
+    sql += `-- Obras Sociales\n`;
+    sql += `INSERT INTO insurances (id, name, code, discount) VALUES
+('1', 'Particular', 'PART', 0),
+('2', 'OSDE', 'OSDE', 0),
+('3', 'Swiss Medical', 'SMED', 0),
+('4', 'PAMI', 'PAMI', 0),
+('5', 'Jerárquicos', 'JERA', 0),
+('6', 'IAPOS', 'IAPO', 0)
+ON CONFLICT (id) DO NOTHING;\n\n`;
+
+    sql += `-- Sucursales\n`;
+    sql += `INSERT INTO branches (id, name, address, phone) VALUES
+('1', 'Casa Central', 'Av. Principal 123', '0343-4200000'),
+('2', 'Shopping Mall', 'Local 45', '0343-4300000')
+ON CONFLICT (id) DO NOTHING;\n\n`;
+
+    sql += `-- Categorías de Inventario\n`;
+    sql += `INSERT INTO inventory_categories (id, name) VALUES
+('cat-1', 'Armazones'),
+('cat-2', 'Anteojos de Sol'),
+('cat-3', 'Anteojos Terminados'),
+('cat-4', 'Cristales'),
+('cat-5', 'Lentes de Contacto'),
+('cat-6', 'Líquidos'),
+('cat-7', 'Accesorios')
+ON CONFLICT (id) DO NOTHING;\n\n`;
+
+    sql += `-- Campañas de Marketing\n`;
+    sql += `INSERT INTO campaigns (id, name, status, sent, conversion, type, timeValue, timeUnit, productType, template) VALUES
+('1', 'Recordatorio Control Anual', 'Active', 145, '12%', 'WhatsApp', 12, 'months', 'any', '¡Hola {nombre_cliente}! Te escribimos de la Óptica. Notamos que tu último control para tus {producto} fue en {fecha}. ¿Te gustaría agendar una cita para revisar tu graduación visual? 👓'),
+('2', 'Promo Lentes de Contacto', 'Scheduled', 0, '0%', 'WhatsApp', 6, 'months', 'contact', 'Hola {nombre_cliente}, te recordamos que ya pasó un tiempo desde tu última visita por tus lentes de contacto. ¡Te esperamos!'),
+('3', 'Renovación Multifocales', 'Active', 89, '8%', 'WhatsApp', 12, 'months', 'multifocal', 'Estimado/a {nombre_cliente}, ya ha transcurrido un año desde que adquirió sus lentes multifocales. Le recomendamos agendar su cita de control anual.')
+ON CONFLICT (id) DO NOTHING;\n\n`;
+
+    sql += `-- Catálogo de Cristales\n`;
+    sql += `INSERT INTO crystal_items (id, name, type, material, index, brand, design, color, basePrice, active, sphMin, sphMax, cylMax) VALUES
+('cr-1', 'Monofocal Essilor Orgánico 1.49 Esférico Blanco', 'monofocal', 'Orgánico', '1.49', 'Essilor', 'Esférico', 'Blanco', 15000, true, -6.00, 6.00, 2.00),
+('cr-2', 'Monofocal Zeiss Policarbonato 1.59 Esférico Blanco', 'monofocal', 'Policarbonato', '1.59', 'Zeiss', 'Esférico', 'Blanco', 22000, true, -8.00, 4.00, 4.00),
+('cr-3', 'Multifocal Novar Orgánico 1.67 Digital Blanco', 'multifocal', 'Orgánico', '1.67', 'Novar', 'Digital', 'Blanco', 45000, true, -10.00, 6.00, 4.00)
+ON CONFLICT (id) DO NOTHING;\n\n`;
+
+    sql += `-- Reglas de Precio de Cristales\n`;
+    sql += `INSERT INTO crystal_rules (id, name, material, tratamiento, precio, conditions) VALUES
+('cr-1', 'Orgánico Blanco — Stock', 'Orgánico', 'Blanco', 26000, '[{"esfMin": -6, "esfMax": 6, "cilMax": 2, "esfPlusCilMax": 6}]'::jsonb),
+('cr-2', 'Orgánico c/AR — Stock', 'Orgánico', 'AR', 41000, '[{"esfMin": -6, "esfMax": 6, "cilMax": 2, "esfPlusCilMax": 6}]'::jsonb),
+('cr-3', 'Orgánico AR + Blue Cut — Stock', 'Orgánico', 'AR + Blue Cut', 49900, '[{"esfMin": -4, "esfMax": 4, "cilMax": 2, "esfPlusCilMax": 6}]'::jsonb)
+ON CONFLICT (id) DO NOTHING;\n\n`;
+
+    sql += `-- Tratamientos de Cristales\n`;
+    sql += `INSERT INTO crystal_treatments (id, name, price) VALUES
+('tr-1', 'Blanco', 0),
+('tr-2', 'AR (Antireflex)', 15000),
+('tr-3', 'AR + Blue Cut', 23900),
+('tr-4', 'Fotocromático', 35000)
+ON CONFLICT (id) DO NOTHING;\n\n`;
+
+    sql += `-- Maestros de Cristales (Marcas, Materiales, Índices, Diseños)\n`;
+    sql += `INSERT INTO crystal_masters (id, category, name) VALUES
+('m-1', 'brand', 'Essilor'),
+('m-2', 'brand', 'Zeiss'),
+('m-3', 'brand', 'Novar'),
+('m-4', 'brand', 'Rodenstock'),
+('m-5', 'material', 'Orgánico'),
+('m-6', 'material', 'Policarbonato'),
+('m-7', 'material', 'Mineral'),
+('m-8', 'index', '1.49'),
+('m-9', 'index', '1.56'),
+('m-10', 'index', '1.59'),
+('m-11', 'index', '1.67'),
+('m-12', 'design', 'Esférico'),
+('m-13', 'design', 'Digital'),
+('m-14', 'design', 'Multifocal')
+ON CONFLICT (id) DO NOTHING;\n\n`;
+
+    sql += `-- REAFIRMAR PERMISOS FINALES DE ACCESO\n`;
+    sql += `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;\n`;
+    sql += `GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;\n\n`;
 
     const blob = new Blob([sql], { type: 'text/sql' });
     const url = URL.createObjectURL(blob);
@@ -367,7 +768,7 @@ export function Settings() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     
-    alert("Script SQL generado correctamente.\\n\\nCopiá y pegá el contenido de 'migracion_supabase.sql' en el SQL Editor de tu panel de Supabase para crear las tablas e importar tus datos.");
+    alert("Script SQL generado correctamente.\\n\\nCopiá y pegá el contenido de 'migracion_supabase.sql' en el SQL Editor de tu panel de Supabase para crear las tablas e importar los datos iniciales.");
   };
 
   const handleResetDatabase = () => {
@@ -1026,11 +1427,13 @@ export function Settings() {
                       <div key={branch.id} className="flex flex-col gap-1.5 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
                         <label className="text-xs font-bold text-slate-700 dark:text-slate-300">{branch.name}</label>
                         <select
-                          value={branchPVs[branch.id] || ""}
-                          onChange={e => {
-                            const updated = { ...branchPVs, [branch.id]: e.target.value };
-                            setBranchPVs(updated);
-                            localStorage.setItem('optica_branch_pvs', JSON.stringify(updated));
+                          value={branch.afipPtoVenta || branchPVs[branch.id] || ""}
+                          onChange={async e => {
+                            const pto = e.target.value;
+                            const updatedPVs = { ...branchPVs, [branch.id]: pto };
+                            setBranchPVs(updatedPVs);
+                            localStorage.setItem('optica_branch_pvs', JSON.stringify(updatedPVs));
+                            await updateBranch({ ...branch, afipPtoVenta: pto });
                           }}
                           className="h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none text-xs font-semibold text-slate-900 dark:text-white"
                         >
@@ -1060,8 +1463,10 @@ export function Settings() {
                       type="text" 
                       value={afipCuit}
                       onChange={e => {
-                        setAfipCuit(e.target.value);
-                        localStorage.setItem('optica_afip_cuit', e.target.value);
+                        const val = e.target.value;
+                        setAfipCuit(val);
+                        localStorage.setItem('optica_afip_cuit', val);
+                        supabase.from('system_settings').upsert([{ key: 'optica_afip_cuit', value: val }]).catch(console.error);
                       }}
                       className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono" 
                       placeholder="Ej: 30-71234567-8"
@@ -1072,8 +1477,10 @@ export function Settings() {
                     <select 
                       value={afipEnv}
                       onChange={e => {
-                        setAfipEnv(e.target.value);
-                        localStorage.setItem('optica_afip_env', e.target.value);
+                        const val = e.target.value;
+                        setAfipEnv(val);
+                        localStorage.setItem('optica_afip_env', val);
+                        supabase.from('system_settings').upsert([{ key: 'optica_afip_env', value: val }]).catch(console.error);
                       }}
                       className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-semibold"
                     >
@@ -1094,9 +1501,12 @@ export function Settings() {
                       <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
                         <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-400 font-bold truncate max-w-[180px]">{afipCertName}</span>
                         <button 
-                          onClick={() => {
+                          onClick={async () => {
                             setAfipCertName("");
                             localStorage.removeItem('optica_afip_cert');
+                            if (currentBranch) {
+                              await updateBranch({ ...currentBranch, afipCertName: "", afipCertContent: "" });
+                            }
                           }}
                           className="text-xs text-red-500 hover:underline font-bold shrink-0 ml-2"
                         >
@@ -1111,9 +1521,25 @@ export function Settings() {
                           accept=".crt,.pem" 
                           className="hidden" 
                           onChange={e => {
-                            const name = e.target.files?.[0]?.name || "certificado.crt";
-                            setAfipCertName(name);
-                            localStorage.setItem('optica_afip_cert', name);
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const name = file.name;
+                            const reader = new FileReader();
+                            reader.onload = async (event) => {
+                              const content = event.target?.result as string || "";
+                              setAfipCertName(name);
+                              localStorage.setItem('optica_afip_cert', name);
+                              if (currentBranch) {
+                                await updateBranch({
+                                  ...currentBranch,
+                                  afipCertName: name,
+                                  afipCertContent: content,
+                                  afipCuit: afipCuit,
+                                  afipEnv: afipEnv as any
+                                });
+                              }
+                            };
+                            reader.readAsText(file);
                           }}
                         />
                       </label>
@@ -1130,9 +1556,12 @@ export function Settings() {
                       <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
                         <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-400 font-bold truncate max-w-[180px]">{afipKeyName}</span>
                         <button 
-                          onClick={() => {
+                          onClick={async () => {
                             setAfipKeyName("");
                             localStorage.removeItem('optica_afip_key');
+                            if (currentBranch) {
+                              await updateBranch({ ...currentBranch, afipKeyName: "", afipKeyContent: "" });
+                            }
                           }}
                           className="text-xs text-red-500 hover:underline font-bold shrink-0 ml-2"
                         >
@@ -1147,9 +1576,25 @@ export function Settings() {
                           accept=".key" 
                           className="hidden" 
                           onChange={e => {
-                            const name = e.target.files?.[0]?.name || "privada.key";
-                            setAfipKeyName(name);
-                            localStorage.setItem('optica_afip_key', name);
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const name = file.name;
+                            const reader = new FileReader();
+                            reader.onload = async (event) => {
+                              const content = event.target?.result as string || "";
+                              setAfipKeyName(name);
+                              localStorage.setItem('optica_afip_key', name);
+                              if (currentBranch) {
+                                await updateBranch({
+                                  ...currentBranch,
+                                  afipKeyName: name,
+                                  afipKeyContent: content,
+                                  afipCuit: afipCuit,
+                                  afipEnv: afipEnv as any
+                                });
+                              }
+                            };
+                            reader.readAsText(file);
                           }}
                         />
                       </label>
@@ -3324,20 +3769,32 @@ export function Settings() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <form onSubmit={(e) => { 
+              <form onSubmit={async (e) => { 
                 e.preventDefault(); 
                 const target = e.target as any;
-                addUser({
+                const emailVal = target.elements.email.value;
+                const passVal = target.elements.password.value;
+                const nameVal = target.elements.name.value;
+                const roleVal = target.elements.role.value;
+                const branchVal = target.elements.branch.value;
+
+                const res = await addUser({
                   id: Date.now().toString(),
-                  name: target.elements.name.value,
-                  email: target.elements.email.value,
-                  username: target.elements.email.value.split('@')[0], // Generate default username
-                  password: "password123", // Default initial password
-                  role: target.elements.role.value,
-                  defaultBranchId: target.elements.branch.value,
+                  name: nameVal,
+                  email: emailVal,
+                  username: emailVal.split('@')[0],
+                  password: passVal,
+                  role: roleVal,
+                  defaultBranchId: branchVal,
                   status: 'Activo'
                 });
-                setIsUserModalOpen(false); 
+
+                if (res.success) {
+                  alert("¡Usuario creado con éxito en Supabase Auth!");
+                  setIsUserModalOpen(false); 
+                } else {
+                  alert("Error al crear usuario en Supabase: " + (res.error || "Intenta nuevamente."));
+                }
               }}>
                 <div className="p-6 space-y-4">
                   <div className="flex flex-col gap-1.5">
@@ -3347,6 +3804,10 @@ export function Settings() {
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Correo Electrónico</label>
                     <input name="email" type="email" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="ejemplo@visionclara.com" required />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Contraseña de Acceso</label>
+                    <input name="password" type="password" minLength={6} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Mínimo 6 caracteres" required />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
@@ -3360,7 +3821,7 @@ export function Settings() {
                     <div className="flex flex-col gap-1.5">
                       <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Sucursal Asignada</label>
                       <select name="branch" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
-                        <option value="all">Todas</option>
+                        <option value="1">Casa Central</option>
                         {branches.map(b => (
                           <option key={b.id} value={b.id}>{b.name}</option>
                         ))}
@@ -3531,21 +3992,104 @@ export function Settings() {
 
         {activeTab === 'database' && (
           <section className="bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm animate-in fade-in duration-300">
-            <h3 className="text-xl font-bold mb-6 text-slate-900 dark:text-white flex items-center gap-2">
-              <Database className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Base de Datos Local
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Database className="w-6 h-6 text-blue-600 dark:text-blue-400" /> Gestión de Bases de Datos (Supabase)
+              </h3>
+              <button 
+                onClick={() => {
+                  setEditingConn(null);
+                  setConnName('');
+                  setConnUrl('');
+                  setConnAnonKey('');
+                  setIsConnModalOpen(true);
+                }}
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-2 text-sm"
+              >
+                <Plus className="w-4 h-4" /> Nueva Conexión
+              </button>
+            </div>
             
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 max-w-2xl">
-              Actualmente los datos de la aplicación se guardan de forma segura en el almacenamiento local del navegador (LocalStorage). Desde aquí puedes administrar tus datos.
+              Aquí puedes registrar y gestionar las conexiones a diferentes proyectos de Supabase en la nube. Selecciona la conexión activa para alternar de forma inmediata la base de datos de la aplicación.
             </p>
 
+            {/* Listado de Conexiones */}
+            <div className="grid grid-cols-1 gap-4 mb-12">
+              {connections.map((conn) => {
+                const isActive = conn.id === activeConnectionId;
+                return (
+                  <div key={conn.id} className={`p-5 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${isActive ? 'border-blue-500 bg-blue-50/10 dark:bg-blue-900/10' : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className={`p-3 rounded-lg border shadow-sm ${isActive ? 'bg-blue-600 text-white border-blue-500' : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800'}`}>
+                        <Database className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-slate-900 dark:text-white">{conn.name}</h4>
+                          {isActive && <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-[9px] font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest">Activo</span>}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">{conn.url}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {!isActive && (
+                        <button 
+                          onClick={() => {
+                            if (confirm(`¿Estás seguro de alternar a la base de datos '${conn.name}'? Se cerrará tu sesión actual y la página se recargará.`)) {
+                              switchConnection(conn.id);
+                            }
+                          }}
+                          className="px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-1.5"
+                        >
+                          <Check className="w-3.5 h-3.5" /> Activar
+                        </button>
+                      )}
+                      <button 
+                        onClick={() => {
+                          setEditingConn(conn);
+                          setConnName(conn.name);
+                          setConnUrl(conn.url);
+                          setConnAnonKey(conn.anonKey);
+                          setIsConnModalOpen(true);
+                        }}
+                        className="p-2 hover:bg-white dark:hover:bg-slate-850 rounded-lg text-slate-500 dark:text-slate-400 border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                        title="Editar Conexión"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      {conn.id !== 'default' && !isActive && (
+                        <button 
+                          onClick={() => {
+                            if (confirm(`¿Estás seguro de eliminar la conexión '${conn.name}'?`)) {
+                              const updated = connections.filter(c => c.id !== conn.id);
+                              setConnections(updated);
+                              saveConnections(updated);
+                            }
+                          }}
+                          className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-500 border border-transparent hover:border-red-200 dark:hover:border-red-900/30 transition-colors"
+                          title="Eliminar Conexión"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Backups Locales */}
+            <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white flex items-center gap-2 pt-6 border-t border-slate-100 dark:border-slate-800">
+              <Database className="w-5 h-5 text-indigo-600" /> Copia de Seguridad Local
+            </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
               <div className="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <h4 className="font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
                   <Database className="w-4 h-4 text-blue-600" /> Exportar Backup
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 h-8">
-                  Descarga una copia completa de toda tu base de datos en formato JSON.
+                  Descarga una copia completa de toda tu base de datos local en formato JSON.
                 </p>
                 <button 
                   onClick={handleExportLocalDB}
@@ -3559,7 +4103,7 @@ export function Settings() {
                   <Package className="w-4 h-4 text-emerald-600" /> Importar Backup
                 </h4>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 h-8">
-                  Restaura tu información a partir de un archivo JSON descargado previamente.
+                  Restaura tu información a partir de un archivo JSON de respaldo.
                 </p>
                 <input 
                   type="file" 
@@ -3577,28 +4121,28 @@ export function Settings() {
               </div>
             </div>
 
-            <h3 className="text-xl font-bold mb-6 text-slate-900 dark:text-white flex items-center gap-2 pt-8 border-t border-slate-200 dark:border-slate-800">
-              <Cloud className="w-6 h-6 text-emerald-600 dark:text-emerald-400" /> Migración a Supabase (Nube)
+            {/* SQL Seed Card */}
+            <h3 className="text-lg font-bold mb-4 text-slate-900 dark:text-white flex items-center gap-2 pt-6 border-t border-slate-100 dark:border-slate-800">
+              <Cloud className="w-5 h-5 text-emerald-600" /> Script de Inicialización de Base de Datos
             </h3>
             <p className="text-sm text-slate-500 dark:text-slate-400 mb-6 max-w-2xl">
-              Puedes exportar tu información actual para llevarla a una base de datos en la nube como Supabase. Al generar el script SQL, obtendrás el código necesario para crear las tablas e importar tus datos exactos de forma automatizada en tu panel de Supabase.
+              Genera el script SQL para inicializar las tablas (`clients`, `inventory`, `orders`, `profiles`) e importar tus datos locales en cualquier base de datos nueva de Supabase.
             </p>
-
             <div className="space-y-4 mb-8">
               <div className="flex flex-col gap-1.5 max-w-xl">
-                <label className="text-sm font-bold text-slate-600 dark:text-slate-400">Project URL</label>
+                <label className="text-sm font-bold text-slate-600 dark:text-slate-400">Project URL (para validar en script)</label>
                 <input 
-                  className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none" 
+                  className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-xs font-mono" 
                   placeholder="https://xyzcompany.supabase.co" 
                   value={supabaseUrl}
                   onChange={e => setSupabaseUrl(e.target.value)}
                 />
               </div>
               <div className="flex flex-col gap-1.5 max-w-xl">
-                <label className="text-sm font-bold text-slate-600 dark:text-slate-400">API Key / Service Role Key</label>
+                <label className="text-sm font-bold text-slate-600 dark:text-slate-400">API Key / Anon Key (para validar en script)</label>
                 <input 
                   type="password"
-                  className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none" 
+                  className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none text-xs font-mono" 
                   placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
                   value={supabaseKey}
                   onChange={e => setSupabaseKey(e.target.value)}
@@ -3607,7 +4151,7 @@ export function Settings() {
             </div>
             <button 
               onClick={handleGenerateSupabaseSQL}
-              className="px-6 py-2.5 bg-emerald-600 text-white rounded-lg font-bold shadow-sm hover:bg-emerald-700 transition-colors flex items-center gap-2"
+              className="px-6 py-2.5 bg-emerald-650 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm transition-colors flex items-center gap-2"
             >
               <Cloud className="w-4 h-4" /> Generar Script SQL para Supabase
             </button>
@@ -3628,6 +4172,108 @@ export function Settings() {
                 Resetear Base de Datos
               </button>
             </div>
+
+            {/* Modal de Conexión Supabase */}
+            {isConnModalOpen && (
+              <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-200">
+                  <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                    <h3 className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-white">
+                      <Cloud className="w-6 h-6 text-blue-600" /> 
+                      {editingConn ? 'Editar Conexión Supabase' : 'Nueva Conexión Supabase'}
+                    </h3>
+                    <button 
+                      onClick={() => setIsConnModalOpen(false)} 
+                      className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!connName.trim() || !connUrl.trim() || !connAnonKey.trim()) {
+                      alert("Todos los campos son obligatorios.");
+                      return;
+                    }
+                    if (editingConn) {
+                      const updated = connections.map(c => c.id === editingConn.id ? { ...c, name: connName, url: connUrl, anonKey: connAnonKey } : c);
+                      setConnections(updated);
+                      saveConnections(updated);
+                      if (editingConn.id === activeConnectionId) {
+                        switchConnection(editingConn.id);
+                      } else {
+                        setIsConnModalOpen(false);
+                      }
+                    } else {
+                      const newConn = {
+                        id: `conn-${Date.now()}`,
+                        name: connName,
+                        url: connUrl,
+                        anonKey: connAnonKey
+                      };
+                      const updated = [...connections, newConn];
+                      setConnections(updated);
+                      saveConnections(updated);
+                      if (window.confirm(`¡Conexión '${connName}' agregada! ¿Deseas activarla ahora mismo? (Esto recargará la página)`)) {
+                        switchConnection(newConn.id);
+                      } else {
+                        setIsConnModalOpen(false);
+                      }
+                    }
+                  }}>
+                    <div className="p-6 space-y-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nombre Descriptivo</label>
+                        <input 
+                          type="text" 
+                          value={connName}
+                          onChange={e => setConnName(e.target.value)}
+                          className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" 
+                          placeholder="Ej: Óptica Paracao - Sucursal 2" 
+                          required 
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Project URL</label>
+                        <input 
+                          type="url" 
+                          value={connUrl}
+                          onChange={e => setConnUrl(e.target.value)}
+                          className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-mono text-xs" 
+                          placeholder="https://xyzcompany.supabase.co" 
+                          required 
+                        />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Anon Key / API Public Key</label>
+                        <textarea 
+                          value={connAnonKey}
+                          onChange={e => setConnAnonKey(e.target.value)}
+                          className="h-24 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-mono text-xs resize-none" 
+                          placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." 
+                          required 
+                        />
+                      </div>
+                    </div>
+                    <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                      <button 
+                        type="button" 
+                        onClick={() => setIsConnModalOpen(false)} 
+                        className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm"
+                      >
+                        Cancelar
+                      </button>
+                      <button 
+                        type="submit" 
+                        className="px-8 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-all text-sm"
+                      >
+                        {editingConn ? 'Guardar Cambios' : 'Agregar Conexión'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </section>
         )}
       </div>

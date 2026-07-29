@@ -20,6 +20,7 @@ import { StatusLookup } from "./pages/StatusLookup";
 import { Sales } from "./pages/Sales";
 import { Marketing } from "./pages/Marketing";
 import { BillingDrafts } from "./pages/BillingDrafts";
+import { Help } from "./pages/Help";
 
 import { FinanceProvider } from "./context/FinanceContext";
 import { ClientProvider } from "./context/ClientContext";
@@ -59,6 +60,7 @@ function AppContent() {
           <Route path="/marketing" element={<Layout title="CRM & Marketing" subtitle="Fidelización y recordatorios"><Marketing /></Layout>} />
           <Route path="/settings" element={<Layout title="Configuración" subtitle="Ajustes generales del sistema"><Settings /></Layout>} />
           <Route path="/billing-drafts" element={<Layout title="Borradores de Facturación" subtitle="Ventas pendientes de registrar facturas"><BillingDrafts /></Layout>} />
+          <Route path="/help" element={<Layout title="Ayuda y Soporte" subtitle="Preguntas frecuentes y manuales del sistema"><Help /></Layout>} />
           
           {/* External View */}
           <Route path="/status-lookup" element={<StatusLookup />} />

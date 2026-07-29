@@ -18,86 +18,124 @@ interface FinanceContextType {
   updateBoxClosingBalance: (boxId: string, balance: number) => void;
 }
 
-const INITIAL_SUPPLIERS: Supplier[] = [];
-
-const INITIAL_BOXES: CashBox[] = [
-  {
-    id: 'caja-efectivo',
-    name: 'Caja Efectivo',
-    type: 'cash',
-    initialBalance: 0,
-    incomes: 0,
-    expenses: 0,
-    expectedCash: 0,
-    physicalCount: {},
-  },
-  {
-    id: 'santander-1',
-    name: 'Santander 1',
-    type: 'bank',
-    initialBalance: 0,
-    incomes: 0,
-    expenses: 0,
-  },
-  {
-    id: 'galicia-1',
-    name: 'Banco Galicia',
-    type: 'bank',
-    initialBalance: 0,
-    incomes: 0,
-    expenses: 0,
-  },
-  {
-    id: 'tc-holding',
-    name: 'Tarjeta de Crédito (Pendiente)',
-    type: 'credit_card',
-    initialBalance: 0,
-    incomes: 0,
-    expenses: 0,
-  },
-  {
-    id: 'mercado-pago',
-    name: 'Mercado Pago',
-    type: 'digital',
-    initialBalance: 0,
-    incomes: 0,
-    expenses: 0,
-  }
-];
-
-const INITIAL_TRANSACTIONS: Transaction[] = [];
-
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
 
+import { supabase } from '../lib/supabase';
+
+const DEFAULT_CASH_BOX: CashBox = {
+  id: 'caja-efectivo',
+  name: 'Caja Efectivo',
+  type: 'cash',
+  initialBalance: 0,
+  incomes: 0,
+  expenses: 0,
+  expectedCash: 0,
+  physicalCount: {},
+};
+
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [boxes, setBoxes] = useState<CashBox[]>(() => {
-    const saved = localStorage.getItem('optica_finance_boxes');
-    return saved ? JSON.parse(saved) : INITIAL_BOXES;
-  });
-  
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    const saved = localStorage.getItem('optica_finance_transactions');
-    return saved ? JSON.parse(saved) : INITIAL_TRANSACTIONS;
-  });
-  
-  const [suppliers, setSuppliers] = useState<Supplier[]>(() => {
-    const saved = localStorage.getItem('optica_finance_suppliers');
-    return saved ? JSON.parse(saved) : INITIAL_SUPPLIERS;
-  });
+  const [boxes, setBoxes] = useState<CashBox[]>([DEFAULT_CASH_BOX]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 
+  // Load boxes, transactions, and suppliers directly from Supabase on mount
   useEffect(() => {
-    localStorage.setItem('optica_finance_boxes', JSON.stringify(boxes));
-  }, [boxes]);
+    async function loadFinanceData() {
+      try {
+        // 1. Fetch Banks to dynamically construct Bank CashBoxes
+        const { data: dbBanks } = await supabase.from('banks').select('*');
+        const activeBanks: any[] = dbBanks || [];
 
-  useEffect(() => {
-    localStorage.setItem('optica_finance_transactions', JSON.stringify(transactions));
-  }, [transactions]);
+        const dynamicBankBoxes: CashBox[] = activeBanks.map((b: any) => ({
+          id: `bank-${b.id}`,
+          name: b.name,
+          type: b.name.toLowerCase().includes('pago') || b.name.toLowerCase().includes('digital') ? 'digital' : 'bank',
+          initialBalance: 0,
+          incomes: 0,
+          expenses: 0
+        }));
 
-  useEffect(() => {
-    localStorage.setItem('optica_finance_suppliers', JSON.stringify(suppliers));
-  }, [suppliers]);
+        const initialBoxes = [DEFAULT_CASH_BOX, ...dynamicBankBoxes];
 
-  const addTransaction = (tx: Transaction) => {
+        // 2. Fetch Transactions
+        const { data: dbTx } = await supabase.from('transactions').select('*');
+        let loadedTx: Transaction[] = [];
+        if (dbTx && dbTx.length > 0) {
+          loadedTx = dbTx.map((t: any) => ({
+            id: t.id,
+            date: t.date,
+            time: t.time,
+            concept: t.concept,
+            method: t.method,
+            amount: Number(t.amount),
+            type: t.type,
+            category: t.category,
+            boxId: t.box_id,
+            clientId: t.client_id,
+            clientName: t.client_name,
+            reconciled: t.reconciled
+          }));
+          setTransactions(loadedTx);
+        }
+
+        // Calculate box expected values based on loaded transactions
+        const updatedBoxes = initialBoxes.map(box => {
+          const boxTx = loadedTx.filter(t => t.boxId === box.id);
+          const incomes = boxTx.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
+          const expenses = boxTx.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+          return {
+            ...box,
+            incomes,
+            expenses,
+            expectedCash: box.type === 'cash' ? (box.initialBalance || 0) + incomes - expenses : undefined
+          };
+        });
+        setBoxes(updatedBoxes);
+
+        // 3. Fetch Suppliers & their Transactions
+        const { data: dbSuppliers } = await supabase.from('suppliers').select('*');
+        const { data: dbSupTx } = await supabase.from('supplier_transactions').select('*');
+
+        if (dbSuppliers) {
+          const mappedSuppliers: Supplier[] = dbSuppliers.map((s: any) => {
+            const txs = (dbSupTx || [])
+              .filter((t: any) => t.supplier_id === s.id)
+              .map((t: any) => ({
+                id: t.id,
+                date: t.date,
+                dueDate: t.due_date,
+                paymentTerms: t.payment_terms,
+                voucherNumber: t.voucher_number,
+                amount: Number(t.amount),
+                type: t.type,
+                status: t.status,
+                description: t.description
+              }));
+            return {
+              id: s.id,
+              code: s.code || '',
+              name: s.name,
+              cuit: s.cuit || '',
+              cbu: s.cbu || '',
+              contact: s.contact || '',
+              email: s.email || '',
+              phone: s.phone || '',
+              category: s.category || '',
+              paymentTerms: s.payment_terms || '',
+              balance: Number(s.balance || 0),
+              transactions: txs
+            };
+          });
+          setSuppliers(mappedSuppliers);
+        }
+      } catch (e) {
+        console.warn("Could not load finance data from Supabase:", e);
+      }
+    }
+    loadFinanceData();
+  }, []);
+
+  const addTransaction = async (tx: Transaction) => {
     setTransactions(prev => [tx, ...prev]);
     setBoxes(prev => prev.map(b => {
       if (b.id === tx.boxId) {
@@ -110,9 +148,28 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return b;
     }));
+
+    try {
+      await supabase.from('transactions').upsert([{
+        id: tx.id,
+        date: tx.date,
+        time: tx.time,
+        concept: tx.concept,
+        method: tx.method,
+        amount: tx.amount,
+        type: tx.type,
+        category: tx.category,
+        box_id: tx.boxId,
+        client_id: tx.clientId,
+        client_name: tx.clientName,
+        reconciled: tx.reconciled || false
+      }]);
+    } catch (e) {
+      console.error("Supabase addTransaction error:", e);
+    }
   };
 
-  const addSupplierTransaction = (supplierId: string, txData: Omit<SupplierTransaction, 'id'>) => {
+  const addSupplierTransaction = async (supplierId: string, txData: Omit<SupplierTransaction, 'id'>) => {
     const newTx: SupplierTransaction = {
       ...txData,
       id: `st-${Date.now()}`
@@ -124,6 +181,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           ? sup.balance + txData.amount 
           : sup.balance - txData.amount;
         
+        supabase.from('suppliers').update({ balance: newBalance }).eq('id', supplierId).catch(console.error);
+
         return {
           ...sup,
           balance: newBalance,
@@ -132,13 +191,47 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return sup;
     }));
+
+    try {
+      await supabase.from('supplier_transactions').upsert([{
+        id: newTx.id,
+        supplier_id: supplierId,
+        date: newTx.date,
+        due_date: newTx.dueDate,
+        payment_terms: newTx.paymentTerms,
+        voucher_number: newTx.voucherNumber,
+        amount: newTx.amount,
+        type: newTx.type,
+        status: newTx.status,
+        description: newTx.description
+      }]);
+    } catch (e) {
+      console.error("Supabase addSupplierTransaction error:", e);
+    }
   };
 
-  const updateSupplier = (supplier: Supplier) => {
+  const updateSupplier = async (supplier: Supplier) => {
     setSuppliers(prev => prev.map(s => s.id === supplier.id ? supplier : s));
+    try {
+      await supabase.from('suppliers').upsert([{
+        id: supplier.id,
+        code: supplier.code,
+        name: supplier.name,
+        cuit: supplier.cuit,
+        cbu: supplier.cbu,
+        contact: supplier.contact,
+        email: supplier.email,
+        phone: supplier.phone,
+        category: supplier.category,
+        payment_terms: supplier.paymentTerms,
+        balance: supplier.balance
+      }]);
+    } catch (e) {
+      console.error("Supabase updateSupplier error:", e);
+    }
   };
 
-  const addSupplier = (supplierData: Omit<Supplier, 'id' | 'balance' | 'transactions'>) => {
+  const addSupplier = async (supplierData: Omit<Supplier, 'id' | 'balance' | 'transactions'>) => {
     const newSupplier: Supplier = {
       ...supplierData,
       id: `sup-${Date.now()}`,
@@ -146,13 +239,31 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       transactions: []
     };
     setSuppliers(prev => [...prev, newSupplier]);
+    try {
+      await supabase.from('suppliers').upsert([{
+        id: newSupplier.id,
+        code: newSupplier.code,
+        name: newSupplier.name,
+        cuit: newSupplier.cuit,
+        cbu: newSupplier.cbu,
+        contact: newSupplier.contact,
+        email: newSupplier.email,
+        phone: newSupplier.phone,
+        category: newSupplier.category,
+        payment_terms: newSupplier.paymentTerms,
+        balance: newSupplier.balance
+      }]);
+    } catch (e) {
+      console.error("Supabase addSupplier error:", e);
+    }
   };
 
-  const linkPaymentToInvoices = (supplierId: string, invoiceIds: string[]) => {
+  const linkPaymentToInvoices = async (supplierId: string, invoiceIds: string[]) => {
     setSuppliers(prev => prev.map(sup => {
       if (sup.id === supplierId) {
         const updatedTransactions = sup.transactions.map(tx => {
           if (invoiceIds.includes(tx.id)) {
+            supabase.from('supplier_transactions').update({ status: 'paid' }).eq('id', tx.id).catch(console.error);
             return { ...tx, status: 'paid' as const };
           }
           return tx;
@@ -166,10 +277,20 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }));
   };
 
-  const toggleTransactionReconciliation = (transactionId: string) => {
-    setTransactions(prev => prev.map(tx => 
-      tx.id === transactionId ? { ...tx, reconciled: !tx.reconciled } : tx
-    ));
+  const toggleTransactionReconciliation = async (transactionId: string) => {
+    let reconciledVal = false;
+    setTransactions(prev => prev.map(tx => {
+      if (tx.id === transactionId) {
+        reconciledVal = !tx.reconciled;
+        return { ...tx, reconciled: reconciledVal };
+      }
+      return tx;
+    }));
+    try {
+      await supabase.from('transactions').update({ reconciled: reconciledVal }).eq('id', transactionId);
+    } catch (e) {
+      console.error("Supabase toggleTransactionReconciliation error:", e);
+    }
   };
 
   const { addNotification } = useNotifications();

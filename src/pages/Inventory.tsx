@@ -211,6 +211,11 @@ export function Inventory() {
     const buyPriceVal = parseFloat(formDataObj.get("buyPrice") as string) || 0;
     const criticalStockVal = parseInt(formDataObj.get("criticalStock") as string) || 5;
     
+    if (priceVal < 0 || buyPriceVal < 0) {
+      alert("El precio de venta y el precio de compra no pueden ser valores negativos.");
+      return;
+    }
+    
     const stocks: Record<number, number> = {};
     BRANCHES.forEach(b => {
       stocks[b.id] = parseInt(formDataObj.get(`stock_${b.id}`) as string) || 0;

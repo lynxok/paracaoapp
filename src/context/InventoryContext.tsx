@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNotifications } from './NotificationsContext';
+import { supabase } from '../lib/supabase';
 
 export interface InventoryItem {
   name: string;
@@ -46,34 +47,70 @@ const INITIAL_INVENTORY: InventoryItem[] = [];
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
-  const [inventory, setInventory] = useState<InventoryItem[]>(() => {
-    const saved = localStorage.getItem('optica_inventory');
-    return saved ? JSON.parse(saved) : INITIAL_INVENTORY;
-  });
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
 
-  const [stockMovements, setStockMovements] = useState<StockMovement[]>(() => {
-    const saved = localStorage.getItem('optica_stock_movements');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  // Load from Supabase on mount
   useEffect(() => {
-    localStorage.setItem('optica_inventory', JSON.stringify(inventory));
-  }, [inventory]);
+    async function loadInventoryFromSupabase() {
+      try {
+        const { data, error } = await supabase.from('inventory').select('*');
+        if (!error && data) {
+          const mapped: InventoryItem[] = data.map((d: any) => ({
+            sku: d.sku,
+            name: d.name,
+            cat: d.cat,
+            price: d.price,
+            color: d.color,
+            stocks: d.stocks || { 1: 0, 2: 0 }
+          }));
+          setInventory(mapped);
+        }
+      } catch (err) {
+        console.warn("Could not load inventory from Supabase:", err);
+      }
+    }
+    loadInventoryFromSupabase();
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('optica_stock_movements', JSON.stringify(stockMovements));
-  }, [stockMovements]);
 
-  const addInventoryItem = (item: InventoryItem) => {
+  const addInventoryItem = async (item: InventoryItem) => {
     setInventory(prev => [...prev, item]);
+    try {
+      await supabase.from('inventory').upsert([{
+        sku: item.sku,
+        name: item.name,
+        cat: item.cat,
+        price: item.price,
+        color: item.color
+      }]);
+    } catch (e) {
+      console.error("Supabase inventory insert error:", e);
+    }
   };
 
-  const updateInventoryItem = (sku: string, updated: InventoryItem) => {
+  const updateInventoryItem = async (sku: string, updated: InventoryItem) => {
     setInventory(prev => prev.map(item => item.sku === sku ? updated : item));
+    try {
+      await supabase.from('inventory').upsert([{
+        sku: updated.sku,
+        name: updated.name,
+        cat: updated.cat,
+        price: updated.price,
+        color: updated.color
+      }]);
+    } catch (e) {
+      console.error("Supabase inventory update error:", e);
+    }
   };
 
-  const deleteInventoryItem = (sku: string) => {
+  const deleteInventoryItem = async (sku: string) => {
     setInventory(prev => prev.filter(item => item.sku !== sku));
+    try {
+      await supabase.from('inventory').delete().eq('sku', sku);
+    } catch (e) {
+      console.error("Supabase inventory delete error:", e);
+    }
   };
 
   const { addNotification } = useNotifications();

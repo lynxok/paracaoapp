@@ -5,6 +5,7 @@ import { useClients } from "./ClientContext";
 import { useInventory } from "./InventoryContext";
 import { useLabs } from "./LabContext";
 import { useAuth } from "./AuthContext";
+import { supabase } from "../lib/supabase";
 
 export interface CartItem {
   id: string;
@@ -71,18 +72,45 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
   const [isCartOpen, setIsCartOpen] = useState<boolean>(true);
 
-  const [billingDrafts, setBillingDrafts] = useState<BillingDraft[]>(() => {
-    const saved = localStorage.getItem('optica_billing_drafts');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [billingDrafts, setBillingDrafts] = useState<BillingDraft[]>([]);
+
+  // Load billing drafts from Supabase on mount
+  useEffect(() => {
+    async function loadDrafts() {
+      try {
+        const { data, error } = await supabase.from('billing_drafts').select('*');
+        if (!error && data && data.length > 0) {
+          setBillingDrafts(data.map((d: any) => ({
+            id: d.id,
+            date: d.date,
+            clientName: d.client_name,
+            concept: d.concept,
+            amount: Number(d.amount),
+            paymentMethod: d.payment_method,
+            billed: d.billed,
+            billingData: d.billing_data,
+            items: d.items
+          })));
+        }
+      } catch (e) {
+        console.warn("Could not load billing drafts from Supabase:", e);
+      }
+    }
+    loadDrafts();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('optica_billing_drafts', JSON.stringify(billingDrafts));
   }, [billingDrafts]);
 
-  const markDraftsAsBilled = (draftIds: string[], billingData: { isConsumidorFinal: boolean; identificador?: string; direccion?: string; billingDate: string }) => {
+  const markDraftsAsBilled = async (draftIds: string[], billingData: { isConsumidorFinal: boolean; identificador?: string; direccion?: string; billingDate: string }) => {
     setBillingDrafts(prev => prev.map(draft => {
       if (draftIds.includes(draft.id)) {
+        supabase.from('billing_drafts').update({
+          billed: true,
+          billing_data: billingData
+        }).eq('id', draft.id).catch(console.error);
+
         return {
           ...draft,
           billed: true,
@@ -274,6 +302,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }))
     };
     setBillingDrafts(prev => [newDraft, ...prev]);
+
+    supabase.from('billing_drafts').upsert([{
+      id: newDraft.id,
+      date: newDraft.date,
+      client_name: newDraft.clientName,
+      concept: newDraft.concept,
+      amount: newDraft.amount,
+      payment_method: newDraft.paymentMethod,
+      billed: newDraft.billed,
+      items: newDraft.items
+    }]).catch(console.error);
 
     clearCart();
     return { success: true, message: `Venta cobrada por $${totalAmount.toLocaleString()} vía ${boxName}` };

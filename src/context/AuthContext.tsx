@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase, createTempClient } from '../lib/supabase';
 
 export interface User {
   id: string;
@@ -16,6 +17,14 @@ export interface Branch {
   id: string;
   name: string;
   address?: string;
+  phone?: string;
+  afipCuit?: string;
+  afipPtoVenta?: string;
+  afipEnv?: 'homologacion' | 'produccion';
+  afipCertName?: string;
+  afipCertContent?: string;
+  afipKeyName?: string;
+  afipKeyContent?: string;
 }
 
 interface AuthContextType {
@@ -24,120 +33,293 @@ interface AuthContextType {
   currentBranch: Branch | null;
   users: User[];
   branches: Branch[];
-  login: (username: string, pass: string, branchId: string) => boolean;
-  logout: () => void;
-  addUser: (user: User) => void;
-  updateUser: (user: User) => void;
-  deleteUser: (id: string) => void;
-  addBranch: (branch: Branch) => void;
-  updateBranch: (branch: Branch) => void;
-  deleteBranch: (id: string) => void;
+  login: (usernameOrEmail: string, pass: string, branchId: string) => Promise<{ success: boolean; error?: string }>;
+  logout: () => Promise<void>;
+  addUser: (user: User) => Promise<{ success: boolean; error?: string }>;
+  updateUser: (user: User) => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
+  addBranch: (branch: Branch) => Promise<void>;
+  updateBranch: (branch: Branch) => Promise<void>;
+  deleteBranch: (id: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const INITIAL_BRANCHES: Branch[] = [
-  { id: '1', name: 'Casa Central' },
-  { id: '2', name: 'Shopping' }
-];
-
-const INITIAL_USERS: User[] = [
-  { id: '1', username: 'admin', name: 'Administrador Principal', email: 'admin@visionclara.com', role: 'superadmin', defaultBranchId: '1', password: 'admin', status: 'Activo' }
+  { id: '1', name: 'Casa Central', afipPtoVenta: '0001', afipEnv: 'homologacion' },
+  { id: '2', name: 'Shopping', afipPtoVenta: '0002', afipEnv: 'homologacion' }
 ];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [branches, setBranches] = useState<Branch[]>(() => {
-    const saved = localStorage.getItem('optica_branches');
-    if (saved) return JSON.parse(saved);
-    return INITIAL_BRANCHES;
-  });
+  const [branches, setBranches] = useState<Branch[]>(INITIAL_BRANCHES);
+  const [users, setUsers] = useState<User[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentBranch, setCurrentBranch] = useState<Branch | null>(INITIAL_BRANCHES[0]);
 
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('optica_users');
-    if (saved) return JSON.parse(saved);
-    return INITIAL_USERS;
-  });
-
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('optica_current_user');
-    if (saved) return JSON.parse(saved);
-    return null;
-  });
-
-  const [currentBranch, setCurrentBranch] = useState<Branch | null>(() => {
-    const saved = localStorage.getItem('optica_current_branch');
-    if (saved) return JSON.parse(saved);
-    return null;
-  });
-
+  // Load session & user profile on mount
   useEffect(() => {
-    localStorage.setItem('optica_branches', JSON.stringify(branches));
-  }, [branches]);
+    async function loadSessionAndUsers() {
+      // 1. Fetch Users Profile Table
+      try {
+        const { data: dbUsers, error } = await supabase.from('profiles').select('*');
+        if (!error && dbUsers) {
+          const mappedUsers: User[] = dbUsers.map(u => ({
+            id: u.id,
+            username: u.username || u.email?.split('@')[0] || 'usuario',
+            name: u.name || u.full_name || 'Usuario',
+            email: u.email,
+            role: u.role || 'Vendedor',
+            defaultBranchId: String(u.default_branch_id || '1'),
+            avatar: u.avatar_url,
+            status: u.status || 'Activo'
+          }));
+          setUsers(mappedUsers);
+        }
+      } catch (e) {
+        console.error("Error loading profiles from Supabase:", e);
+      }
 
-  useEffect(() => {
-    localStorage.setItem('optica_users', JSON.stringify(users));
-  }, [users]);
+      // 2. Fetch Branches Table
+      try {
+        const { data: dbBranches } = await supabase.from('branches').select('*');
+        if (dbBranches && dbBranches.length > 0) {
+          const mappedBranches: Branch[] = dbBranches.map(b => ({
+            id: b.id,
+            name: b.name,
+            address: b.address,
+            phone: b.phone,
+            afipCuit: b.afip_cuit,
+            afipPtoVenta: b.afip_pto_venta,
+            afipEnv: b.afip_env || 'homologacion',
+            afipCertName: b.afip_cert_name,
+            afipCertContent: b.afip_cert_content,
+            afipKeyName: b.afip_key_name,
+            afipKeyContent: b.afip_key_content
+          }));
+          setBranches(mappedBranches);
+          setCurrentBranch(mappedBranches[0]);
+        }
+      } catch (e) {
+        console.error("Error loading branches from Supabase:", e);
+      }
 
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('optica_current_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('optica_current_user');
+      // 3. Check current Supabase Auth Session
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const email = session.user.email;
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          const activeUser: User = {
+            id: session.user.id,
+            username: profile?.username || email?.split('@')[0] || 'usuario',
+            name: profile?.name || session.user.user_metadata?.name || 'Administrador',
+            email: email,
+            role: profile?.role || 'superadmin',
+            defaultBranchId: String(profile?.default_branch_id || '1'),
+            status: 'Activo'
+          };
+
+          setCurrentUser(activeUser);
+        }
+      } catch (e) {
+        console.error("Error fetching Supabase session:", e);
+      }
     }
-  }, [currentUser]);
 
-  useEffect(() => {
-    if (currentBranch) {
-      localStorage.setItem('optica_current_branch', JSON.stringify(currentBranch));
-    } else {
-      localStorage.removeItem('optica_current_branch');
-    }
-  }, [currentBranch]);
+    loadSessionAndUsers();
 
-  const login = (username: string, pass: string, branchId: string) => {
-    const user = users.find(u => u.username === username && u.password === pass);
-    if (user) {
-      const branch = branches.find(b => b.id === branchId) || branches[0];
-      setCurrentUser(user);
-      setCurrentBranch(branch);
-      return true;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        const email = session.user.email;
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        setCurrentUser({
+          id: session.user.id,
+          username: profile?.username || email?.split('@')[0] || 'usuario',
+          name: profile?.name || session.user.user_metadata?.name || 'Administrador',
+          email: email,
+          role: profile?.role || 'superadmin',
+          defaultBranchId: String(profile?.default_branch_id || '1'),
+          status: 'Activo'
+        });
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const login = async (usernameOrEmail: string, pass: string, branchId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      let loginEmail = usernameOrEmail.trim();
+      if (!loginEmail.includes('@')) {
+        const match = users.find(u => u.username.toLowerCase() === loginEmail.toLowerCase());
+        if (match && match.email) {
+          loginEmail = match.email;
+        } else {
+          loginEmail = `${loginEmail}@visionclara.com`;
+        }
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: pass,
+      });
+
+      if (error) {
+        return { success: false, error: error.message };
+      }
+
+      const foundBranch = branches.find(b => b.id === branchId);
+      if (foundBranch) {
+        setCurrentBranch(foundBranch);
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error de autenticación' };
     }
-    return false;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setCurrentUser(null);
-    setCurrentBranch(null);
   };
 
-  const addUser = (user: User) => {
-    setUsers(prev => [...prev, user]);
+  const addUser = async (newUser: User): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const email = newUser.email || `${newUser.username}@visionclara.com`;
+      const password = newUser.password || '123456';
+
+      const tempClient = createTempClient();
+      const { data: authData, error: authError } = await tempClient.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: newUser.name,
+            role: newUser.role,
+            username: newUser.username
+          }
+        }
+      });
+
+      if (authError) {
+        return { success: false, error: authError.message };
+      }
+
+      const userId = authData.user?.id || `usr-${Date.now()}`;
+      const profileData = {
+        id: userId,
+        username: newUser.username,
+        name: newUser.name,
+        email: email,
+        role: newUser.role,
+        default_branch_id: newUser.defaultBranchId || '1',
+        status: 'Activo'
+      };
+
+      await supabase.from('profiles').upsert([profileData]);
+
+      setUsers(prev => {
+        const exists = prev.some(u => u.id === userId);
+        if (exists) return prev.map(u => u.id === userId ? { ...u, ...newUser, id: userId } : u);
+        return [...prev, { ...newUser, id: userId, email }];
+      });
+
+      return { success: true };
+    } catch (e: any) {
+      return { success: false, error: e.message || "Error al agregar usuario" };
+    }
   };
 
-  const updateUser = (updatedUser: User) => {
+  const updateUser = async (updatedUser: User) => {
     setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
-    if (currentUser?.id === updatedUser.id) {
-      setCurrentUser(updatedUser);
+    try {
+      await supabase.from('profiles').upsert([{
+        id: updatedUser.id,
+        username: updatedUser.username,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        default_branch_id: updatedUser.defaultBranchId,
+        status: updatedUser.status || 'Activo'
+      }]);
+    } catch (e) {
+      console.error("Error updating user profile in Supabase:", e);
     }
   };
 
-  const deleteUser = (id: string) => {
+  const deleteUser = async (id: string) => {
     setUsers(prev => prev.filter(u => u.id !== id));
-  };
-
-  const addBranch = (branch: Branch) => {
-    setBranches(prev => [...prev, branch]);
-  };
-
-  const updateBranch = (updatedBranch: Branch) => {
-    setBranches(prev => prev.map(b => b.id === updatedBranch.id ? updatedBranch : b));
-    if (currentBranch?.id === updatedBranch.id) {
-      setCurrentBranch(updatedBranch);
+    try {
+      await supabase.from('profiles').delete().eq('id', id);
+    } catch (e) {
+      console.error("Error deleting user from Supabase:", e);
     }
   };
 
-  const deleteBranch = (id: string) => {
+  const addBranch = async (branch: Branch) => {
+    setBranches(prev => [...prev, branch]);
+    try {
+      await supabase.from('branches').upsert([{
+        id: branch.id,
+        name: branch.name,
+        address: branch.address,
+        phone: branch.phone,
+        afip_cuit: branch.afipCuit,
+        afip_pto_venta: branch.afipPtoVenta,
+        afip_env: branch.afipEnv,
+        afip_cert_name: branch.afipCertName,
+        afip_cert_content: branch.afipCertContent,
+        afip_key_name: branch.afipKeyName,
+        afip_key_content: branch.afipKeyContent
+      }]);
+    } catch (e) {
+      console.error("Error saving branch to Supabase:", e);
+    }
+  };
+
+  const updateBranch = async (updatedBranch: Branch) => {
+    setBranches(prev => prev.map(b => b.id === updatedBranch.id ? updatedBranch : b));
+    try {
+      await supabase.from('branches').upsert([{
+        id: updatedBranch.id,
+        name: updatedBranch.name,
+        address: updatedBranch.address,
+        phone: updatedBranch.phone,
+        afip_cuit: updatedBranch.afipCuit,
+        afip_pto_venta: updatedBranch.afipPtoVenta,
+        afip_env: updatedBranch.afipEnv,
+        afip_cert_name: updatedBranch.afipCertName,
+        afip_cert_content: updatedBranch.afipCertContent,
+        afip_key_name: updatedBranch.afipKeyName,
+        afip_key_content: updatedBranch.afipKeyContent
+      }]);
+    } catch (e) {
+      console.error("Error updating branch in Supabase:", e);
+    }
+  };
+
+  const deleteBranch = async (id: string) => {
     setBranches(prev => prev.filter(b => b.id !== id));
+    try {
+      await supabase.from('branches').delete().eq('id', id);
+    } catch (e) {
+      console.error("Error deleting branch in Supabase:", e);
+    }
   };
 
   return (
@@ -168,3 +350,4 @@ export function useAuth() {
   }
   return context;
 }
+

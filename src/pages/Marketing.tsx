@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Users, 
   MessageSquare, 
@@ -70,25 +70,40 @@ const INITIAL_CAMPAIGNS = [
   },
 ];
 
+import { supabase } from "../lib/supabase";
+
 export function Marketing() {
   const { clients, orders } = useClients();
   const [search, setSearch] = useState("");
   
-  const [campaigns, setCampaigns] = useState<any[]>(() => {
-    const saved = localStorage.getItem('optica_campaigns');
-    return saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
-  });
+  const [campaigns, setCampaigns] = useState<any[]>([]);
 
-  const saveCampaigns = (newCampaigns: any[]) => {
+  useEffect(() => {
+    async function loadCampaigns() {
+      try {
+        const { data, error } = await supabase.from('campaigns').select('*');
+        if (!error && data) {
+          setCampaigns(data);
+          if (data.length > 0) setActiveCampaignId(data[0].id);
+        }
+      } catch (e) {
+        console.warn("Could not load campaigns from Supabase:", e);
+      }
+    }
+    loadCampaigns();
+  }, []);
+
+  const saveCampaigns = async (newCampaigns: any[]) => {
     setCampaigns(newCampaigns);
-    localStorage.setItem('optica_campaigns', JSON.stringify(newCampaigns));
+    try {
+      await supabase.from('campaigns').upsert(newCampaigns);
+    } catch (e) {
+      console.error("Error saving campaigns to Supabase:", e);
+    }
   };
 
-  const [activeCampaignId, setActiveCampaignId] = useState<number | string>(() => {
-    const saved = localStorage.getItem('optica_campaigns');
-    const list = saved ? JSON.parse(saved) : INITIAL_CAMPAIGNS;
-    return list[0]?.id || "";
-  });
+  const [activeCampaignId, setActiveCampaignId] = useState<number | string>("");
+
 
   const [selectedCampaign, setSelectedCampaign] = useState<any>(null);
 

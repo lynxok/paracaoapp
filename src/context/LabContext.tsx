@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNotifications } from './NotificationsContext';
+import { supabase } from '../lib/supabase';
 
 export interface Lab {
   id: string;
@@ -78,33 +79,70 @@ interface LabContextType {
 const LabContext = createContext<LabContextType | undefined>(undefined);
 
 export function LabProvider({ children }: { children: ReactNode }) {
-  const [labs, setLabs] = useState<Lab[]>(() => {
-    const saved = localStorage.getItem('optica_labs');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [labs, setLabs] = useState<Lab[]>([]);
+  const [jobs, setJobs] = useState<LabJob[]>([]);
+  const [payments, setPayments] = useState<LabPayment[]>([]);
 
-  const [jobs, setJobs] = useState<LabJob[]>(() => {
-    const saved = localStorage.getItem('optica_lab_jobs');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Load 100% from Supabase on mount
+  useEffect(() => {
+    async function loadLabDataFromSupabase() {
+      try {
+        const { data: dbLabs, error: lErr } = await supabase.from('labs').select('*');
+        if (!lErr && dbLabs) setLabs(dbLabs);
 
-  const [payments, setPayments] = useState<LabPayment[]>(() => {
-    const saved = localStorage.getItem('optica_lab_payments');
-    return saved ? JSON.parse(saved) : [];
-  });
+        const { data: dbJobs, error: jErr } = await supabase.from('lab_jobs').select('*');
+        if (!jErr && dbJobs) setJobs(dbJobs);
 
-  useEffect(() => { localStorage.setItem('optica_labs', JSON.stringify(labs)); }, [labs]);
-  useEffect(() => { localStorage.setItem('optica_lab_jobs', JSON.stringify(jobs)); }, [jobs]);
-  useEffect(() => { localStorage.setItem('optica_lab_payments', JSON.stringify(payments)); }, [payments]);
+        const { data: dbPayments, error: pErr } = await supabase.from('lab_payments').select('*');
+        if (!pErr && dbPayments) setPayments(dbPayments);
+      } catch (err) {
+        console.warn("Could not load lab data from Supabase:", err);
+      }
+    }
+    loadLabDataFromSupabase();
+  }, []);
 
   const { addNotification } = useNotifications();
 
-  const addLab = (lab: Omit<Lab, 'id'>) => setLabs([...labs, { ...lab, id: Date.now().toString() }]);
-  const updateLab = (lab: Lab) => setLabs(labs.map(l => l.id === lab.id ? lab : l));
-  const deleteLab = (id: string) => setLabs(labs.filter(l => l.id !== id));
+  const addLab = async (lab: Omit<Lab, 'id'>) => {
+    const newLab: Lab = { ...lab, id: Date.now().toString() };
+    setLabs(prev => [...prev, newLab]);
+    try {
+      await supabase.from('labs').upsert([newLab]);
+    } catch (e) {
+      console.error("Supabase addLab error:", e);
+    }
+  };
 
-  const addJob = (job: Omit<LabJob, 'id'>) => setJobs([...jobs, { ...job, id: Date.now().toString() }]);
-  const updateJobStatus = (id: string, status: LabJobStatus) => {
+  const updateLab = async (lab: Lab) => {
+    setLabs(prev => prev.map(l => l.id === lab.id ? lab : l));
+    try {
+      await supabase.from('labs').upsert([lab]);
+    } catch (e) {
+      console.error("Supabase updateLab error:", e);
+    }
+  };
+
+  const deleteLab = async (id: string) => {
+    setLabs(prev => prev.filter(l => l.id !== id));
+    try {
+      await supabase.from('labs').delete().eq('id', id);
+    } catch (e) {
+      console.error("Supabase deleteLab error:", e);
+    }
+  };
+
+  const addJob = async (job: Omit<LabJob, 'id'>) => {
+    const newJob: LabJob = { ...job, id: Date.now().toString() };
+    setJobs(prev => [...prev, newJob]);
+    try {
+      await supabase.from('lab_jobs').upsert([newJob]);
+    } catch (e) {
+      console.error("Supabase addJob error:", e);
+    }
+  };
+
+  const updateJobStatus = async (id: string, status: LabJobStatus) => {
     setJobs(prevJobs => {
       const updated = prevJobs.map(j => j.id === id ? { ...j, status } : j);
       
@@ -134,9 +172,23 @@ export function LabProvider({ children }: { children: ReactNode }) {
       
       return updated;
     });
+
+    try {
+      await supabase.from('lab_jobs').update({ status }).eq('id', id);
+    } catch (e) {
+      console.error("Supabase updateJobStatus error:", e);
+    }
   };
   
-  const addPayment = (payment: Omit<LabPayment, 'id'>) => setPayments([...payments, { ...payment, id: Date.now().toString() }]);
+  const addPayment = async (payment: Omit<LabPayment, 'id'>) => {
+    const newPayment: LabPayment = { ...payment, id: Date.now().toString() };
+    setPayments(prev => [...prev, newPayment]);
+    try {
+      await supabase.from('lab_payments').upsert([newPayment]);
+    } catch (e) {
+      console.error("Supabase addPayment error:", e);
+    }
+  };
 
   const getLabBalance = (labId: string) => {
     const labJobs = jobs.filter(j => j.labId === labId);

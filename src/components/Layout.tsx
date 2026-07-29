@@ -33,7 +33,8 @@ import {
   KeyRound,
   Plus,
   Info,
-  FileText
+  FileText,
+  HelpCircle
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useAuth } from "../context/AuthContext";
@@ -54,6 +55,7 @@ const menuItems = [
   { path: "/reports", icon: BarChart3, label: "Reportes" },
   { path: "/marketing", icon: Sparkles, label: "CRM & Marketing" },
   { path: "/settings", icon: Settings, label: "Ajustes" },
+  { path: "/help", icon: HelpCircle, label: "Ayuda" },
 ];
 
 export function Layout({ children, title, subtitle }: { children: React.ReactNode, title: string, subtitle?: string }) {

@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { Eye, Lock, User, MapPin } from 'lucide-react';
+import { Eye, Lock, User, MapPin, Loader2, Database } from 'lucide-react';
+import { getSavedConnections, getActiveConnectionId, switchConnection } from '../lib/supabase';
 
 export function Login() {
   const { login, users, branches } = useAuth();
+  const connections = getSavedConnections();
+  const activeConnectionId = getActiveConnectionId();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [branchId, setBranchId] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
   // Default to first user's default branch or first branch
   React.useEffect(() => {
@@ -20,13 +24,13 @@ export function Login() {
   const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setUsername(val);
-    const user = users.find(u => u.username === val);
+    const user = users.find(u => u.username === val || u.email === val);
     if (user && user.defaultBranchId) {
       setBranchId(user.defaultBranchId);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
@@ -35,9 +39,16 @@ export function Login() {
       return;
     }
 
-    const success = login(username, password, branchId);
-    if (!success) {
-      setError('Usuario o contraseña incorrectos.');
+    setLoading(true);
+    try {
+      const res = await login(username, password, branchId);
+      if (!res.success) {
+        setError(res.error || 'Usuario o contraseña incorrectos.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Error al conectar con el servidor.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -63,7 +74,23 @@ export function Login() {
 
             <div className="space-y-4">
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Usuario</label>
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Base de Datos / Proyecto</label>
+                <div className="relative">
+                  <Database className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                  <select
+                    value={activeConnectionId}
+                    onChange={(e) => switchConnection(e.target.value)}
+                    className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/50 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-950 transition-all font-medium appearance-none cursor-pointer"
+                  >
+                    {connections.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest pl-1">Usuario / Email</label>
                 <div className="relative">
                   <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                   <input 
@@ -71,7 +98,7 @@ export function Login() {
                     value={username}
                     onChange={handleUsernameChange}
                     className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/50 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-950 transition-all font-medium"
-                    placeholder="Tu nombre de usuario"
+                    placeholder="ej: admin@visionclara.com"
                   />
                 </div>
               </div>
@@ -109,9 +136,16 @@ export function Login() {
 
             <button 
               type="submit"
-              className="w-full h-12 mt-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
+              disabled={loading}
+              className="w-full h-12 mt-4 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 active:scale-[0.98] transition-all shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              Iniciar Sesión
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" /> Conectando a Supabase...
+                </>
+              ) : (
+                'Iniciar Sesión'
+              )}
             </button>
           </form>
         </div>
@@ -127,3 +161,4 @@ export function Login() {
     </div>
   );
 }
+

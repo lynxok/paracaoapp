@@ -377,7 +377,24 @@ export function NewOrder() {
   const handleConfirm = () => {
     // Alerta de confirmación si es solo un ojo
     if (isSingleEyeCharged) {
-      const confirmSingle = window.confirm("¿Estás seguro que deseas cargar solamente los datos de un cristal?");
+    const validateDiopterRange = (valStr: string) => {
+      if (!valStr) return true;
+      const num = parseFloat(valStr.replace(',', '.'));
+      if (isNaN(num)) return true;
+      return num >= -30 && num <= 30;
+    };
+
+    const invalidDiopters = [
+      lejosOD.esf, lejosOD.cil, lejosOI.esf, lejosOI.cil,
+      cercaOD.esf, cercaOD.cil, cercaOI.esf, cercaOI.cil
+    ].some(val => !validateDiopterRange(val));
+
+    if (invalidDiopters) {
+      const proceed = window.confirm("⚠️ ADVERTENCIA DE GRADUACIÓN:\nUna o más dioptrías ingresadas exceden el rango habitual (±30.00).\n¿Deseas continuar de todos modos?");
+      if (!proceed) return;
+    }
+
+    const confirmSingle = window.confirm("¿Estás seguro que deseas cargar solamente los datos de un cristal?");
       if (!confirmSingle) return;
     }
 
@@ -588,7 +605,14 @@ export function NewOrder() {
                     >
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-sm">{client.name}</p>
-                        <p className="text-xs text-slate-500 font-mono">{client.dni}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-xs text-slate-500 font-mono">{client.dni}</span>
+                          {(client.insuranceId || client.insurance) && (
+                            <span className="text-[10px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded">
+                              {insurances.find(i => i.id === client.insuranceId)?.name || client.insurance}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <Plus className="w-4 h-4 text-blue-600" />
                     </button>
