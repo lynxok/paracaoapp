@@ -350,7 +350,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     addTransaction(incomeTx);
   };
 
-  const voidTransaction = (txId: string) => {
+  const voidTransaction = async (txId: string) => {
     const tx = transactions.find(t => t.id === txId);
     if (!tx) return;
 
@@ -366,6 +366,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return b;
     }));
+
+    try {
+      await supabase.from('transactions').delete().eq('id', txId);
+    } catch (e) {
+      console.error("Supabase voidTransaction error:", e);
+    }
   };
 
   return (

@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QA Plan — Óptica Paracáo</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap');
+:root {
+  --blue-950:#172554;--blue-900:#1e3a8a;--blue-700:#1d4ed8;--blue-500:#3b82f6;
+  --blue-100:#dbeafe;--blue-50:#eff6ff;
+  --green-700:#15803d;--green-500:#22c55e;--green-100:#dcfce7;--green-50:#f0fdf4;
+  --red-700:#b91c1c;--red-500:#ef4444;--red-100:#fee2e2;
+  --yellow-700:#a16207;--yellow-500:#eab308;--yellow-100:#fef9c3;
+  --purple-500:#8b5cf6;--purple-100:#ede9fe;
+  --slate-900:#0f172a;--slate-800:#1e293b;--slate-700:#334155;
+  --slate-600:#475569;--slate-500:#64748b;--slate-400:#94a3b8;
+  --slate-300:#cbd5e1;--slate-200:#e2e8f0;--slate-100:#f1f5f9;
+  --slate-50:#f8fafc;--white:#ffffff;
+  --radius:10px;
+  --shadow:0 4px 6px -1px rgba(0,0,0,.07),0 2px 4px -2px rgba(0,0,0,.05);
+  --shadow-lg:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.07);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--slate-100);color:var(--slate-900);min-height:100vh;font-size:14px}
+
+/* TOP BAR */
+#topbar{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,var(--blue-900),var(--blue-700));padding:0 20px;display:flex;align-items:center;gap:12px;height:58px;box-shadow:var(--shadow-lg)}
+#topbar h1{font-size:15px;font-weight:800;color:white;white-space:nowrap;flex-shrink:0}
+#topbar .sub{font-size:10px;color:rgba(255,255,255,.6);white-space:nowrap}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:11px;font-weight:700;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;font-family:inherit}
+.btn-ghost{background:rgba(255,255,255,.12);color:white}
+.btn-ghost:hover{background:rgba(255,255,255,.22)}
+.btn-green{background:var(--green-500);color:white}
+.btn-green:hover{background:var(--green-700)}
+.btn-red{background:var(--red-500);color:white}
+.btn-red:hover{background:var(--red-700)}
+.btn-purple{background:var(--purple-500);color:white}
+.btn-purple:hover{background:#7c3aed}
+.btn-white{background:white;color:var(--blue-900)}
+.btn-white:hover{background:var(--slate-100)}
+
+/* FILE STATUS BADGE */
+#file-status{display:flex;align-items:center;gap:7px;background:rgba(255,255,255,.1);border-radius:8px;padding:5px 10px;font-size:11px;color:white;max-width:260px;min-width:120px}
+#file-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;transition:background .3s}
+.dot-none{background:#64748b}
+.dot-linked{background:#22c55e}
+.dot-saving{background:#eab308;animation:pulse .6s infinite}
+.dot-error{background:#ef4444}
+#file-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10px;opacity:.85}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* SYNC INFO BANNER */
+#sync-banner{background:linear-gradient(90deg,#0f172a,#1e3a8a);color:white;padding:12px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.08)}
+#sync-banner.linked{background:linear-gradient(90deg,#14532d,#15803d)}
+#sync-banner.hidden{display:none}
+.banner-icon{font-size:22px;flex-shrink:0}
+.banner-text strong{display:block;font-size:13px;font-weight:700;margin-bottom:2px}
+.banner-text p{font-size:11px;opacity:.8}
+.banner-actions{margin-left:auto;display:flex;gap:8px}
+
+/* PROGRESS PANEL */
+#progress-panel{background:white;border-bottom:1px solid var(--slate-200);padding:12px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.stat-pill{display:flex;align-items:center;gap:8px;background:var(--slate-50);border:1px solid var(--slate-200);border-radius:8px;padding:7px 12px}
+.stat-pill .num{font-size:20px;font-weight:900;line-height:1}
+.stat-pill .lbl{font-size:10px;font-weight:600;color:var(--slate-500);text-transform:uppercase;letter-spacing:.05em}
+.pill-green .num{color:var(--green-700)}.pill-red .num{color:var(--red-700)}
+.pill-yellow .num{color:var(--yellow-700)}.pill-blue .num{color:var(--blue-700)}
+.progress-bar-wrap{flex:1;min-width:180px}
+.progress-label{display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--slate-600);margin-bottom:5px}
+.progress-bar{height:10px;background:var(--slate-200);border-radius:50px;overflow:hidden}
+.progress-fill{height:100%;border-radius:50px;background:linear-gradient(90deg,var(--green-500),var(--blue-500));transition:width .4s cubic-bezier(.4,0,.2,1);width:0%}
+
+/* FILTER BAR */
+#filter-bar{background:white;border-bottom:1px solid var(--slate-200);padding:10px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filter-label{font-size:11px;font-weight:600;color:var(--slate-500)}
+.filter-chip{padding:4px 11px;border-radius:50px;font-size:11px;font-weight:600;cursor:pointer;border:1.5px solid var(--slate-300);background:white;color:var(--slate-600);transition:all .15s}
+.filter-chip:hover{border-color:var(--blue-500);color:var(--blue-700)}
+.filter-chip.active{background:var(--blue-900);color:white;border-color:var(--blue-900)}
+#search-input{padding:6px 12px;border-radius:8px;border:1.5px solid var(--slate-300);font-size:12px;font-family:inherit;min-width:200px;margin-left:auto}
+#search-input:focus{outline:none;border-color:var(--blue-500)}
+
+/* CONTENT */
+#content{padding:20px;max-width:1080px;margin:0 auto}
+
+/* BLOCK HEADER */
+.block-header{background:linear-gradient(135deg,var(--blue-900),var(--blue-700));border-radius:var(--radius) var(--radius) 0 0;padding:12px 18px;display:flex;align-items:center;gap:10px;margin-top:28px}
+.block-icon{width:36px;height:36px;border-radius:8px;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.block-header h2{font-size:14px;font-weight:800;color:white}
+.block-header p{font-size:10px;color:rgba(255,255,255,.65);margin-top:1px}
+.block-count{margin-left:auto;background:rgba(255,255,255,.15);color:white;font-size:10px;font-weight:700;padding:3px 9px;border-radius:50px}
+
+/* CARD */
+.tc-card{background:white;border:1.5px solid var(--slate-200);border-top:none;transition:box-shadow .2s}
+.tc-card.last-in-block{border-radius:0 0 var(--radius) var(--radius);margin-bottom:0}
+.tc-card.status-aprobado{border-left:4px solid var(--green-500)}
+.tc-card.status-fallido{border-left:4px solid var(--red-500)}
+.tc-card.status-advertencia{border-left:4px solid var(--yellow-500)}
+.tc-card-header{display:flex;align-items:flex-start;gap:10px;padding:12px 16px 9px;cursor:pointer;user-select:none}
+.tc-card-header:hover{background:var(--slate-50)}
+.tc-id-badge{background:var(--blue-900);color:white;font-size:9px;font-weight:800;font-family:'JetBrains Mono',monospace;border-radius:5px;padding:3px 7px;flex-shrink:0;margin-top:1px}
+.tc-head-info{flex:1}
+.tc-title{font-size:13px;font-weight:700;color:var(--slate-900);margin-bottom:4px}
+.tc-badges{display:flex;gap:5px;flex-wrap:wrap}
+.badge{font-size:9px;font-weight:700;padding:2px 7px;border-radius:50px;letter-spacing:.03em}
+.badge-module{background:var(--blue-100);color:var(--blue-900)}
+.badge-critica{background:var(--red-100);color:var(--red-700)}
+.badge-alta{background:var(--yellow-100);color:var(--yellow-700)}
+.badge-media{background:var(--green-100);color:var(--green-700)}
+.badge-ok{background:var(--green-100);color:var(--green-700)}
+.badge-fail{background:var(--red-100);color:var(--red-700)}
+.badge-warn{background:var(--yellow-100);color:var(--yellow-700)}
+.badge-pending{background:var(--slate-100);color:var(--slate-500)}
+.tc-toggle-icon{font-size:14px;color:var(--slate-400);margin-top:2px;transition:transform .2s;flex-shrink:0}
+.tc-card.collapsed .tc-toggle-icon{transform:rotate(-90deg)}
+.tc-body{padding:0 16px 14px}
+.tc-card.collapsed .tc-body{display:none}
+
+/* STEPS TABLE */
+.steps-table{width:100%;border-collapse:collapse;font-size:12px;margin-bottom:10px}
+.steps-table thead tr{background:var(--blue-900)}
+.steps-table thead th{padding:7px 9px;text-align:left;font-size:10px;font-weight:700;color:white;letter-spacing:.06em;text-transform:uppercase}
+.steps-table tbody tr:nth-child(even){background:var(--slate-50)}
+.steps-table tbody td{padding:7px 9px;border-bottom:1px solid var(--slate-100);vertical-align:top}
+.steps-table tbody td:first-child{font-weight:800;color:var(--blue-500);text-align:center;width:26px;white-space:nowrap}
+.steps-table tbody td:nth-child(2){color:var(--slate-700);width:47%}
+.steps-table tbody td:nth-child(3){color:var(--green-700);font-style:italic;font-weight:500}
+
+/* PARAMS BOX */
+.params-box{background:var(--yellow-100);border-left:3px solid var(--yellow-500);border-radius:0 6px 6px 0;padding:9px 13px;font-size:11px;margin-bottom:10px;white-space:pre-line;color:var(--slate-800)}
+.params-box strong{color:var(--yellow-700);display:block;margin-bottom:3px}
+
+/* FORM SECTION */
+.tc-form{background:var(--slate-50);border-radius:8px;padding:12px 14px;border:1px solid var(--slate-200)}
+.form-row{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.form-row:last-child{margin-bottom:0}
+.form-label{font-size:10px;font-weight:700;color:var(--slate-600);text-transform:uppercase;letter-spacing:.05em;white-space:nowrap;padding-top:3px}
+.status-group{display:flex;gap:7px;flex-wrap:wrap}
+.status-opt{display:flex;align-items:center;gap:5px;cursor:pointer;padding:5px 11px;border-radius:7px;border:2px solid var(--slate-300);font-size:11px;font-weight:600;color:var(--slate-600);transition:all .15s;user-select:none}
+.status-opt:hover{border-color:var(--blue-400)}
+.status-opt input[type=radio]{display:none}
+.status-opt.selected-aprobado{background:var(--green-100);border-color:var(--green-500);color:var(--green-700)}
+.status-opt.selected-fallido{background:var(--red-100);border-color:var(--red-500);color:var(--red-700)}
+.status-opt.selected-advertencia{background:var(--yellow-100);border-color:var(--yellow-500);color:var(--yellow-700)}
+.status-dot{width:9px;height:9px;border-radius:50%;border:2px solid currentColor}
+.selected-aprobado .status-dot{background:var(--green-500);border-color:var(--green-500)}
+.selected-fallido .status-dot{background:var(--red-500);border-color:var(--red-500)}
+.selected-advertencia .status-dot{background:var(--yellow-500);border-color:var(--yellow-500)}
+.form-input,.form-textarea{flex:1;padding:6px 10px;border-radius:7px;border:1.5px solid var(--slate-300);font-size:12px;font-family:inherit;background:white;color:var(--slate-900);transition:border-color .15s;min-width:0}
+.form-input:focus,.form-textarea:focus{outline:none;border-color:var(--blue-500);box-shadow:0 0 0 3px rgba(59,130,246,.1)}
+.form-textarea{resize:vertical;min-height:56px;width:100%;flex:none}
+.fecha-input{max-width:135px}
+
+/* SOLUTION BOX */
+.solution-box{margin-top:10px;background:#f0fdf4;border:1.5px solid #bbf7d0;border-left:4px solid var(--green-500);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--green-700)}
+.solution-box strong{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:800;color:#15803d;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.solution-box p{margin:0;line-height:1.45;color:#166534}
+
+/* AUTHOR FIELD */
+.author-row{display:flex;align-items:center;gap:7px;margin-bottom:10px;background:var(--blue-50);border-radius:7px;padding:7px 11px;border:1px solid var(--blue-100)}
+.author-row label{font-size:10px;font-weight:700;color:var(--blue-700);white-space:nowrap}
+
+/* SUMMARY VIEW */
+#summary-view{display:none;background:white;border-radius:var(--radius);border:1.5px solid var(--slate-200);overflow:hidden}
+.summary-table{width:100%;border-collapse:collapse;font-size:12px}
+.summary-table thead tr{background:var(--blue-900)}
+.summary-table thead th{padding:9px 11px;text-align:left;font-size:10px;font-weight:700;color:white;letter-spacing:.06em;text-transform:uppercase}
+.summary-table tbody tr:nth-child(even){background:var(--slate-50)}
+.summary-table tbody td{padding:8px 11px;border-bottom:1px solid var(--slate-100);vertical-align:middle}
+.summary-table tbody td:first-child{font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;color:var(--blue-700)}
+
+/* HIDDEN */
+.tc-card.hidden{display:none}
+
+/* TOAST */
+#toast{position:fixed;bottom:22px;right:22px;z-index:9999;background:var(--slate-900);color:white;padding:11px 18px;border-radius:9px;font-size:12px;font-weight:500;box-shadow:var(--shadow-lg);transform:translateY(80px);opacity:0;transition:all .3s;pointer-events:none}
+#toast.show{transform:translateY(0);opacity:1}
+
+/* MODAL (reset confirm) */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:center;justify-content:center}
+#modal-overlay.show{display:flex}
+#modal-box{background:white;border-radius:14px;padding:26px;max-width:460px;width:90%;box-shadow:var(--shadow-lg)}
+#modal-box h3{font-size:15px;font-weight:800;margin-bottom:7px}
+#modal-box p{font-size:12px;color:var(--slate-600);margin-bottom:18px}
+.modal-btns{display:flex;gap:9px;justify-content:flex-end}
+
+/* VIEW TOGGLE */
+.view-toggle{display:flex;gap:0}
+.view-btn{padding:5px 13px;font-size:11px;font-weight:600;background:rgba(255,255,255,.12);color:rgba(255,255,255,.75);border:none;cursor:pointer;transition:all .15s}
+.view-btn:first-child{border-radius:7px 0 0 7px}
+.view-btn:last-child{border-radius:0 7px 7px 0}
+.view-btn.active{background:white;color:var(--blue-900)}
+
+/* HELP MODAL */
+#help-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:2000;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto}
+#help-overlay.show{display:flex}
+#help-box{background:white;border-radius:16px;width:100%;max-width:740px;box-shadow:0 25px 60px rgba(0,0,0,.25);margin:auto;overflow:hidden;flex-shrink:0}
+#help-box .help-header{background:linear-gradient(135deg,var(--blue-900),var(--blue-700));padding:20px 24px;display:flex;align-items:center;gap:12px}
+#help-box .help-header h2{font-size:16px;font-weight:800;color:white;flex:1}
+#help-box .help-header .help-close{background:rgba(255,255,255,.15);border:none;color:white;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;transition:background .15s}
+#help-box .help-header .help-close:hover{background:rgba(255,255,255,.3)}
+#help-tabs{display:flex;border-bottom:2px solid var(--slate-200);background:var(--slate-50)}
+.help-tab{padding:10px 18px;font-size:12px;font-weight:700;color:var(--slate-500);border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:all .15s;white-space:nowrap}
+.help-tab:hover{color:var(--blue-700)}
+.help-tab.active{color:var(--blue-900);border-bottom-color:var(--blue-700);background:white}
+.help-panel{display:none;padding:22px 24px;font-size:13px;color:var(--slate-700);line-height:1.6;max-height:70vh;overflow-y:auto}
+.help-panel.active{display:block}
+.help-panel h3{font-size:13px;font-weight:800;color:var(--blue-900);margin:18px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--slate-200)}
+.help-panel h3:first-child{margin-top:0}
+.help-panel p{margin-bottom:9px}
+.help-panel ul,.help-panel ol{padding-left:18px;margin-bottom:10px}
+.help-panel li{margin-bottom:5px}
+.help-step{display:flex;gap:10px;align-items:flex-start;background:var(--slate-50);border-radius:8px;padding:10px 12px;margin-bottom:8px;border:1px solid var(--slate-200)}
+.help-step-num{background:var(--blue-900);color:white;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;margin-top:1px}
+.help-step-text{flex:1;font-size:12px}
+.help-step-text strong{display:block;font-weight:700;color:var(--slate-900);margin-bottom:2px}
+.help-step-text span{color:var(--slate-500);font-size:11px}
+.help-callout{border-radius:8px;padding:10px 13px;margin:10px 0;font-size:12px;display:flex;gap:9px;align-items:flex-start}
+.help-callout.tip{background:var(--green-50);border-left:3px solid var(--green-500);color:var(--green-700)}
+.help-callout.warn{background:var(--yellow-100);border-left:3px solid var(--yellow-500);color:var(--yellow-700)}
+.help-callout.info{background:var(--blue-50);border-left:3px solid var(--blue-500);color:var(--blue-900)}
+.help-callout .ci{font-size:16px;flex-shrink:0;margin-top:-1px}
+.status-demo{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+.sd-pill{display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:50px;font-size:11px;font-weight:700;border:2px solid}
+.sd-pill.ok{background:var(--green-100);border-color:var(--green-500);color:var(--green-700)}
+.sd-pill.fail{background:var(--red-100);border-color:var(--red-500);color:var(--red-700)}
+.sd-pill.warn{background:var(--yellow-100);border-color:var(--yellow-500);color:var(--yellow-700)}
+.sd-pill.pend{background:var(--slate-100);border-color:var(--slate-300);color:var(--slate-500)}
+.dot-demo{width:8px;height:8px;border-radius:50%;background:currentColor}
+.file-flow{display:grid;grid-template-columns:1fr auto 1fr;gap:6px;align-items:center;margin:12px 0;font-size:11px}
+.ff-box{background:var(--slate-50);border:1.5px solid var(--slate-300);border-radius:8px;padding:8px 10px;text-align:center}
+.ff-box strong{display:block;font-size:12px;font-weight:800;color:var(--blue-900);margin-bottom:2px}
+.ff-arrow{text-align:center;color:var(--slate-400);font-size:18px}
+.kbd{display:inline-block;background:var(--slate-200);border:1px solid var(--slate-400);border-radius:4px;padding:1px 6px;font-size:10px;font-family:'JetBrains Mono',monospace;font-weight:700;color:var(--slate-700);margin:0 2px}
+
+@media print{
+  #topbar,#filter-bar,#progress-panel,#toast,#modal-overlay,#sync-banner,#help-overlay{display:none!important}
+  body{background:white}
+  .tc-card.collapsed .tc-body{display:block!important}
+  .tc-card.hidden{display:block!important}
+}
+</style>
+<script src="qa_resultados.js"></script>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <div>
+    <h1>🔬 Plan QA — Óptica Paracáo</h1>
+    <div class="sub">60 casos · Los datos se comparten vía archivo JSON en OneDrive</div>
+  </div>
+  <div class="topbar-right">
+    <div id="file-status">
+      <div id="file-dot" class="dot-none"></div>
+      <span id="file-name">Sin archivo vinculado</span>
+    </div>
+    <div class="view-toggle">
+      <button class="view-btn active" id="btn-view-cases" onclick="setView('cases')">Casos</button>
+      <button class="view-btn" id="btn-view-summary" onclick="setView('summary')">Resumen</button>
+    </div>
+    <button class="btn btn-ghost" onclick="toggleAllCards()">± Todo</button>
+    <button class="btn btn-ghost" onclick="exportCSV()">⬇ CSV</button>
+    <button class="btn btn-ghost" onclick="openHelp()" title="Ayuda">❓ Ayuda</button>
+    <button class="btn btn-red" onclick="confirmReset()">🗑</button>
+  </div>
+</div>
+
+<!-- SYNC BANNER -->
+<div id="sync-banner" class="linked">
+  <div class="banner-icon">⚡</div>
+  <div class="banner-text">
+    <strong id="banner-title">Modo Carga Automática Activo</strong>
+    <p id="banner-desc">Los datos se leen automáticamente del archivo <code>qa_resultados.js</code> en la carpeta de OneDrive. Al hacer cambios, se descargará/actualizará automáticamente para mantener al equipo sincronizado.</p>
+  </div>
+  <div class="banner-actions">
+    <button class="btn btn-white" onclick="downloadJSFile()">💾 Guardar / Exportar Datos (.js)</button>
+  </div>
+</div>
+
+<!-- PROGRESS -->
+<div id="progress-panel">
+  <div class="stat-pill pill-blue"><div><div class="num" id="stat-total">60</div><div class="lbl">Total</div></div></div>
+  <div class="stat-pill pill-green"><div><div class="num" id="stat-ok">0</div><div class="lbl">Aprobados</div></div></div>
+  <div class="stat-pill pill-red"><div><div class="num" id="stat-fail">0</div><div class="lbl">Fallidos</div></div></div>
+  <div class="stat-pill pill-yellow"><div><div class="num" id="stat-warn">0</div><div class="lbl">Advertencia</div></div></div>
+  <div class="stat-pill"><div><div class="num" id="stat-pend" style="color:var(--slate-500)">60</div><div class="lbl">Pendientes</div></div></div>
+  <div class="progress-bar-wrap">
+    <div class="progress-label"><span>Progreso del equipo</span><span id="progress-pct">0%</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+  </div>
+</div>
+
+<!-- FILTER BAR -->
+<div id="filter-bar">
+  <span class="filter-label">Filtrar:</span>
+  <button class="filter-chip active" onclick="setFilter('all',this)">Todos (60)</button>
+  <button class="filter-chip" onclick="setFilter('pending',this)">⏳ Pendientes</button>
+  <button class="filter-chip" onclick="setFilter('aprobado',this)">✅ Aprobados</button>
+  <button class="filter-chip" onclick="setFilter('fallido',this)">❌ Fallidos</button>
+  <button class="filter-chip" onclick="setFilter('advertencia',this)">⚠️ Advertencia</button>
+  <button class="filter-chip" onclick="setFilter('critica',this)">🔴 Crítica</button>
+  <input type="search" id="search-input" placeholder="🔍 Buscar por ID, título o módulo…" oninput="doSearch(this.value)">
+</div>
+
+<!-- CONTENT -->
+<div id="content">
+  <div id="cases-view"></div>
+  <div id="summary-view">
+    <table class="summary-table">
+      <thead><tr><th>ID</th><th>Caso de Prueba</th><th>Módulo</th><th>Prioridad</th><th>Tester</th><th>Estado</th><th>Fecha</th><th>Observaciones</th></tr></thead>
+      <tbody id="summary-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h3>⚠️ Resetear todos los datos</h3>
+    <p>Se borrarán todos los estados, notas y responsables. Esta acción no se puede deshacer. El archivo de OneDrive también se sobreescribirá con datos vacíos.</p>
+    <div class="modal-btns">
+      <button class="btn" onclick="closeModal()" style="background:var(--slate-100);color:var(--slate-700)">Cancelar</button>
+      <button class="btn btn-red" onclick="doReset()">Sí, borrar todo</button>
+    </div>
+  </div>
+</div>
+
+<!-- HELP MODAL -->
+<div id="help-overlay" onclick="handleHelpOverlayClick(event)">
+  <div id="help-box">
+    <div class="help-header">
+      <span style="font-size:20px">📘</span>
+      <h2>Ayuda — QA Interactivo Óptica Paracáo</h2>
+      <button class="help-close" onclick="closeHelp()">✕</button>
+    </div>
+    <div id="help-tabs">
+      <button class="help-tab active" onclick="switchHelpTab('inicio',this)">🚀 Primeros pasos</button>
+      <button class="help-tab" onclick="switchHelpTab('estados',this)">🏷️ Estados</button>
+      <button class="help-tab" onclick="switchHelpTab('archivo',this)">☁️ Archivo / OneDrive</button>
+      <button class="help-tab" onclick="switchHelpTab('equipo',this)">👥 Uso en equipo</button>
+      <button class="help-tab" onclick="switchHelpTab('botones',this)">🔧 Botones</button>
+    </div>
+
+    <!-- TAB: PRIMEROS PASOS -->
+    <div id="htab-inicio" class="help-panel active">
+      <h3>¿Qué es esta herramienta?</h3>
+      <p>Este archivo HTML es el <strong>plan de QA interactivo</strong> de la app Óptica Paracáo. Permite ejecutar los 60 casos de prueba, marcar resultados, agregar notas y sincronizar a todo el equipo automáticamente.</p>
+      <h3>¿Cómo funciona la Carga Automática?</h3>
+      <div class="help-step">
+        <div class="help-step-num">1</div>
+        <div class="help-step-text"><strong>Abrí el HTML en cualquier navegador</strong><span>Doble click sobre <code>qa_interactivo.html</code> en cualquier PC con acceso a la carpeta de OneDrive.</span></div>
+      </div>
+      <div class="help-step">
+        <div class="help-step-num">2</div>
+        <div class="help-step-text"><strong>Carga Instantánea de Datos</strong><span>El sistema lee automáticamente el archivo <code>qa_resultados.js</code> sin necesidad de vincular manualmente nada.</span></div>
+      </div>
+      <div class="help-step">
+        <div class="help-step-num">3</div>
+        <div class="help-step-text"><strong>Ejecutá los casos y marcá resultados</strong><span>Expandí cada tarjeta, leé los pasos, probá en la app real y marcá ✅ Aprobado, ❌ Fallido o ⚠️ Advertencia.</span></div>
+      </div>
+      <div class="help-callout info"><span class="ci">ℹ️</span><div><strong>¿Hace falta hacer click en Guardar siempre antes de cerrar?</strong><br>Tus cambios <strong>se guardan automáticamente en tu navegador (LocalStorage)</strong> de inmediato. Sin embargo, para que **tus colegas en sus PCs vean tus avances**, te recomendamos hacer click en <strong>"💾 Guardar / Exportar Datos (.js)"</strong> antes de cerrar o al terminar tu jornada para sobreescribir el archivo en OneDrive.</div></div>
+    </div>
+
+    <!-- TAB: ESTADOS -->
+    <div id="htab-estados" class="help-panel">
+      <h3>Los 3 estados posibles</h3>
+      <div class="status-demo">
+        <div class="sd-pill ok"><div class="dot-demo"></div> ✅ Aprobado</div>
+        <div class="sd-pill fail"><div class="dot-demo"></div> ❌ Fallido</div>
+        <div class="sd-pill warn"><div class="dot-demo"></div> ⚠️ Advertencia</div>
+        <div class="sd-pill pend"><div class="dot-demo"></div> ⏳ Pendiente</div>
+      </div>
+      <ul>
+        <li><strong>✅ Aprobado:</strong> El caso funcionó exactamente como se esperaba. Todos los resultados coinciden con el "Resultado Esperado".</li>
+        <li><strong>❌ Fallido:</strong> Algo no funcionó. El comportamiento difiere del esperado. Escribí el detalle en las notas.</li>
+        <li><strong>⚠️ Advertencia:</strong> El caso funcionó parcialmente, hay un detalle que no es crítico pero merece atención.</li>
+        <li><strong>⏳ Pendiente:</strong> Estado por defecto. El caso todavía no fue ejecutado.</li>
+      </ul>
+      <h3>¿Qué poner en las notas?</h3>
+      <p>Si el estado es <strong>Fallido</strong> o <strong>Advertencia</strong>, describí brevemente:</p>
+      <ul>
+        <li>¿Qué pasó exactamente? (mensaje de error, comportamiento incorrecto)</li>
+        <li>¿En qué paso falló?</li>
+        <li>¿Qué navegador / sucursal usaste?</li>
+      </ul>
+      <div class="help-callout info"><span class="ci">ℹ️</span><div>El campo <strong>Tester</strong> sirve para saber quién ejecutó cada caso. Escribí tu nombre o iniciales.</div></div>
+    </div>
+
+    <!-- TAB: ARCHIVO -->
+    <div id="htab-archivo" class="help-panel">
+      <h3>Archivos involucrados</h3>
+      <div class="file-flow">
+        <div class="ff-box"><strong>qa_interactivo.html</strong>La herramienta (este archivo)</div>
+        <div class="ff-arrow">↔</div>
+        <div class="ff-box"><strong>qa_resultados.js</strong>Todos los resultados del equipo</div>
+      </div>
+      <p>Ambos están en la carpeta <code>qa_report/</code> dentro de OneDrive.</p>
+      <h3>Ventajas de la Carga Automática (.js)</h3>
+      <p>Con el nuevo sistema de script de datos:</p>
+      <ul>
+        <li>No hay que estar buscando o seleccionando archivos al abrir.</li>
+        <li>Funciona en <strong>cualquier navegador</strong> (Chrome, Edge, Firefox, Safari).</li>
+        <li>Al abrir el HTML en cualquier PC, ya lee todo lo registrado por el equipo.</li>
+      </ul>
+      <div class="help-callout tip"><span class="ci">💡</span><div><strong>Recomendación al terminar:</strong> Al finalizar tu sesión de pruebas, hacé click en el botón superior <strong>"💾 Guardar / Exportar Datos (.js)"</strong> y guardalo en la carpeta <code>qa_report/</code> reemplazando el existente. Así OneDrive lo sincronizará a tus compañeros.</div></div>
+    </div>
+
+    <!-- TAB: EQUIPO -->
+    <div id="htab-equipo" class="help-panel">
+      <h3>¿Cómo trabajan varios testers?</h3>
+      <p>El equipo comparte la carpeta <code>qa_report/</code> de OneDrive:</p>
+      <ul>
+        <li>Cada tester abre el archivo <code>qa_interactivo.html</code> en su propia computadora.</li>
+        <li>Al abrir, el HTML carga automáticamente el estado actual desde <code>qa_resultados.js</code>.</li>
+        <li>Cada tester trabaja en sus casos asignados.</li>
+        <li>Al terminar o querer compartir los avances, hace click en <strong>"💾 Guardar / Exportar Datos (.js)"</strong> y reemplaza el archivo en OneDrive.</li>
+      </ul>
+      <h3>Recomendación de división de casos</h3>
+      <ul>
+        <li><strong>Tester 1:</strong> Bloques A–E (Autenticación, Clientes, Inventario, Recetas, Taller)</li>
+        <li><strong>Tester 2:</strong> Bloques F–K (Caja, Métricas, Configuración, Seguridad, Integración)</li>
+      </ul>
+    </div>
+    </div>
+
+    <!-- TAB: BOTONES -->
+    <div id="htab-botones" class="help-panel">
+      <h3>Botones de la barra superior</h3>
+      <ul>
+        <li><strong>± Todo:</strong> Expande o colapsa todas las tarjetas de casos a la vez.</li>
+        <li><strong>⬇ CSV:</strong> Descarga una planilla con todos los casos, estados y notas. Útil para compartir el informe.</li>
+        <li><strong>🗑 (rojo):</strong> Resetea todos los datos. Pide confirmación. No se puede deshacer.</li>
+      </ul>
+      <h3>Vista Casos vs Resumen</h3>
+      <ul>
+        <li><strong>Casos:</strong> Muestra las tarjetas expandibles con todos los pasos y el formulario de resultado.</li>
+        <li><strong>Resumen:</strong> Muestra una tabla compacta con el estado de todos los casos. Ideal para revisar el progreso rápido.</li>
+      </ul>
+      <h3>Filtros</h3>
+      <ul>
+        <li><strong>Todos / Pendientes / Aprobados / Fallidos / Advertencia / Crítica:</strong> Filtran las tarjetas por estado o prioridad.</li>
+        <li><strong>Buscador:</strong> Filtra por ID del caso (ej: <code>TC-15</code>), título o módulo en tiempo real.</li>
+      </ul>
+      <h3>Atajos de teclado</h3>
+      <ul>
+        <li><kbd class="kbd">Esc</kbd> — Cierra esta ventana de ayuda</li>
+      </ul>
+      <h3>Barra de estado del archivo</h3>
+      <ul>
+        <li><span style="color:var(--green-700);font-weight:700">🟢 Verde:</span> Archivo vinculado y sincronizando correctamente.</li>
+        <li><span style="color:var(--yellow-700);font-weight:700">🟡 Amarillo parpadeante:</span> Guardando en este momento.</li>
+        <li><span style="color:var(--red-700);font-weight:700">🔴 Rojo:</span> Error al guardar. Revisá que el archivo no esté abierto en otro programa.</li>
+        <li><span style="color:var(--slate-500);font-weight:700">⚫ Gris:</span> Sin archivo vinculado (datos solo en el navegador local).</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── CASOS DE PRUEBA ─────────────────────────────────────────────────────────
+const BLOCKS=[
+  {id:'A',name:'Autenticación y Navegación',icon:'🔐',cases:['TC-01','TC-02','TC-03']},
+  {id:'B',name:'Gestión de Clientes',icon:'👥',cases:['TC-04','TC-05','TC-06','TC-07','TC-08','TC-09','TC-10']},
+  {id:'C',name:'Inventario y Stock',icon:'📦',cases:['TC-11','TC-12','TC-13','TC-14','TC-15','TC-16','TC-17','TC-18']},
+  {id:'D',name:'Recetas y Órdenes de Laboratorio',icon:'👁️',cases:['TC-19','TC-20','TC-21','TC-22','TC-23']},
+  {id:'E',name:'Taller / Trabajos',icon:'🔧',cases:['TC-24','TC-25','TC-26']},
+  {id:'F',name:'Caja, Ventas y Tesorería',icon:'💰',cases:['TC-27','TC-28','TC-29','TC-30']},
+  {id:'G',name:'Métricas y Reportes',icon:'📊',cases:['TC-31','TC-32']},
+  {id:'H',name:'Configuración del Sistema',icon:'⚙️',cases:['TC-33','TC-34','TC-35','TC-36']},
+  {id:'I',name:'Seguridad',icon:'🛡️',cases:['TC-37','TC-38']},
+  {id:'J',name:'Casos de Borde y Rendimiento',icon:'⚡',cases:['TC-39','TC-40']},
+  {id:'K',name:'Integración Avanzada — Nuevos Casos',icon:'🆕',cases:['TC-41','TC-42','TC-43','TC-44','TC-45','TC-46','TC-47','TC-48','TC-49','TC-50','TC-51','TC-52','TC-53','TC-54','TC-55','TC-56','TC-57','TC-58','TC-59','TC-60']},
+  {id:'L',name:'Calidad, Staging & Automatización',icon:'🚀',cases:['TC-61','TC-62','TC-63','TC-64','TC-65']},
+];
+
+const CASES={
+
+'TC-61':{title:'Entorno de Staging y Aislamiento de Datos Sintéticos',module:'Arquitectura & Staging',priority:'ALTA',pc:'alta',steps:[['1','Verificar disponibilidad de servidor/base de staging independiente de producción','Se accede a un entorno aislado con base de datos de prueba sintética'],['2','Registrar ventas, cobros y movimientos sintéticos en Staging','Los datos reales de producción no sufren alteraciones ni contaminación']],params:null},
+'TC-62':{title:'Ejecución Automatizada de Regression Test Suite Crítico',module:'Automatización QA',priority:'CRÍTICA',pc:'critica',steps:[['1','Correr suite automatizada Playwright/Selenium (Login, Persistencia, Cliente, Producto, Venta, Stock, Caja, Logout)','Todos los test cases de la suite crítica finalizan con status 0 (PASSED)'],['2','Verificar reporte de salida automatizado','Se genera el reporte de ejecución sin regresiones detectadas']],params:null},
+'TC-63':{title:'Trazabilidad Completa y Registro de Auditoría (Audit Log)',module:'Trazabilidad & Auditoría',priority:'CRÍTICA',pc:'critica',steps:[['1','Realizar una venta o modificación de entidad crítica','El evento queda registrado en el Audit Log con usuario, fecha, hora y payload'],['2','Ir a Ajustes -> Audit Log y verificar el movimiento','La operación muestra quién lo hizo, cuándo y la acción de reversión si aplica']],params:null},
+'TC-64':{title:'Matriz de Criterios de Aceptación por Módulo',module:'Gestión de Calidad',priority:'ALTA',pc:'alta',steps:[['1','Revisar especificaciones y criterios de aceptación para cada vista (Validación, Errores, Resultados)','Los criterios están documentados y alineados con la interfaz visual'],['2','Validar que los mensajes de error UI respetan el estándar del sistema','No existen errores genéricos ni fallas silenciosas en la interfaz']],params:null},
+'TC-65':{title:'Verificación de Pasada de Regresión Post-Fix',module:'Regresión Operativa',priority:'CRÍTICA',pc:'critica',steps:[['1','Ejecutar la suite de regresión completa tras aplicar parches de código','Los módulos corregidos y los dependientes mantienen su funcionamiento'],['2','Confirmar que la corrección no generó efectos secundarios en la base de datos ni la UI','Todos los casos críticos permanecen en estado APROBADO']],params:null},
+'TC-01':{title:'Login con Credenciales Válidas',module:'Autenticación',priority:'CRÍTICA',pc:'critica',steps:[['1','Abrir https://opticagestionparacao.lnx.com.ar','Se muestra la pantalla de login con Email, Contraseña y Sucursal'],['2','Email: astudillajuansimon@gmail.com | Contraseña: juansimon | Seleccionar sucursal','Los campos aceptan el texto sin errores'],['3','Hacer clic en "Iniciar Sesión"','El sistema redirige al Dashboard sin errores'],['4','Verificar que el Dashboard muestre métricas y menú lateral completo','Todos los elementos son visibles y cargados']],params:null},
+'TC-02':{title:'Login con Contraseña Incorrecta',module:'Autenticación',priority:'CRÍTICA',pc:'critica',steps:[['1','Abrir la pantalla de login','Se muestra el formulario de login correctamente'],['2','Email válido + Contraseña: QA-CLAVE-INCORRECTA → Iniciar Sesión','Aparece mensaje de error claro: "Credenciales inválidas"'],['3','Verificar que NO se accede al sistema','El usuario permanece en la pantalla de login']],params:null},
+'TC-03':{title:'Navegación Completa por el Menú Lateral',module:'Navegación General',priority:'ALTA',pc:'alta',steps:[['1','Clic en "Clientes" en el menú lateral','Se carga la lista de clientes sin pantalla en blanco'],['2','Clic en "Inventario"','Se carga la tabla de inventario de productos'],['3','Clic en "Trabajos / Taller"','Se muestra el listado de trabajos de laboratorio'],['4','Clic en "Caja / Ventas"','Se muestra el módulo de caja correctamente'],['5','Clic en "Métricas"','Se visualizan gráficos y estadísticas'],['6','Clic en "Configuración"','Se abre la pantalla de ajustes del sistema'],['7','Clic en el logo o "Dashboard" para volver','Regresa al panel principal sin errores']],params:null},
+'TC-04':{title:'Alta de Cliente con Todos los Datos',module:'Clientes',priority:'CRÍTICA',pc:'critica',steps:[['1','Ir a "Clientes" → "Nuevo Cliente"','Se abre el formulario/modal de alta'],['2','Nombre: QA García María | DNI: QA-30555777','Los campos aceptan los datos'],['3','Teléfono: QA-343-4123456 | Email: qa.garcia@testoptica.com','Los campos aceptan los datos'],['4','Fecha Nac: 15/03/1985 | Dirección: QA Av. Rivadavia 1234 → Guardar','El modal se cierra y el cliente aparece en el listado'],['5','Buscar "QA García" en el buscador','El cliente aparece en los resultados de búsqueda']],params:'⚠️ CONVENCIÓN QA: Todos los datos deben incluir prefijo "QA"\nQuery de limpieza: DELETE FROM clients WHERE name LIKE \'QA%\';'},
+'TC-05':{title:'Alta de Cliente con DNI Duplicado',module:'Clientes',priority:'ALTA',pc:'alta',steps:[['1','Nuevo Cliente → ingresar el mismo DNI del TC-04: QA-30555777','El campo acepta el valor'],['2','Completar el resto de los datos → Guardar','Sistema muestra advertencia de DNI duplicado (anotar si permite o bloquea)']],params:null},
+'TC-06':{title:'Búsqueda de Cliente por Nombre y DNI',module:'Clientes',priority:'ALTA',pc:'alta',steps:[['1','En "Clientes" escribir "QA García" en el buscador','La lista filtra en tiempo real mostrando al cliente'],['2','Borrar el texto del buscador','La lista vuelve a mostrar todos los clientes'],['3','Buscar por nombre parcial: "QA Gar"','Aparecen los clientes cuyo nombre contiene el texto']],params:null},
+'TC-07':{title:'Edición de Datos de un Cliente',module:'Clientes',priority:'ALTA',pc:'alta',steps:[['1','Buscar "QA García" → ícono de editar (lápiz)','Se abre el formulario con los datos precargados'],['2','Modificar el teléfono a "QA-343-9999888" → Guardar','El teléfono se actualiza en el listado'],['3','Volver a buscar al cliente y verificar el nuevo teléfono','Se muestra "QA-343-9999888"']],params:null},
+'TC-08':{title:'Asignación de Obra Social a un Cliente',module:'Clientes',priority:'ALTA',pc:'alta',steps:[['1','Abrir edición de "QA García María"','Se abre el formulario con sus datos'],['2','Seleccionar una Obra Social del desplegable (ej. PAMI o OSDE) → Guardar','La mutua queda vinculada al cliente'],['3','Ir a "Nueva Orden" y buscar "QA García"','Aparece un badge con el nombre de la obra social junto al cliente']],params:null},
+'TC-09':{title:'Vista del Historial de Compras de un Cliente',module:'Clientes',priority:'MEDIA',pc:'media',steps:[['1','Buscar "QA García" → ícono de historial','Se abre un modal con el historial de compras y trabajos'],['2','Verificar que cada entrada muestra fecha, tipo y monto','Los datos históricos son legibles y completos'],['3','Cerrar el modal','El modal se cierra sin errores']],params:null},
+'TC-10':{title:'Cobro de Seña / Pago Parcial en Cuenta Corriente',module:'Cuenta Corriente',priority:'ALTA',pc:'alta',steps:[['1','Buscar cliente con saldo deudor → Cobrar','Se abre el modal de registro de pago'],['2','Monto: $5.000 | Medio: Efectivo | Caja: Caja Efectivo → Confirmar','El saldo de cuenta corriente disminuye en $5.000'],['3','Verificar que se genera un recibo imprimible','Se abre la ventana de impresión del recibo']],params:null},
+'TC-11':{title:'Alta de Nuevo Producto en Inventario',module:'Inventario',priority:'CRÍTICA',pc:'critica',steps:[['1','Inventario → "Añadir Nuevo"','Se abre el modal de producto'],['2','Nombre: QA Armazón Pro | SKU: QA-ARMAZ-001 | Categoría: Armazones','Los campos aceptan los datos'],['3','Stock Casa Central: 10 | Shopping: 5 | Stock Crítico: 3','Los valores numéricos se ingresan correctamente'],['4','Precio Compra: $8.000 | Precio Venta: $20.000 → Guardar Producto','El artículo aparece en la tabla de inventario']],params:'⚠️ CONVENCIÓN QA: SKU debe empezar con "QA-"\nQuery limpieza: DELETE FROM inventory WHERE sku LIKE \'QA-%\';'},
+'TC-12':{title:'Bloqueo de Precio Negativo en Inventario',module:'Inventario — Validaciones',priority:'CRÍTICA',pc:'critica',steps:[['1','Inventario → "Añadir Nuevo" | Completar todos los campos','Formulario con datos válidos'],['2','En "Precio de Venta" ingresar: -1500 → Guardar Producto','Sistema muestra alerta: "El precio no puede ser negativo"'],['3','Verificar que el producto NO se crea en la tabla','El modal permanece abierto; no se registra el artículo']],params:null},
+'TC-13':{title:'Ingreso de Mercadería (Aumento de Stock)',module:'Inventario — Stock',priority:'ALTA',pc:'alta',steps:[['1','Inventario → "Ingreso de Mercadería"','Se abre el modal de ingreso'],['2','Sucursal: Casa Central | Producto: QA Armazón Pro | Cantidad: 20','Los campos aceptan los datos'],['3','Proveedor: QA Proveedor Test | Precio Compra: $8.500 → Registrar','El stock en Casa Central aumenta en 20 unidades']],params:null},
+'TC-14':{title:'Egreso de Stock por Rotura / Pérdida',module:'Inventario — Movimientos',priority:'ALTA',pc:'alta',steps:[['1','Clic derecho en "QA Armazón Pro" → "Registrar Egreso"','Se abre el modal de egreso'],['2','Sucursal: Casa Central | Cantidad: 3 | Motivo: Rotura → Confirmar','El stock en Casa Central disminuye en 3 unidades'],['3','Ir a pestaña "Movimientos"','El movimiento aparece registrado en el historial']],params:null},
+'TC-15':{title:'Transferencia de Stock entre Sucursales',module:'Inventario — Multi-Sucursal',priority:'ALTA',pc:'alta',steps:[['1','Clic derecho en "QA Armazón Pro" → "Mover Stock"','Se abre el modal de transferencia'],['2','Origen: Casa Central | Destino: Shopping | Cantidad: 5 → Confirmar','Casa Central −5, Shopping +5 unidades'],['3','Verificar el stock por sucursal (clic en el número total)','El popover muestra el stock correcto por sucursal']],params:null},
+'TC-16':{title:'Transferencia con Stock Insuficiente',module:'Inventario — Validaciones',priority:'ALTA',pc:'alta',steps:[['1','Abrir "Mover Stock" | Sucursal origen stock = 0 | Cantidad: 10 → Confirmar','Sistema muestra alerta de stock insuficiente'],['2','Verificar que el stock no se modifica en ninguna sucursal','Los stocks permanecen iguales en ambas sucursales']],params:null},
+'TC-17':{title:'Búsqueda y Filtrado en Inventario',module:'Inventario — Filtros',priority:'MEDIA',pc:'media',steps:[['1','Escribir "QA" en el buscador de Inventario','La tabla filtra y muestra solo los productos QA'],['2','Cambiar el filtro de categoría a "Cristales"','La tabla muestra solo productos de esa categoría'],['3','Cambiar el filtro de sucursal a "Shopping"','El stock mostrado corresponde al de Shopping'],['4','Limpiar todos los filtros','La tabla vuelve a mostrar todos los productos']],params:null},
+'TC-18':{title:'Eliminación de un Producto del Inventario',module:'Inventario',priority:'MEDIA',pc:'media',steps:[['1','Localizar "QA Armazón Pro" → ícono de eliminar','Aparece una ventana de confirmación'],['2','Confirmar la eliminación','El producto desaparece de la tabla'],['3','Buscar "QA-ARMAZ-001" en el buscador','No se encuentran resultados']],params:null},
+'TC-19':{title:'Alta de Receta Monofocal Completa',module:'Recetas — Monofocal',priority:'CRÍTICA',pc:'critica',steps:[['1','Nueva Orden → "Monofocal" | Asociar: QA García María','Se muestra el formulario de receta monofocal'],['2','OD Lejos: Esf +1.50 | Cil -0.50 | Eje 90°','Los campos aceptan los valores ópticos'],['3','OI Lejos: Esf +1.00 | Cil 0.00 | Eje 0°','Los campos aceptan los valores'],['4','DNP: 62 | Altura: 18','Los campos aceptan los valores de centrado'],['5','Cristal: QA Monofocal Orgánico 1.50 | Marco: QA Armazón Pro → Agregar al Carrito','Ambos se asignan; total calculado automáticamente; orden agregada']],params:'📋 PARÁMETROS A VERIFICAR:\n• OD Esf +1.50 → debe aceptarse (rango normal, dentro de ±30)\n• OD Cil -0.50 → debe aceptarse (cilíndrico negativo válido)\n• DNP 62 → rango esperado (55-72 mm)\n• Total = precio cristal × 2 + precio marco\n• El nombre del trabajo debe contener prefijo "QA"'},
+'TC-20':{title:'Advertencia de Dioptrías Fuera de Rango (±30.00)',module:'Recetas — Validaciones',priority:'ALTA',pc:'alta',steps:[['1','Nueva Orden → Monofocal | QA García | OD Lejos Esférico: +35.00','El campo acepta el valor sin error inmediato'],['2','Hacer clic en "Agregar al Carrito"','Sistema muestra alerta: "Dioptrías fuera del rango habitual (±30.00). ¿Continuar?"'],['3','Hacer clic en "Cancelar"','La orden NO se agrega; se permanece en el formulario'],['4','Corregir el valor a +3.50 y confirmar','La orden se agrega sin más alertas de rango']],params:'📋 PARÁMETROS A VERIFICAR:\n• +35.00 → debe disparar advertencia (supera ±30.00)\n• -31.00 → debe disparar advertencia\n• +30.00 → NO debe disparar advertencia (límite exacto)\n• +3.50 → NO debe disparar advertencia (rango normal)'},
+'TC-21':{title:'Alta de Receta Multifocal con Adición',module:'Recetas — Multifocal',priority:'ALTA',pc:'alta',steps:[['1','Nueva Orden → "Multifocal" | Asociar: QA García María','Se muestra el formulario con secciones: Lejos, Cerca y Adición'],['2','OD Lejos: Esf +2.00 | Cil -0.25 | Eje 75° | OI: Esf +1.75 | Cil -0.50 | Eje 105°','Los campos aceptan los valores'],['3','Adición OD: +2.00 | Adición OI: +2.25','Los campos aceptan los valores de adición'],['4','DNP lejos: 64 | DNP cerca: 60 | Altura: 20','Los campos aceptan los valores de centrado'],['5','Cristal: QA Multifocal Progressive 1.60 → Confirmar','La orden multifocal se agrega correctamente']],params:'📋 PARÁMETROS A VERIFICAR:\n• Adición +2.00 → válida (rango típico +0.75 a +3.50)\n• Adición +4.00 → debe generar advertencia (atípica)\n• DNP Cerca ≤ DNP Lejos (validar)\n• El precio del cristal multifocal difiere del monofocal\n• El campo "Tipo de trabajo" debe quedar como "Multifocal"'},
+'TC-22':{title:'Receta con Descuento de Obra Social',module:'Recetas — Obras Sociales',priority:'ALTA',pc:'alta',steps:[['1','Nueva receta | Asociar a "QA García María" (con OS del TC-08)','Se muestra el badge de la Obra Social del cliente'],['2','Seleccionar cristal y armazón | Verificar total en resumen','Total final = Subtotal − Cobertura de la obra social'],['3','Confirmar el pedido','Se agrega al carrito con el precio descontado correcto']],params:'📋 PARÁMETROS A VERIFICAR:\n• Cobertura cristales = valor configurado en la obra social\n• Cobertura armazones = valor configurado en la obra social\n• El total nunca puede ser negativo\n• El comprobante debe indicar el nombre de la OS y el monto cubierto'},
+'TC-23':{title:'Envío de Pedido a Laboratorio Externo',module:'Recetas — Laboratorio',priority:'ALTA',pc:'alta',steps:[['1','Receta completa con nombre: "QA Test Lab" → "Enviar a Laboratorio"','Se abre el modal de selección de laboratorio'],['2','Seleccionar: QA Lab Test | Fecha entrega: próxima semana → Enviar','El lab queda vinculado y se muestra en el resumen del pedido'],['3','(Opcional) Clic en "Imprimir Tarjeta de Laboratorio"','Se abre el preview de impresión con la orden']],params:null},
+'TC-24':{title:'Listado y Filtrado de Trabajos en Taller',module:'Taller',priority:'CRÍTICA',pc:'critica',steps:[['1','Ir a "Trabajos / Taller" desde el menú','Se muestra el listado de órdenes con cliente, tipo, estado y fecha'],['2','Filtrar por estado "Pendientes"','La lista muestra solo los trabajos con ese estado'],['3','Buscar "QA" en el buscador','La lista filtra los trabajos QA en tiempo real']],params:null},
+'TC-25':{title:'Flujo Completo de Estados de un Trabajo',module:'Taller — Estados',priority:'CRÍTICA',pc:'critica',steps:[['1','Trabajo "QA" en estado "Pendiente" → cambiar a "En Taller"','El badge cambia de color al nuevo estado'],['2','Cambiar el estado a "Listo"','El badge se actualiza a "Listo"'],['3','Cambiar el estado a "Entregado"','El trabajo se marca como entregado y puede pasar al historial'],['4','Verificar que cada cambio registra la fecha y hora','Las marcas de tiempo son correctas']],params:null},
+'TC-26':{title:'Impresión de Tarjeta de Laboratorio',module:'Taller — Impresión',priority:'MEDIA',pc:'media',steps:[['1','Localizar el trabajo "QA Test Lab" → ícono de impresora','Se abre una ventana de preview de impresión'],['2','Verificar que el documento contiene: cliente, graduación, laboratorio y fecha','Todos los datos están correctamente impresos'],['3','Cerrar la ventana de impresión','Se cierra sin errores']],params:null},
+'TC-27':{title:'Registro de Venta Completa en Efectivo',module:'Caja — Ventas',priority:'CRÍTICA',pc:'critica',steps:[['1','Orden "QA" en el carrito → Abrir pantalla de venta','Se muestra el resumen del pedido con total'],['2','Medio: Efectivo | Caja: Caja Efectivo | Monto: total del pedido','El vuelto se calcula si hay diferencia'],['3','Hacer clic en "Confirmar Venta"','La venta se registra, el carrito se vacía y aparece comprobante'],['4','Verificar el movimiento en el historial de Caja','La transacción es visible con el monto correcto']],params:null},
+'TC-28':{title:'Venta por Transferencia Bancaria',module:'Caja — Ventas',priority:'CRÍTICA',pc:'critica',steps:[['1','Orden "QA" en el carrito | Medio: Transferencia | Banco: el disponible','Los campos se seleccionan correctamente'],['2','Confirmar la venta','La venta se registra en la caja bancaria, NO en la caja de efectivo'],['3','Verificar en el historial que el movimiento está en la caja bancaria','La transacción aparece en la caja bancaria/digital']],params:null},
+'TC-29':{title:'Registro de Gasto Operativo en Caja',module:'Caja — Egresos',priority:'ALTA',pc:'alta',steps:[['1','Caja → "Registrar Gasto" o "Nuevo Egreso"','Se abre el formulario de egreso'],['2','Concepto: QA Gasto Test | Monto: $8.500 | Desc: QA Factura test Julio | Caja: Efectivo → Confirmar','El saldo de la caja disminuye en $8.500 y el movimiento queda registrado']],params:null},
+'TC-30':{title:'Verificación del Saldo de Caja en Tiempo Real',module:'Caja — Saldo',priority:'ALTA',pc:'alta',steps:[['1','Anotar el saldo actual de Caja Efectivo ANTES de realizar movimientos','Saldo inicial anotado correctamente'],['2','Registrar una venta de $10.000 en efectivo (TC-27) y un gasto de $2.000 (TC-29)','Ambos movimientos se registran'],['3','Verificar que Saldo Final = Saldo Inicial + $10.000 − $2.000','El sistema es matemáticamente consistente']],params:null},
+'TC-31':{title:'Dashboard de Métricas y KPIs',module:'Métricas',priority:'MEDIA',pc:'media',steps:[['1','Ir a "Métricas" | Verificar KPIs: Ventas del mes, Trabajos activos, Clientes nuevos','Los indicadores tienen valores numéricos visibles'],['2','Cambiar el rango de fechas (ej. último trimestre)','Los gráficos se actualizan con los datos del período'],['3','Verificar que los totales coinciden con las ventas QA registradas','Los datos de Caja se reflejan correctamente en las métricas']],params:null},
+'TC-32':{title:'Ranking de Productos Más Vendidos',module:'Métricas — Reportes',priority:'MEDIA',pc:'media',steps:[['1','Métricas → "Productos más vendidos"','El reporte muestra nombre, cantidad vendida y monto total'],['2','Aplicar filtro por la semana actual','Los resultados se actualizan con datos del período']],params:null},
+'TC-33':{title:'Edición de Datos Generales de la Óptica',module:'Configuración — General',priority:'ALTA',pc:'alta',steps:[['1','Configuración → pestaña "General"','Se muestran los datos de la óptica'],['2','Modificar el Teléfono y la Dirección → Guardar','Los cambios se guardan correctamente'],['3','Recargar la página (F5) y volver a Configuración','Los datos modificados persisten; no se perdieron']],params:null},
+'TC-34':{title:'Alta de Obra Social con Cobertura',module:'Configuración — Obras Sociales',priority:'ALTA',pc:'alta',steps:[['1','Configuración → "Obras Sociales" → "Nueva Obra Social"','Se abre el formulario de alta'],['2','Nombre: QA IOMA Test | Cobertura Cristales: $3.000 | Armazones: $1.500 → Guardar','La obra social es visible en la lista'],['3','Editar la cobertura de "Cristales" a $4.000 → Guardar','La cobertura se actualiza correctamente']],params:'⚠️ CONVENCIÓN QA: Nombre debe incluir "QA"\nQuery: DELETE FROM insurance WHERE name LIKE \'QA%\';'},
+'TC-35':{title:'Gestión de Usuarios y Roles del Sistema',module:'Configuración — Usuarios',priority:'ALTA',pc:'alta',steps:[['1','Configuración → "Usuarios" → "Nuevo Usuario"','Se abre el formulario de alta'],['2','Nombre: QA Tester | Email: qa.tester@testoptica.com | Rol: Vendedor → Guardar','El usuario figura en la tabla con su rol'],['3','Ir a "Permisos" y verificar los accesos del rol "Vendedor"','Se visualizan los módulos habilitados y restringidos por rol']],params:'⚠️ CONVENCIÓN QA: Email debe ser qa.xxx@testoptica.com'},
+'TC-36':{title:'Alta de Cristal en la Tabla de Cristales',module:'Configuración — Cristales',priority:'ALTA',pc:'alta',steps:[['1','Configuración → "Tabla de Cristales" → "Nuevo Cristal"','Se abre el modal de alta'],['2','Marca: QA Brand | Tipo: Monofocal | Material: Orgánico | Índice: 1.50 | Precio: $8.000','Los campos aceptan los datos'],['3','Rango Esférico: Mín −8.00 / Máx +8.00 → Guardar','El cristal aparece en la tabla de cristales'],['4','Nueva Orden → verificar que "QA Brand" aparece en el desplegable de cristales','El cristal está disponible para seleccionar en recetas']],params:'📋 PARÁMETROS A VERIFICAR:\n• Rango −8.00 a +8.00: receta con Esf +9.00 → debe dar advertencia\n• Receta con Esf +3.00 → no debe dar advertencia\n• El precio $8.000 debe aparecer correctamente en el total de la receta'},
+'TC-37':{title:'Sanitización de Entradas Maliciosas (XSS)',module:'Seguridad',priority:'CRÍTICA',pc:'critica',steps:[['1','Nuevo Cliente → Nombre: QA &lt;scr&apos;+&apos;ipt&gt;alert(XSS)&lt;/scr&apos;+&apos;ipt&gt; → Guardar','El sistema guarda como texto plano SIN ejecutar el script'],['2','Buscar "QA" en el listado y localizar el cliente','El nombre se muestra como texto literal; no hay ningún popup ejecutado']],params:null},
+'TC-38':{title:'Acceso a Rutas Protegidas Sin Autenticación',module:'Seguridad — Rutas',priority:'CRÍTICA',pc:'critica',steps:[['1','Cerrar sesión completamente en el sistema','Se muestra la pantalla de login'],['2','Escribir en la URL: .../clients y presionar Enter','El sistema redirige automáticamente al login'],['3','Intentar .../inventory y .../settings sin sesión','Ambas rutas redirigen al login sin mostrar datos']],params:null},
+'TC-39':{title:'Validaciones con Campos Obligatorios Vacíos',module:'Validaciones Generales',priority:'ALTA',pc:'alta',steps:[['1','Nuevo Cliente → dejar todos los campos vacíos → Guardar','El sistema muestra validación de campos requeridos; el modal no se cierra'],['2','Verificar que los campos obligatorios se destacan visualmente (borde rojo o mensaje)','Los errores de validación son claros y legibles'],['3','Repetir en "Añadir Nuevo Producto" del inventario con campos vacíos','El mismo comportamiento de validación']],params:null},
+'TC-40':{title:'Responsive Design en Pantalla Reducida',module:'UX — Responsive',priority:'MEDIA',pc:'media',steps:[['1','Abrir el sistema en escritorio (ventana completa)','Se visualiza correctamente en ancho completo'],['2','Reducir la ventana al 50% del ancho','El layout se adapta sin desbordamientos horizontales'],['3','DevTools → Toggle Device → tablet (768px) y celular (375px)','Los formularios y botones son accesibles sin scroll horizontal innecesario']],params:null},
+'TC-41':{title:'Anulación de una Venta Registrada',module:'Caja — Anulaciones',priority:'CRÍTICA',pc:'critica',steps:[['1','Caja → localizar una venta "QA" en el historial del día','La transacción es visible con su monto'],['2','Clic en el botón de anular → Confirmar la anulación','El monto se revierte en la caja y la transacción se marca como anulada'],['3','Verificar que el saldo de la caja refleja la resta del monto anulado','El balance es matemáticamente correcto post-anulación']],params:null},
+'TC-42':{title:'Aplicación de Descuento Porcentual en una Venta',module:'POS — Descuentos',priority:'ALTA',pc:'alta',steps:[['1','Pedido "QA" en el carrito con total = $30.000','El total se muestra correctamente'],['2','Aplicar descuento del 10%','El sistema calcula el nuevo total: $27.000'],['3','Confirmar la venta | Verificar en historial que el monto es $27.000','El movimiento muestra $27.000, no el original $30.000']],params:'📋 PARÁMETROS A VERIFICAR:\n• 10% de $30.000 = $27.000 (verificar cálculo)\n• 100% de descuento → debe o no permitirse (anotar resultado)\n• Descuento > 100% → debe bloquearse'},
+'TC-43':{title:'Persistencia de Datos al Recargar la Página',module:'Persistencia — UX',priority:'ALTA',pc:'alta',steps:[['1','Crear cliente "QA Test Persistencia", un producto y una venta en la sesión activa','Los tres registros son visibles en sus módulos'],['2','Presionar F5 para recargar la página del navegador','La sesión se mantiene activa (no cierra sesión)'],['3','Verificar que los tres registros persisten después de recargar','Los datos no se pierden al recargar la página']],params:null},
+'TC-44':{title:'Impresión de Ticket / Comprobante de Venta',module:'Caja — Impresión',priority:'ALTA',pc:'alta',steps:[['1','Después de confirmar una venta → buscar el botón "Imprimir Comprobante"','El botón está visible en la pantalla de confirmación'],['2','Clic → Verificar que el ticket contiene: cliente, detalle, monto, fecha y N° de operación','Todos los datos son legibles y correctos en el documento']],params:null},
+'TC-45':{title:'Alta de Laboratorio Proveedor',module:'Configuración — Laboratorios',priority:'ALTA',pc:'alta',steps:[['1','Configuración → "Laboratorios" → "Nuevo Laboratorio"','Se abre el formulario de alta'],['2','Nombre: QA Lab Test | Teléfono: QA-343-0000111 | Email: qa.lab@testoptica.com → Guardar','Aparece en el listado de laboratorios disponibles'],['3','Nueva receta → verificar que "QA Lab Test" aparece en el selector','El laboratorio está disponible para ser asignado']],params:'⚠️ CONVENCIÓN QA: Nombre debe incluir "QA"\nQuery: DELETE FROM labs WHERE name LIKE \'QA%\';'},
+'TC-46':{title:'Alta de Banco / Caja Digital',module:'Configuración — Bancos',priority:'ALTA',pc:'alta',steps:[['1','Configuración → "Bancos" → "Nuevo Banco"','Se abre el formulario de alta'],['2','Nombre: QA Mercado Pago Test | Tipo: Digital Wallet → Guardar','La caja digital figura en la lista de cajas disponibles'],['3','Ir a Caja y verificar que "QA Mercado Pago Test" aparece como medio de pago','La nueva caja está disponible para registrar transacciones']],params:null},
+'TC-47':{title:'Carga de Logo de la Óptica',module:'Configuración — Apariencia',priority:'MEDIA',pc:'media',steps:[['1','Configuración → "General" o "Apariencia" → campo de logo','El campo de carga de imagen es visible'],['2','Subir un archivo PNG o JPG de tamaño < 2MB','La imagen se carga y se muestra como preview'],['3','Guardar | Verificar que el logo aparece en documentos de impresión','El logo de la óptica se muestra en los documentos']],params:null},
+'TC-48':{title:'Modo Oscuro y Cambio de Tema',module:'Configuración — Apariencia',priority:'MEDIA',pc:'media',steps:[['1','Configuración → "Apariencia" → selector Claro/Oscuro → cambiar a "Oscuro"','La interfaz cambia a tonos oscuros de forma inmediata'],['2','Navegar por varios módulos en modo oscuro','No hay textos ilegibles ni contraste insuficiente'],['3','Volver a modo "Claro" y verificar que la interfaz regresa a los colores originales','El cambio de tema funciona en ambas direcciones sin errores']],params:null},
+'TC-49':{title:'Búsqueda Global del Sistema',module:'UX — Búsqueda',priority:'MEDIA',pc:'media',steps:[['1','Verificar si existe un campo de búsqueda global (Ctrl+K o lupa en el header)','El campo de búsqueda global existe (anotar si no existe)'],['2','Buscar: QA García → Clic en el resultado del cliente','Navega directamente a la ficha de ese cliente']],params:null},
+'TC-50':{title:'Paginación en Listados Extensos',module:'UX — Rendimiento',priority:'MEDIA',pc:'media',steps:[['1','Módulo de Clientes → verificar si existen controles de paginación','Los controles (Siguiente/Anterior o scroll infinito) son visibles y funcionales'],['2','"Siguiente página" si aplica | Repetir en Inventario','La lista no colapsa ni presenta lag notable']],params:null},
+'TC-51':{title:'Venta de Producto de Mostrador (Sin Receta)',module:'Caja — Venta Directa',priority:'CRÍTICA',pc:'critica',steps:[['1','Ir a "Nueva Venta" o "Venta Directa" desde Caja','Se abre el formulario de venta de mostrador'],['2','Agregar producto: QA Estuche Test | Cliente: QA Mostrador','El producto se agrega al carrito sin pedir graduación'],['3','Confirmar venta en efectivo | Verificar el movimiento en caja','La venta se procesa y el movimiento queda registrado con el monto correcto']],params:null},
+'TC-52':{title:'Alta de Receta para Lentes de Contacto',module:'Recetas — Lentes de Contacto',priority:'ALTA',pc:'alta',steps:[['1','Nueva Orden → tipo "Lentes de Contacto"','Se muestra el formulario de L.C. (potencia, curva base, diámetro)'],['2','Asociar: QA García María | OD: −2.50 | OI: −2.75','Los campos aceptan los valores con signo negativo'],['3','Curva Base: 8.60 | Diámetro: 14.20 | Tipo: Mensual | Marca: QA Contact Pro → Confirmar','La orden de L.C. se agrega correctamente']],params:'📋 PARÁMETROS A VERIFICAR:\n• OD −2.50 → valor negativo válido para L.C.\n• Curva Base 8.60 → rango típico (8.4 − 9.0 mm)\n• Diámetro 14.20 → rango típico (13.8 − 14.5 mm)\n• El tipo de trabajo debe quedar como "Lentes de Contacto"'},
+'TC-53':{title:'Historial Comparativo de Recetas de un Cliente',module:'Clientes — Ficha Óptica',priority:'ALTA',pc:'alta',steps:[['1','Buscar "QA García" (con ≥2 recetas del QA) → abrir su historial','Se listan las órdenes históricas del cliente'],['2','Verificar que cada orden muestra fecha, tipo y valores de graduación','Los datos son completos y ordenados cronológicamente'],['3','Comparar la graduación de la receta más antigua con la más nueva','Es posible visualizar la evolución de la graduación del cliente']],params:null},
+'TC-54':{title:'Cristal Fuera de Rango de la Receta',module:'Recetas — Cristales',priority:'ALTA',pc:'alta',steps:[['1','Receta con OD Esférico: +6.00 | Seleccionar "QA Brand" (rango máx +8.00)','Sin advertencia (6.00 ≤ 8.00) → CORRECTO'],['2','Cambiar OD Esférico a +9.00 (supera el rango del cristal +8.00)','Sistema muestra advertencia: la graduación supera el rango del cristal'],['3','Seleccionar un cristal con rango compatible','La advertencia desaparece al elegir un cristal adecuado']],params:'📋 PARÁMETROS A VERIFICAR (QA Brand: rango −8.00 a +8.00):\n• Esf +8.00 → sin advertencia (límite exacto)\n• Esf +8.25 → CON advertencia (supera el límite)\n• Esf −8.00 → sin advertencia\n• Esf −8.50 → CON advertencia'},
+'TC-55':{title:'Alta de Categoría de Inventario Personalizada',module:'Configuración — Categorías',priority:'MEDIA',pc:'media',steps:[['1','Configuración → "Categorías" → agregar nueva: "QA Accesorios Test"','La categoría se crea y aparece en el listado'],['2','Inventario → "Añadir Nuevo" | Verificar que "QA Accesorios Test" aparece en el desplegable','La nueva categoría está disponible para nuevos productos']],params:null},
+'TC-56':{title:'Visualización del Audit Log de Acciones',module:'Configuración — Audit',priority:'MEDIA',pc:'media',steps:[['1','Configuración → "Audit Log" o similar','Se muestra un historial de acciones del sistema'],['2','Verificar que las acciones QA están registradas (alta de QA García, ventas QA, etc.)','Las acciones son trazables con usuario, fecha, hora y descripción'],['3','Verificar que el log es solo de lectura','No hay botones de edición en el log de auditoría']],params:null},
+'TC-57':{title:'Eliminación de Cliente con Historial Asociado',module:'Clientes — Integridad',priority:'ALTA',pc:'alta',steps:[['1','Buscar "QA García" (que ya tiene compras y trabajos asociados)','El cliente aparece en la lista'],['2','Intentar eliminar el cliente (si el botón existe)','El sistema muestra advertencia de que el cliente tiene historial asociado'],['3','Verificar que se requiere confirmación explícita o que el sistema lo impide','No se elimina accidentalmente; el sistema protege la integridad de datos']],params:null},
+'TC-58':{title:'Receta para un Solo Ojo (Monóculo)',module:'Recetas — Casos Especiales',priority:'ALTA',pc:'alta',steps:[['1','Nueva Orden → Monofocal | Asociar: QA García | Selector de ojos: solo "OD"','El formulario habilita solo los campos del ojo derecho'],['2','OD Esf +2.00 | Cil 0.00 | Eje 0° → Confirmar pedido','El sistema pregunta si es intencional cargar solo un ojo (anotar resultado)'],['3','Confirmar que es intencional','La orden se agrega con solo el cristal del OD y el precio correspondiente']],params:'📋 PARÁMETROS A VERIFICAR:\n• Precio = precio cristal × 1 (solo un ojo, no × 2)\n• La tarjeta de lab debe indicar claramente "Solo OD"\n• El campo OI debe quedar en blanco o cero'},
+'TC-59':{title:'Caracteres Especiales, Acentos y Símbolos',module:'Seguridad — Robustez',priority:'MEDIA',pc:'media',steps:[['1','Nuevo Cliente → Nombre: "QA Ángel Muñoz & Cía." → Guardar','El nombre se guarda exactamente con todos los caracteres'],['2','Buscar "QA Ángel" en el buscador','El cliente se encuentra correctamente con el nombre completo'],['3','Verificar que no hay caracteres corruptos ni errores de encoding','Los datos se muestran sin alteraciones ni corrupción']],params:null},
+'TC-60':{title:'Cierre de Sesión y Limpieza de Datos de Sesión',module:'Autenticación — Seguridad',priority:'CRÍTICA',pc:'critica',steps:[['1','Menú de usuario → "Cerrar Sesión"','El sistema redirige a la pantalla de login'],['2','Presionar el botón Atrás del navegador','No se permite volver; redirige al login'],['3','Intentar acceder a cualquier ruta protegida por URL','El sistema redirige al login sin mostrar datos de la sesión anterior'],['4','Iniciar sesión con otro usuario y verificar que no hay cache contaminado','Cada sesión está aislada correctamente']],params:null},
+};
+
+// ─── FILE SYSTEM ACCESS API ───────────────────────────────────────────────────
+let fileHandle = null; // FileSystemFileHandle cuando está vinculado
+let state = {};
+let saveTimer = null;
+let currentFilter = 'all';
+let allExpanded = false;
+let currentView = 'cases';
+const LOCALSTORAGE_KEY = 'qa_optica_v2_local';
+
+// Soporte del navegador
+const FS_SUPPORTED = ('showSaveFilePicker' in window);
+
+function loadLocalFallback() {
+  try {
+    // 1. Intentar cargar desde el script autoincluido qa_resultados.js
+    if (window.QA_INITIAL_DATA && Object.keys(window.QA_INITIAL_DATA).length > 0) {
+      state = window.QA_INITIAL_DATA;
+    } else {
+      // 2. Backup local en el navegador
+      const raw = localStorage.getItem(LOCALSTORAGE_KEY);
+      if (raw) state = JSON.parse(raw);
+    }
+  } catch(e) { state = {}; }
+}
+
+function getTC(id) {
+  if (!state[id]) state[id] = {status:'',responsable:'',fecha:'',notas:''};
+  return state[id];
+}
+
+function downloadJSFile() {
+  const content = 'window.QA_INITIAL_DATA = ' + JSON.stringify(state, null, 2) + ';\n';
+  const blob = new Blob([content], {type:'application/javascript'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'qa_resultados.js';
+  a.click(); URL.revokeObjectURL(url);
+  showToast('💾 qa_resultados.js generado. Guardalo en la misma carpeta para compartir con tu equipo.');
+}
+
+// Escribir al archivo vinculado (si usa FileAccess) o LocalStorage
+async function writeFile() {
+  localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(state));
+  if (fileHandle) {
+    try {
+      setFileDot('saving');
+      const writable = await fileHandle.createWritable();
+      await writable.write('window.QA_INITIAL_DATA = ' + JSON.stringify(state, null, 2) + ';\n');
+      await writable.close();
+      setFileDot('linked');
+    } catch(e) {
+      setFileDot('error');
+    }
+  }
+}
+
+// Guardar con debounce
+function save() {
+  localStorage.setItem(LOCALSTORAGE_KEY, JSON.stringify(state));
+  clearTimeout(saveTimer);
+  if (fileHandle) {
+    setFileDot('saving');
+    saveTimer = setTimeout(() => writeFile(), 800);
+  }
+  updateProgress();
+}
+
+// Banner y dot
+function setBannerLinked(name) {
+  const banner = document.getElementById('sync-banner');
+  banner.classList.add('linked');
+  document.getElementById('banner-title').textContent = '☁️ Archivo vinculado — Los cambios se sincronizan por OneDrive';
+  document.getElementById('banner-desc').textContent = `Archivo: ${name}  ·  Compartí esta carpeta de OneDrive con tu equipo para que todos vean los resultados en tiempo real.`;
+  document.getElementById('file-dot').className = 'dot-linked';
+  document.getElementById('file-name').textContent = name;
+}
+
+function setFileDot(status) {
+  const d = document.getElementById('file-dot');
+  const t = document.getElementById('file-name');
+  if (status === 'saving')   { d.className='dot-saving'; }
+  else if (status === 'linked') { d.className='dot-linked'; }
+  else if (status === 'error')  { d.className='dot-error'; }
+  else                          { d.className='dot-none'; }
+}
+
+// Fallback si el navegador no soporta File System Access API
+function fallbackExportJSON() {
+  const json = JSON.stringify(state, null, 2);
+  const blob = new Blob([json], {type:'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'qa_optica_paracao_resultados.json';
+  a.click(); URL.revokeObjectURL(url);
+  showToast('⬇ Archivo exportado. Guardalo en tu carpeta de OneDrive compartida.');
+}
+
+function fallbackImportJSON() {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    try {
+      state = JSON.parse(text);
+      render(); updateProgress();
+      showToast('📂 Datos cargados desde: ' + file.name);
+    } catch(err) {
+      showToast('❌ El archivo no es un JSON válido de QA');
+    }
+  };
+  input.click();
+}
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+function escHtml(s){ if(!s)return''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escAttr(s){ if(!s)return''; return String(s).replace(/"/g,'&quot;'); }
+
+function render() {
+  const container = document.getElementById('cases-view');
+  container.innerHTML = '';
+  BLOCKS.forEach(block => {
+    const bh = document.createElement('div');
+    bh.className = 'block-header';
+    bh.innerHTML = `<div class="block-icon">${block.icon}</div><div><h2>Bloque ${block.id} — ${block.name}</h2><p>${block.cases.length} casos de prueba</p></div><div class="block-count">${block.cases.length} casos</div>`;
+    container.appendChild(bh);
+
+    block.cases.forEach((tcId, idx) => {
+      const tc = CASES[tcId];
+      if (!tc) return;
+      const st = getTC(tcId);
+      const card = document.createElement('div');
+      const isLast = idx === block.cases.length - 1;
+      card.className = `tc-card${isLast ? ' last-in-block' : ''}${st.status ? ' status-'+st.status : ''}`;
+      card.id = `card-${tcId}`;
+      card.dataset.priority = tc.pc;
+      card.dataset.status = st.status || 'pending';
+
+      const pB = tc.pc==='critica'?'badge-critica':tc.pc==='alta'?'badge-alta':'badge-media';
+      let sBadge = `<span class="badge badge-pending">⏳ Pendiente</span>`;
+      if(st.status==='aprobado')    sBadge=`<span class="badge badge-ok">✅ Aprobado</span>`;
+      if(st.status==='fallido')     sBadge=`<span class="badge badge-fail">❌ Fallido</span>`;
+      if(st.status==='advertencia') sBadge=`<span class="badge badge-warn">⚠️ Advertencia</span>`;
+
+      const stepsHTML = tc.steps.map(([n,a,e])=>`<tr><td>${n}</td><td>${escHtml(a)}</td><td>${escHtml(e)}</td></tr>`).join('');
+      const paramsHTML = tc.params ? `<div class="params-box"><strong>📋 Parámetros / Valores a verificar</strong>${escHtml(tc.params)}</div>` : '';
+      const opts = [{val:'aprobado',icon:'✅',label:'Aprobado'},{val:'fallido',icon:'❌',label:'Fallido'},{val:'advertencia',icon:'⚠️',label:'Advertencia'}];
+      const statusOpts = opts.map(o=>`<button type="button" class="status-opt${st.status===o.val?' selected-'+o.val:''}" data-val="${o.val}" onclick="selectStatus('${tcId}','${o.val}',event)"><span class="status-dot"></span>${o.icon} ${o.label}</button>`).join('');
+
+      const solutionHTML = st.solucion_aplicada ? `
+        <div class="solution-box">
+          <strong>🛠️ Solución Aplicada / Corrección Implementada</strong>
+          <p>${escHtml(st.solucion_aplicada)}</p>
+        </div>` : '';
+
+      card.innerHTML = `
+        <div class="tc-card-header" onclick="toggleCard('${tcId}')">
+          <div class="tc-id-badge">${tcId}</div>
+          <div class="tc-head-info">
+            <div class="tc-title">${escHtml(tc.title)}</div>
+            <div class="tc-badges">
+              <span class="badge badge-module">${escHtml(tc.module)}</span>
+              <span class="badge ${pB}">${tc.priority}</span>
+              <span id="sbadge-${tcId}">${sBadge}</span>
+            </div>
+          </div>
+          <div class="tc-toggle-icon">▾</div>
+        </div>
+        <div class="tc-body">
+          <table class="steps-table">
+            <thead><tr><th>#</th><th>Paso a ejecutar</th><th>Resultado esperado</th></tr></thead>
+            <tbody>${stepsHTML}</tbody>
+          </table>
+          ${paramsHTML}
+          ${solutionHTML}
+          <div class="tc-form">
+            <div class="form-row"><span class="form-label">Estado</span><div class="status-group">${statusOpts}</div></div>
+            <div class="form-row">
+              <span class="form-label">Tester</span>
+              <input class="form-input" type="text" placeholder="Nombre del tester…" value="${escAttr(st.responsable)}" oninput="updateField('${tcId}','responsable',this.value)">
+              <span class="form-label" style="margin-left:6px">Fecha</span>
+              <input class="form-input fecha-input" type="date" value="${escAttr(st.fecha)}" oninput="updateField('${tcId}','fecha',this.value)">
+            </div>
+            <div class="form-row" style="flex-direction:column;gap:5px;">
+              <span class="form-label">Observaciones / Notas</span>
+              <textarea class="form-textarea" placeholder="Describí lo que observaste, errores, comportamientos inesperados…" oninput="updateField('${tcId}','notas',this.value)">${escHtml(st.notas)}</textarea>
+            </div>
+            <div class="form-row" style="flex-direction:column;gap:5px;margin-top:8px;">
+              <span class="form-label" style="color:var(--green-700);font-weight:700;">🛠️ Solución Aplicada (Detalle técnico / fix)</span>
+              <textarea class="form-textarea" style="border-color:#bbf7d0;background:#f0fdf4;" placeholder="Explicación de cómo se resolvió este punto..." oninput="updateField('${tcId}','solucion_aplicada',this.value)">${escHtml(st.solucion_aplicada || '')}</textarea>
+            </div>
+          </div>
+        </div>`;
+      container.appendChild(card);
+    });
+  });
+
+  applyFilter(currentFilter);
+  updateProgress();
+}
+
+// ─── INTERACTIONS ─────────────────────────────────────────────────────────────
+function selectStatus(tcId, val, e) {
+  if (e) e.stopPropagation();
+  const st = getTC(tcId);
+  st.status = st.status === val ? '' : val;
+  updateStatusUI(tcId);
+  save();
+}
+function toggleCard(id){document.getElementById('card-'+id).classList.toggle('collapsed');}
+function toggleAllCards(){allExpanded=!allExpanded;document.querySelectorAll('.tc-card').forEach(c=>{if(allExpanded)c.classList.add('collapsed');else c.classList.remove('collapsed');});}
+function updateField(id,field,val){getTC(id)[field]=val;save();}
+function updateStatusUI(id){
+  const st=getTC(id);
+  const card=document.getElementById('card-'+id);
+  card.className=card.className.replace(/\bstatus-\S+/g,'').trim();
+  if(st.status)card.classList.add('status-'+st.status);
+  card.dataset.status=st.status||'pending';
+  const badges={aprobado:`<span class="badge badge-ok">✅ Aprobado</span>`,fallido:`<span class="badge badge-fail">❌ Fallido</span>`,advertencia:`<span class="badge badge-warn">⚠️ Advertencia</span>`,'':`<span class="badge badge-pending">⏳ Pendiente</span>`};
+  document.getElementById('sbadge-'+id).innerHTML=badges[st.status]||badges[''];
+  card.querySelectorAll('.status-opt').forEach(btn=>{const v=btn.dataset.val;btn.className='status-opt'+(st.status===v?' selected-'+v:'');});
+  applyFilter(currentFilter);
+  updateSummary();
+}
+function setFilter(f,btn){currentFilter=f;document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));btn.classList.add('active');applyFilter(f);}
+function applyFilter(f){
+  document.querySelectorAll('.tc-card').forEach(card=>{
+    const status=card.dataset.status||'pending';
+    const priority=card.dataset.priority;
+    let show=true;
+    if(f==='pending')     show=status==='pending'||status==='';
+    else if(f==='aprobado')    show=status==='aprobado';
+    else if(f==='fallido')     show=status==='fallido';
+    else if(f==='advertencia') show=status==='advertencia';
+    else if(f==='critica')     show=priority==='critica';
+    card.classList.toggle('hidden',!show);
+  });
+}
+function doSearch(q){q=q.toLowerCase().trim();document.querySelectorAll('.tc-card').forEach(card=>{if(!q){card.classList.remove('hidden');return;}card.classList.toggle('hidden',!card.textContent.toLowerCase().includes(q));});}
+function setView(v){currentView=v;document.getElementById('cases-view').style.display=v==='cases'?'':'none';document.getElementById('summary-view').style.display=v==='summary'?'':'none';document.getElementById('btn-view-cases').classList.toggle('active',v==='cases');document.getElementById('btn-view-summary').classList.toggle('active',v==='summary');if(v==='summary')updateSummary();}
+function updateProgress(){
+  let ok=0,fail=0,warn=0,pend=0;
+  Object.keys(CASES).forEach(id=>{const s=getTC(id).status;if(s==='aprobado')ok++;else if(s==='fallido')fail++;else if(s==='advertencia')warn++;else pend++;});
+  const total=Object.keys(CASES).length,done=ok+fail+warn,pct=Math.round(done/total*100);
+  document.getElementById('stat-ok').textContent=ok;
+  document.getElementById('stat-fail').textContent=fail;
+  document.getElementById('stat-warn').textContent=warn;
+  document.getElementById('stat-pend').textContent=pend;
+  document.getElementById('progress-fill').style.width=pct+'%';
+  document.getElementById('progress-pct').textContent=pct+'%';
+  updateSummary();
+}
+function updateSummary(){
+  const tbody=document.getElementById('summary-tbody');
+  tbody.innerHTML='';
+  const sc={aprobado:'var(--green-700)',fallido:'var(--red-700)',advertencia:'var(--yellow-700)',''  :'var(--slate-400)'};
+  const sl={aprobado:'✅ Aprobado',fallido:'❌ Fallido',advertencia:'⚠️ Advertencia',''  :'⏳ Pendiente'};
+  Object.keys(CASES).forEach(id=>{
+    const tc=CASES[id],st=getTC(id);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${id}</td><td>${escHtml(tc.title)}</td><td style="color:var(--slate-500)">${escHtml(tc.module)}</td><td>${escHtml(tc.priority)}</td><td>${escHtml(st.responsable)||'<span style="color:var(--slate-400)">—</span>'}</td><td style="color:${sc[st.status]};font-weight:600">${sl[st.status]}</td><td style="color:var(--slate-500)">${escHtml(st.fecha)||'—'}</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--slate-600)" title="${escAttr(st.notas)}">${escHtml(st.notas)||'—'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+function exportCSV(){
+  const cols=['ID','Titulo','Modulo','Prioridad','Tester','Estado','Fecha','Observaciones'];
+  const rows=[cols.join(',')];
+  Object.keys(CASES).forEach(id=>{
+    const tc=CASES[id],st=getTC(id);
+    rows.push([id,`"${(tc.title||'').replace(/"/g,'""')}"`,`"${(tc.module||'').replace(/"/g,'""')}"`,tc.priority,`"${(st.responsable||'').replace(/"/g,'""')}"`,st.status||'pendiente',st.fecha||'',`"${(st.notas||'').replace(/"/g,'""').replace(/\n/g,' ')}"`].join(','));
+  });
+  const blob=new Blob(['\uFEFF'+rows.join('\n')],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download='QA_Optica_Paracao_Resultados.csv';a.click();URL.revokeObjectURL(url);
+  showToast('📄 Exportado como QA_Optica_Paracao_Resultados.csv');
+}
+function confirmReset(){document.getElementById('modal-overlay').classList.add('show');}
+function closeModal(){document.getElementById('modal-overlay').classList.remove('show');}
+async function doReset(){state={};localStorage.removeItem(LOCALSTORAGE_KEY);if(fileHandle)await writeFile();closeModal();render();showToast('🗑️ Todos los datos han sido reseteados');}
+let toastTimer;
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),4000);}
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();if(fileHandle)writeFile();else{localStorage.setItem(LOCALSTORAGE_KEY,JSON.stringify(state));showToast('✓ Guardado local (vinculá un archivo para compartir con el equipo)');}}});
+
+// Advertencia si el navegador no soporta File System Access API
+if (!FS_SUPPORTED) {
+  document.getElementById('banner-title').textContent = '⚠️ Tu navegador no soporta File System Access API — Usá Chrome o Edge';
+  document.getElementById('banner-desc').textContent = 'Internet Explorer o Firefox antiguo detectado. Para la función de archivo compartido usá Chrome o Edge. Los botones exportan/importan un JSON manualmente.';
+  document.getElementById('sync-banner').querySelector('.btn-green').textContent = '⬇ Exportar JSON';
+  document.getElementById('sync-banner').querySelector('.btn-white').textContent = '⬆ Importar JSON';
+}
+
+// ─── HELP MODAL ──────────────────────────────────────────────────────────────
+function openHelp() {
+  document.getElementById('help-overlay').classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeHelp() {
+  document.getElementById('help-overlay').classList.remove('show');
+  document.body.style.overflow = '';
+}
+function handleHelpOverlayClick(e) {
+  if (e.target === document.getElementById('help-overlay')) closeHelp();
+}
+function switchHelpTab(tab, el) {
+  document.querySelectorAll('.help-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.help-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('htab-' + tab).classList.add('active');
+  el.classList.add('active');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+loadLocalFallback();
+render();
+updateProgress();
+</script>
+</body>
+</html>

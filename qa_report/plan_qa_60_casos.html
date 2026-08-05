@@ -1,0 +1,1120 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan de QA Manual — Óptica Paracao — 60 Casos de Prueba</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --blue-dark: #1e3a8a;
+    --blue-mid: #2563eb;
+    --blue-light: #dbeafe;
+    --blue-soft: #eff6ff;
+    --green: #059669;
+    --green-light: #d1fae5;
+    --red: #dc2626;
+    --red-light: #fee2e2;
+    --yellow: #d97706;
+    --yellow-light: #fef3c7;
+    --slate-900: #0f172a;
+    --slate-700: #334155;
+    --slate-500: #64748b;
+    --slate-300: #cbd5e1;
+    --slate-100: #f1f5f9;
+    --slate-50: #f8fafc;
+    --white: #ffffff;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 11px;
+    color: var(--slate-900);
+    background: var(--white);
+    line-height: 1.5;
+  }
+
+  /* ─── COVER PAGE ─── */
+  .cover {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 50%, #2563eb 100%);
+    color: white;
+    text-align: center;
+    padding: 60px 40px;
+    page-break-after: always;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 400px; height: 400px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.05);
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    bottom: -100px; left: -60px;
+    width: 300px; height: 300px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.04);
+  }
+  .cover-logo {
+    font-size: 48px; margin-bottom: 12px;
+  }
+  .cover-tag {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50px;
+    padding: 6px 20px; margin-bottom: 32px;
+    display: inline-block;
+  }
+  .cover h1 {
+    font-size: 42px; font-weight: 900; line-height: 1.1;
+    margin-bottom: 8px;
+  }
+  .cover h2 {
+    font-size: 22px; font-weight: 400;
+    opacity: 0.85; margin-bottom: 40px;
+  }
+  .cover-divider {
+    width: 60px; height: 4px;
+    background: rgba(255,255,255,0.4);
+    border-radius: 4px; margin: 0 auto 40px;
+  }
+  .cover-stats {
+    display: flex; gap: 40px;
+    margin-bottom: 50px;
+  }
+  .cover-stat {
+    text-align: center;
+  }
+  .cover-stat-num {
+    font-size: 36px; font-weight: 900;
+    display: block; line-height: 1;
+  }
+  .cover-stat-label {
+    font-size: 11px; opacity: 0.7;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .cover-meta {
+    font-size: 12px; opacity: 0.65;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    padding-top: 20px;
+    display: flex; gap: 30px;
+    flex-wrap: wrap; justify-content: center;
+  }
+
+  /* ─── CONTENT PAGES ─── */
+  .page { padding: 40px 48px; }
+
+  /* ─── BLOCK HEADER ─── */
+  .block-header {
+    background: linear-gradient(135deg, var(--blue-dark), var(--blue-mid));
+    color: white;
+    border-radius: 12px;
+    padding: 18px 24px;
+    margin: 36px 0 20px;
+    display: flex; align-items: center; gap: 14px;
+    page-break-after: avoid;
+  }
+  .block-header .block-icon {
+    font-size: 24px;
+    width: 44px; height: 44px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .block-header h2 {
+    font-size: 16px; font-weight: 800; letter-spacing: -0.02em;
+  }
+  .block-header p {
+    font-size: 11px; opacity: 0.75; margin-top: 2px;
+  }
+
+  /* ─── TEST CASE CARD ─── */
+  .tc-card {
+    border: 1.5px solid var(--slate-300);
+    border-radius: 12px;
+    margin-bottom: 18px;
+    overflow: hidden;
+    page-break-inside: avoid;
+  }
+  .tc-header {
+    display: flex; align-items: flex-start; gap: 14px;
+    padding: 14px 18px;
+    background: var(--slate-50);
+    border-bottom: 1px solid var(--slate-300);
+  }
+  .tc-id {
+    background: var(--blue-dark);
+    color: white;
+    font-size: 10px; font-weight: 800;
+    border-radius: 6px;
+    padding: 4px 9px;
+    flex-shrink: 0; white-space: nowrap;
+    letter-spacing: 0.04em;
+  }
+  .tc-title-area { flex: 1; }
+  .tc-title {
+    font-size: 13px; font-weight: 700;
+    color: var(--slate-900); margin-bottom: 3px;
+  }
+  .tc-meta {
+    display: flex; gap: 8px; flex-wrap: wrap;
+  }
+  .badge {
+    font-size: 9.5px; font-weight: 700;
+    padding: 2px 8px; border-radius: 50px;
+    letter-spacing: 0.03em;
+  }
+  .badge-module { background: var(--blue-light); color: var(--blue-dark); }
+  .badge-critica { background: var(--red-light); color: var(--red); }
+  .badge-alta { background: var(--yellow-light); color: var(--yellow); }
+  .badge-media { background: var(--green-light); color: var(--green); }
+
+  /* ─── STEPS TABLE ─── */
+  .tc-body { padding: 16px 18px; }
+  table.steps {
+    width: 100%; border-collapse: collapse;
+    font-size: 10.5px;
+  }
+  table.steps thead tr {
+    background: var(--blue-dark);
+    color: white;
+  }
+  table.steps thead th {
+    padding: 7px 10px; text-align: left;
+    font-size: 9.5px; font-weight: 700;
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  table.steps thead th:first-child { border-radius: 6px 0 0 0; width: 28px; }
+  table.steps thead th:last-child  { border-radius: 0 6px 0 0; }
+  table.steps tbody tr:nth-child(even) { background: var(--slate-50); }
+  table.steps tbody tr:hover { background: var(--blue-soft); }
+  table.steps tbody td {
+    padding: 8px 10px; border-bottom: 1px solid var(--slate-100);
+    vertical-align: top;
+  }
+  table.steps tbody td:first-child {
+    font-weight: 800; color: var(--blue-mid);
+    text-align: center; white-space: nowrap;
+  }
+  table.steps tbody td:nth-child(2) { color: var(--slate-700); }
+  table.steps tbody td:nth-child(3) {
+    color: var(--green); font-weight: 600;
+    font-style: italic;
+  }
+
+  /* ─── STATUS FOOTER ─── */
+  .tc-footer {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px;
+    background: var(--slate-50);
+    border-top: 1px solid var(--slate-300);
+  }
+  .tc-footer span { font-size: 10px; font-weight: 600; color: var(--slate-500); }
+  .status-box {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status-item {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 600;
+  }
+  .status-check {
+    width: 16px; height: 16px; border-radius: 4px;
+    border: 1.5px solid var(--slate-300);
+    flex-shrink: 0;
+  }
+  .notes-line {
+    flex: 1;
+    border-bottom: 1px dashed var(--slate-300);
+    margin-left: 10px; margin-bottom: 2px;
+  }
+
+  /* ─── SUMMARY TABLE ─── */
+  .summary-section { padding: 40px 48px; page-break-before: always; }
+  .summary-title {
+    font-size: 22px; font-weight: 900; color: var(--blue-dark);
+    margin-bottom: 6px;
+  }
+  .summary-sub {
+    font-size: 12px; color: var(--slate-500); margin-bottom: 24px;
+  }
+  table.summary {
+    width: 100%; border-collapse: collapse;
+    font-size: 10px;
+  }
+  table.summary thead tr { background: var(--blue-dark); color: white; }
+  table.summary thead th {
+    padding: 8px 12px; text-align: left;
+    font-size: 9.5px; letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  table.summary tbody tr:nth-child(even) { background: var(--slate-50); }
+  table.summary tbody td {
+    padding: 8px 12px; border-bottom: 1px solid var(--slate-100);
+  }
+  table.summary td:first-child { font-weight: 800; color: var(--blue-mid); }
+  table.summary .cell-check {
+    width: 22px; height: 22px; border-radius: 5px;
+    border: 1.5px solid var(--slate-300); display: inline-block;
+  }
+
+  /* ─── PAGE FOOTER ─── */
+  @page { size: A4; margin: 0; }
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .no-print { display: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════ PORTADA ════════════════════ -->
+<div class="cover">
+  <div class="cover-logo">🔬</div>
+  <div class="cover-tag">Control de Calidad del Software</div>
+  <h1>Plan de QA Manual</h1>
+  <h2>Óptica Gestión Paracáo</h2>
+  <div class="cover-divider"></div>
+  <div class="cover-stats">
+    <div class="cover-stat">
+      <span class="cover-stat-num">60</span>
+      <span class="cover-stat-label">Casos de Prueba</span>
+    </div>
+    <div class="cover-stat">
+      <span class="cover-stat-num">10</span>
+      <span class="cover-stat-label">Módulos Cubiertos</span>
+    </div>
+    <div class="cover-stat">
+      <span class="cover-stat-num">4</span>
+      <span class="cover-stat-label">Niveles de Prioridad</span>
+    </div>
+  </div>
+  <div class="cover-meta">
+    <span>📅 Versión: 2.0 — Julio 2026</span>
+    <span>🌐 Sistema: opticagestionparacao.lnx.com.ar</span>
+    <span>👥 Equipo: QA Óptica Paracáo</span>
+  </div>
+</div>
+
+<!-- ════════════════════ BLOQUE A: AUTENTICACIÓN ════════════════════ -->
+<div class="page">
+<div class="block-header">
+  <div class="block-icon">🔐</div>
+  <div>
+    <h2>Bloque A — Autenticación y Navegación</h2>
+    <p>TC-01 al TC-03 · Verificación de acceso, sesiones y rutas del sistema</p>
+  </div>
+</div>
+
+<!-- TC-01 -->
+<div class="tc-card">
+  <div class="tc-header">
+    <div class="tc-id">TC-01</div>
+    <div class="tc-title-area">
+      <div class="tc-title">Login con Credenciales Válidas</div>
+      <div class="tc-meta">
+        <span class="badge badge-module">Autenticación</span>
+        <span class="badge badge-critica">🔴 Crítica</span>
+      </div>
+    </div>
+  </div>
+  <div class="tc-body">
+    <table class="steps">
+      <thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Abrir https://opticagestionparacao.lnx.com.ar</td><td>Se muestra la pantalla de login con campos de Email, Contraseña y Sucursal</td></tr>
+        <tr><td>2</td><td>Ingresar email: astudillajuansimon@gmail.com</td><td>El campo acepta el texto sin errores</td></tr>
+        <tr><td>3</td><td>Ingresar contraseña: juansimon</td><td>La contraseña se muestra oculta con asteriscos</td></tr>
+        <tr><td>4</td><td>Seleccionar una Sucursal del desplegable</td><td>La sucursal se selecciona correctamente</td></tr>
+        <tr><td>5</td><td>Hacer clic en "Iniciar Sesión"</td><td>El sistema redirige al Dashboard sin errores</td></tr>
+        <tr><td>6</td><td>Verificar que el Dashboard muestre métricas y menú lateral</td><td>El Dashboard carga con todos sus elementos visibles</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tc-footer">
+    <span>Estado:</span>
+    <div class="status-box">
+      <div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;
+      <div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;
+      <div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div>
+    </div>
+    <div class="notes-line"></div>
+    <span>Notas:</span>
+  </div>
+</div>
+
+<!-- TC-02 -->
+<div class="tc-card">
+  <div class="tc-header">
+    <div class="tc-id">TC-02</div>
+    <div class="tc-title-area">
+      <div class="tc-title">Login con Contraseña Incorrecta</div>
+      <div class="tc-meta">
+        <span class="badge badge-module">Autenticación</span>
+        <span class="badge badge-critica">🔴 Crítica</span>
+      </div>
+    </div>
+  </div>
+  <div class="tc-body">
+    <table class="steps">
+      <thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Abrir la pantalla de login</td><td>Se muestra la pantalla de login</td></tr>
+        <tr><td>2</td><td>Ingresar email válido y contraseña INCORRECTA: clavemaluscrita</td><td>El campo acepta el texto</td></tr>
+        <tr><td>3</td><td>Hacer clic en "Iniciar Sesión"</td><td>Se muestra un mensaje de error claro ("Credenciales inválidas")</td></tr>
+        <tr><td>4</td><td>Verificar que NO se accede al sistema</td><td>El usuario permanece en la pantalla de login</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- TC-03 -->
+<div class="tc-card">
+  <div class="tc-header">
+    <div class="tc-id">TC-03</div>
+    <div class="tc-title-area">
+      <div class="tc-title">Navegación Completa por el Menú Lateral</div>
+      <div class="tc-meta">
+        <span class="badge badge-module">Navegación</span>
+        <span class="badge badge-alta">🟡 Alta</span>
+      </div>
+    </div>
+  </div>
+  <div class="tc-body">
+    <table class="steps">
+      <thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>Hacer clic en "Clientes" en el menú</td><td>Se carga la lista de clientes sin errores</td></tr>
+        <tr><td>2</td><td>Hacer clic en "Inventario"</td><td>Se carga la tabla de inventario de productos</td></tr>
+        <tr><td>3</td><td>Hacer clic en "Trabajos / Taller"</td><td>Se muestra el listado de trabajos de laboratorio</td></tr>
+        <tr><td>4</td><td>Hacer clic en "Caja / Ventas"</td><td>Se muestra el módulo de caja o punto de venta</td></tr>
+        <tr><td>5</td><td>Hacer clic en "Métricas"</td><td>Se visualizan los gráficos y estadísticas</td></tr>
+        <tr><td>6</td><td>Hacer clic en "Configuración"</td><td>Se abre la pantalla de ajustes del sistema</td></tr>
+        <tr><td>7</td><td>Hacer clic en el logo o "Dashboard"</td><td>Se regresa al panel principal sin errores</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- ════════════════════ BLOQUE B: CLIENTES ════════════════════ -->
+<div class="block-header">
+  <div class="block-icon">👥</div>
+  <div>
+    <h2>Bloque B — Gestión de Clientes</h2>
+    <p>TC-04 al TC-10 · Alta, búsqueda, edición, obras sociales y cuenta corriente</p>
+  </div>
+</div>
+
+<!-- TC-04 -->
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-04</div><div class="tc-title-area"><div class="tc-title">Alta de Cliente con Todos los Datos</div><div class="tc-meta"><span class="badge badge-module">Clientes</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body">
+    <table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+      <tr><td>1</td><td>Ir a "Clientes" → clic en "Nuevo Cliente"</td><td>Se abre el formulario/modal de alta</td></tr>
+      <tr><td>2</td><td>Nombre: María García | DNI: 30.555.777</td><td>Los campos aceptan los datos</td></tr>
+      <tr><td>3</td><td>Teléfono: 343-4123456 | Email: mariagarcia@email.com</td><td>Los campos aceptan los datos</td></tr>
+      <tr><td>4</td><td>Fecha de Nacimiento: 15/03/1985</td><td>El campo calcula la edad automáticamente</td></tr>
+      <tr><td>5</td><td>Dirección: Av. Rivadavia 1234</td><td>El campo acepta la dirección</td></tr>
+      <tr><td>6</td><td>Hacer clic en "Guardar"</td><td>El cliente aparece en el listado</td></tr>
+      <tr><td>7</td><td>Buscar "María García" en el buscador</td><td>El cliente recién creado aparece en los resultados</td></tr>
+    </tbody></table>
+  </div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- TC-05 -->
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-05</div><div class="tc-title-area"><div class="tc-title">Alta de Cliente con DNI Duplicado</div><div class="tc-meta"><span class="badge badge-module">Clientes</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body">
+    <table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+      <tr><td>1</td><td>Ir a "Nuevo Cliente"</td><td>Se abre el formulario</td></tr>
+      <tr><td>2</td><td>Ingresar el mismo DNI de un cliente ya existente: 30.555.777</td><td>El campo acepta el valor</td></tr>
+      <tr><td>3</td><td>Completar el resto de los datos y hacer clic en "Guardar"</td><td>El sistema muestra advertencia de DNI duplicado (o anotar si permite duplicados)</td></tr>
+    </tbody></table>
+  </div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- TC-06 -->
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-06</div><div class="tc-title-area"><div class="tc-title">Búsqueda de Cliente por DNI</div><div class="tc-meta"><span class="badge badge-module">Clientes</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body">
+    <table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+      <tr><td>1</td><td>Ir a "Clientes" y escribir "30555777" en el buscador</td><td>La lista filtra en tiempo real mostrando a "María García"</td></tr>
+      <tr><td>2</td><td>Borrar el texto del buscador</td><td>La lista vuelve a mostrar todos los clientes</td></tr>
+      <tr><td>3</td><td>Buscar por nombre parcial: "mar"</td><td>Aparecen todos los clientes cuyo nombre contiene "mar"</td></tr>
+    </tbody></table>
+  </div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- TC-07 -->
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-07</div><div class="tc-title-area"><div class="tc-title">Edición de Datos de un Cliente</div><div class="tc-meta"><span class="badge badge-module">Clientes</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body">
+    <table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+      <tr><td>1</td><td>Buscar a "María García" y hacer clic en editar (ícono lápiz)</td><td>Se abre el formulario con los datos precargados</td></tr>
+      <tr><td>2</td><td>Modificar el teléfono a "343-9999888" y hacer clic en "Guardar"</td><td>El teléfono se actualiza en el listado</td></tr>
+      <tr><td>3</td><td>Volver a buscar al cliente y verificar el nuevo teléfono</td><td>Se muestra el número "343-9999888"</td></tr>
+    </tbody></table>
+  </div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- TC-08 -->
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-08</div><div class="tc-title-area"><div class="tc-title">Asignación de Obra Social a un Cliente</div><div class="tc-meta"><span class="badge badge-module">Clientes</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body">
+    <table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+      <tr><td>1</td><td>Abrir edición de "María García"</td><td>Se abre el formulario con sus datos</td></tr>
+      <tr><td>2</td><td>Seleccionar una Obra Social (ej. PAMI o OSDE) del desplegable</td><td>La obra social queda asignada</td></tr>
+      <tr><td>3</td><td>Guardar los cambios</td><td>La mutua queda vinculada al cliente</td></tr>
+      <tr><td>4</td><td>Ir a "Nueva Orden" y buscar a "María García"</td><td>Aparece un badge azul con el nombre de la obra social junto al DNI del cliente</td></tr>
+    </tbody></table>
+  </div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- TC-09 -->
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-09</div><div class="tc-title-area"><div class="tc-title">Vista del Historial de Compras de un Cliente</div><div class="tc-meta"><span class="badge badge-module">Clientes</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body">
+    <table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+      <tr><td>1</td><td>Buscar un cliente con historial y hacer clic en su ícono de historial</td><td>Se abre un modal con el historial de compras/trabajos</td></tr>
+      <tr><td>2</td><td>Verificar que cada compra muestra fecha, tipo y monto</td><td>Los datos históricos son legibles y completos</td></tr>
+      <tr><td>3</td><td>Cerrar el modal</td><td>El modal se cierra sin errores</td></tr>
+    </tbody></table>
+  </div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- TC-10 -->
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-10</div><div class="tc-title-area"><div class="tc-title">Cobro de Seña / Pago Parcial en Cuenta Corriente</div><div class="tc-meta"><span class="badge badge-module">Cuenta Corriente</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body">
+    <table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+      <tr><td>1</td><td>Buscar un cliente con saldo deudor y hacer clic en "Cobrar"</td><td>Se abre el modal de registro de pago</td></tr>
+      <tr><td>2</td><td>Ingresar monto parcial: $5.000 | Medio de pago: Efectivo | Caja: Caja Efectivo</td><td>Los campos aceptan los datos</td></tr>
+      <tr><td>3</td><td>Hacer clic en "Emitir Recibo" o "Confirmar Pago"</td><td>El pago se registra y el saldo disminuye en $5.000</td></tr>
+      <tr><td>4</td><td>Verificar que se genera un recibo imprimible</td><td>Se abre la ventana de impresión del recibo</td></tr>
+    </tbody></table>
+  </div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- ════════════════════ BLOQUE C: INVENTARIO ════════════════════ -->
+<div class="block-header">
+  <div class="block-icon">📦</div>
+  <div><h2>Bloque C — Inventario y Stock</h2><p>TC-11 al TC-18 · Alta de productos, movimientos y gestión multi-sucursal</p></div>
+</div>
+
+<!-- TC-11 a TC-18 condensados para mantener extensión razonable -->
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-11</div><div class="tc-title-area"><div class="tc-title">Alta de Nuevo Producto con Precio Positivo</div><div class="tc-meta"><span class="badge badge-module">Inventario</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Inventario" → "Añadir Nuevo"</td><td>Se abre el modal de producto</td></tr>
+    <tr><td>2</td><td>Nombre: Armazón QA Pro | SKU: QA-001 | Categoría: Armazones</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Stock Casa Central: 10 | Stock Shopping: 5 | Stock Crítico: 3</td><td>Los campos aceptan los valores numéricos</td></tr>
+    <tr><td>4</td><td>Precio de Compra: $8.000 | Precio de Venta: $20.000</td><td>Los campos aceptan valores positivos</td></tr>
+    <tr><td>5</td><td>Hacer clic en "Guardar Producto"</td><td>El artículo aparece en la tabla de inventario</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-12</div><div class="tc-title-area"><div class="tc-title">Bloqueo de Precio Negativo en Inventario</div><div class="tc-meta"><span class="badge badge-module">Inventario / Validaciones</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Inventario" → "Añadir Nuevo" y completar todos los campos correctamente</td><td>Formulario con datos</td></tr>
+    <tr><td>2</td><td>En "Precio de Venta" ingresar: -1500 y hacer clic en "Guardar"</td><td>El sistema muestra alerta: "El precio no puede ser negativo"</td></tr>
+    <tr><td>3</td><td>Verificar que el producto NO se guarda en la tabla</td><td>El modal permanece abierto; no se crea el artículo</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-13</div><div class="tc-title-area"><div class="tc-title">Ingreso de Mercadería (Aumento de Stock)</div><div class="tc-meta"><span class="badge badge-module">Inventario / Stock</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Inventario" → botón "Ingreso de Mercadería"</td><td>Se abre el modal de ingreso</td></tr>
+    <tr><td>2</td><td>Sucursal: Casa Central | Producto: Armazón QA Pro | Cantidad: 20 | Costo: $8.500</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Hacer clic en "Registrar Ingreso"</td><td>El stock en Casa Central aumenta en 20 unidades</td></tr>
+    <tr><td>4</td><td>Verificar el nuevo total de stock en la tabla</td><td>El stock refleja la suma anterior + 20</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-14</div><div class="tc-title-area"><div class="tc-title">Egreso de Stock por Rotura / Pérdida</div><div class="tc-meta"><span class="badge badge-module">Inventario / Movimientos</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Hacer clic derecho en "Armazón QA Pro" y seleccionar "Registrar Egreso"</td><td>Se abre el modal de egreso</td></tr>
+    <tr><td>2</td><td>Sucursal: Casa Central | Cantidad: 3 | Motivo: Rotura</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Hacer clic en "Confirmar Egreso"</td><td>El stock disminuye en 3 unidades</td></tr>
+    <tr><td>4</td><td>Ir a la pestaña "Movimientos"</td><td>El movimiento aparece registrado en el historial</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-15</div><div class="tc-title-area"><div class="tc-title">Transferencia de Stock entre Sucursales</div><div class="tc-meta"><span class="badge badge-module">Inventario / Multi-Sucursal</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Hacer clic derecho en "Armazón QA Pro" → "Mover Stock"</td><td>Se abre el modal de transferencia</td></tr>
+    <tr><td>2</td><td>Origen: Casa Central | Destino: Shopping | Cantidad: 5</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Hacer clic en "Confirmar Transferencia"</td><td>Casa Central -5 unidades, Shopping +5 unidades</td></tr>
+    <tr><td>4</td><td>Verificar el stock por sucursal haciendo clic en el número de stock del producto</td><td>El popover muestra el stock correcto por sucursal</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-16</div><div class="tc-title-area"><div class="tc-title">Transferencia con Stock Insuficiente</div><div class="tc-meta"><span class="badge badge-module">Inventario / Validaciones</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Abrir "Mover Stock" para cualquier producto con sucursal origen con stock = 0</td><td>Se abre el modal</td></tr>
+    <tr><td>2</td><td>Ingresar cantidad: 10 y hacer clic en "Confirmar"</td><td>El sistema muestra alerta de stock insuficiente con la cantidad disponible</td></tr>
+    <tr><td>3</td><td>Verificar que el stock no se modifica</td><td>Los stocks de ambas sucursales permanecen igual</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-17</div><div class="tc-title-area"><div class="tc-title">Búsqueda y Filtrado en Inventario</div><div class="tc-meta"><span class="badge badge-module">Inventario / Filtros</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>En el buscador de Inventario escribir "QA"</td><td>La tabla filtra y muestra solo "Armazón QA Pro"</td></tr>
+    <tr><td>2</td><td>Cambiar el filtro de categoría a "Cristales"</td><td>La tabla muestra solo productos de esa categoría</td></tr>
+    <tr><td>3</td><td>Cambiar el filtro de sucursal a "Shopping"</td><td>El stock mostrado corresponde al de Shopping</td></tr>
+    <tr><td>4</td><td>Limpiar todos los filtros</td><td>La tabla vuelve a mostrar todos los productos</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-18</div><div class="tc-title-area"><div class="tc-title">Eliminación de un Producto del Inventario</div><div class="tc-meta"><span class="badge badge-module">Inventario</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a la pestaña "Productos" del módulo de Inventario y localizar "Armazón QA Pro"</td><td>El producto está visible</td></tr>
+    <tr><td>2</td><td>Hacer clic en el ícono de eliminar (basura/trash)</td><td>Aparece una ventana de confirmación</td></tr>
+    <tr><td>3</td><td>Confirmar la eliminación</td><td>El producto desaparece de la tabla</td></tr>
+    <tr><td>4</td><td>Buscar "QA-001" en el buscador</td><td>No se encuentran resultados</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- ════════════════════ BLOQUE D: RECETAS ════════════════════ -->
+<div class="block-header">
+  <div class="block-icon">👁️</div>
+  <div><h2>Bloque D — Recetas y Órdenes de Laboratorio</h2><p>TC-19 al TC-23 · Graduación, multifocales, obras sociales y envío a lab</p></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-19</div><div class="tc-title-area"><div class="tc-title">Alta de Receta Monofocal Completa</div><div class="tc-meta"><span class="badge badge-module">Recetas</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Nueva Orden" → tipo "Monofocal"</td><td>Se muestra el formulario de receta monofocal</td></tr>
+    <tr><td>2</td><td>Asociar cliente "María García" (buscar por DNI o nombre)</td><td>El cliente se vincula y sus datos se autocompletan</td></tr>
+    <tr><td>3</td><td>OD Lejos: Esf +1.50 | Cil -0.50 | Eje 90°</td><td>Los campos aceptan los valores ópticos</td></tr>
+    <tr><td>4</td><td>OI Lejos: Esf +1.00 | Cil 0.00 | Eje 0° | DNP: 62</td><td>Los campos aceptan los valores</td></tr>
+    <tr><td>5</td><td>Seleccionar un cristal del desplegable y un armazón haciendo clic en "Buscar Marco"</td><td>Cristal y marco quedan asignados; el total se calcula automáticamente</td></tr>
+    <tr><td>6</td><td>Hacer clic en "Agregar al Carrito"</td><td>La orden se agrega sin errores</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-20</div><div class="tc-title-area"><div class="tc-title">Advertencia de Dioptrías Fuera de Rango (±30.00)</div><div class="tc-meta"><span class="badge badge-module">Recetas / Validaciones</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Nueva Orden" → "Monofocal"</td><td>Se muestra el formulario</td></tr>
+    <tr><td>2</td><td>En OD Lejos Esférico ingresar: +35.00</td><td>El campo acepta el valor</td></tr>
+    <tr><td>3</td><td>Hacer clic en "Agregar al Carrito"</td><td>El sistema muestra alerta: "Dioptrías fuera del rango habitual. ¿Deseas continuar?"</td></tr>
+    <tr><td>4</td><td>Hacer clic en "Cancelar" en la alerta</td><td>La orden NO se agrega; se permanece en el formulario</td></tr>
+    <tr><td>5</td><td>Corregir el valor a +3.50 y confirmar</td><td>La orden se agrega sin más alertas de rango</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-21</div><div class="tc-title-area"><div class="tc-title">Alta de Receta Multifocal con Adición</div><div class="tc-meta"><span class="badge badge-module">Recetas / Multifocal</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Nueva Orden" → tipo "Multifocal"</td><td>Se muestra el formulario con secciones Lejos, Cerca y Adición</td></tr>
+    <tr><td>2</td><td>Cargar graduación Lejos y Cerca para OD y OI</td><td>Los campos se completan correctamente</td></tr>
+    <tr><td>3</td><td>Adición OD: +2.00 | Adición OI: +2.25</td><td>Los campos aceptan los valores</td></tr>
+    <tr><td>4</td><td>Seleccionar un cristal multifocal del desplegable</td><td>El precio base se muestra y se valida el rango</td></tr>
+    <tr><td>5</td><td>Confirmar y agregar al carrito</td><td>La orden multifocal se agrega correctamente</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-22</div><div class="tc-title-area"><div class="tc-title">Receta con Descuento de Obra Social</div><div class="tc-meta"><span class="badge badge-module">Recetas / Obras Sociales</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Crear nueva receta y asociar al cliente "María García" (con obra social asignada)</td><td>Se muestra el badge de la Obra Social del cliente</td></tr>
+    <tr><td>2</td><td>Seleccionar un cristal y un armazón</td><td>El subtotal se calcula correctamente</td></tr>
+    <tr><td>3</td><td>Verificar en el resumen del pedido que se aplica el descuento de la mutua</td><td>Total final = Subtotal - Cobertura de la obra social</td></tr>
+    <tr><td>4</td><td>Confirmar el pedido</td><td>Se agrega al carrito con el precio descontado correcto</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-23</div><div class="tc-title-area"><div class="tc-title">Envío de Pedido a Laboratorio Externo</div><div class="tc-meta"><span class="badge badge-module">Recetas / Laboratorio</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Crear una nueva receta completa y buscar el botón "Enviar a Laboratorio"</td><td>El botón está visible en el formulario</td></tr>
+    <tr><td>2</td><td>Seleccionar un laboratorio de la lista y una fecha de entrega</td><td>El laboratorio y la fecha quedan asignados</td></tr>
+    <tr><td>3</td><td>Hacer clic en "Enviar" o "Asignar Lab"</td><td>El lab queda vinculado y se muestra en el resumen del pedido</td></tr>
+    <tr><td>4</td><td>(Opcional) Hacer clic en "Imprimir Tarjeta de Laboratorio"</td><td>Se abre una ventana con la orden de lab lista para imprimir</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- ════════════════════ BLOQUES E-J CONDENSADOS ════════════════════ -->
+<div class="block-header"><div class="block-icon">🔧</div><div><h2>Bloque E — Taller / Trabajos</h2><p>TC-24 al TC-26 · Listado, estados y documentos de laboratorio</p></div></div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-24</div><div class="tc-title-area"><div class="tc-title">Visualización y Filtrado del Listado de Trabajos</div><div class="tc-meta"><span class="badge badge-module">Taller</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Trabajos / Taller" desde el menú</td><td>Se muestra el listado de órdenes con cliente, tipo, estado y fecha</td></tr>
+    <tr><td>2</td><td>Filtrar por estado "Pendientes"</td><td>La lista muestra solo los trabajos con ese estado</td></tr>
+    <tr><td>3</td><td>Buscar por nombre de cliente</td><td>La lista filtra en tiempo real</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-25</div><div class="tc-title-area"><div class="tc-title">Flujo Completo de Estados de un Trabajo</div><div class="tc-meta"><span class="badge badge-module">Taller / Estados</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Localizar un trabajo en estado "Pendiente" y cambiarlo a "En Taller"</td><td>El badge cambia de color al nuevo estado</td></tr>
+    <tr><td>2</td><td>Cambiar el estado a "Listo"</td><td>El badge se actualiza correctamente</td></tr>
+    <tr><td>3</td><td>Cambiar el estado a "Entregado"</td><td>El trabajo se marca como entregado y puede pasar al historial</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card">
+  <div class="tc-header"><div class="tc-id">TC-26</div><div class="tc-title-area"><div class="tc-title">Impresión de Tarjeta de Laboratorio</div><div class="tc-meta"><span class="badge badge-module">Taller / Impresión</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Localizar un trabajo con laboratorio asignado y hacer clic en el ícono de impresora</td><td>Se abre una ventana de preview de impresión</td></tr>
+    <tr><td>2</td><td>Verificar que el documento contiene: cliente, graduación, laboratorio y fecha de entrega</td><td>Todos los datos están correctamente impresos</td></tr>
+    <tr><td>3</td><td>Cerrar la ventana de impresión</td><td>Se cierra sin errores</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="block-header"><div class="block-icon">💰</div><div><h2>Bloque F — Caja, Ventas y Tesorería</h2><p>TC-27 al TC-30 · Ventas, pagos, gastos y verificación de saldos</p></div></div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-27</div><div class="tc-title-area"><div class="tc-title">Registro de Venta Completa en Efectivo</div><div class="tc-meta"><span class="badge badge-module">Caja / Ventas</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Tener una orden en el carrito y abrir la pantalla de venta/cierre</td><td>Se muestra el resumen del pedido con total</td></tr>
+    <tr><td>2</td><td>Seleccionar Medio de Pago: Efectivo | Caja: Caja Efectivo | Monto: el total del pedido</td><td>Los campos aceptan los datos y el vuelto se calcula si corresponde</td></tr>
+    <tr><td>3</td><td>Hacer clic en "Confirmar Venta"</td><td>La venta se registra, el carrito se vacía y aparece un comprobante</td></tr>
+    <tr><td>4</td><td>Verificar el movimiento en el historial de Caja</td><td>La transacción es visible con el monto correcto</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-28</div><div class="tc-title-area"><div class="tc-title">Venta por Transferencia Bancaria</div><div class="tc-meta"><span class="badge badge-module">Caja / Ventas</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Tener una orden en el carrito y seleccionar: Medio de Pago: Transferencia | Banco: el disponible</td><td>Los campos se seleccionan correctamente</td></tr>
+    <tr><td>2</td><td>Confirmar la venta</td><td>La venta se registra en la caja bancaria/digital, NO en la caja de efectivo</td></tr>
+    <tr><td>3</td><td>Verificar en el historial que el movimiento está en la caja correcta</td><td>La transacción aparece en la caja bancaria</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-29</div><div class="tc-title-area"><div class="tc-title">Registro de Gasto Operativo en Caja</div><div class="tc-meta"><span class="badge badge-module">Caja / Egresos</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Caja" y hacer clic en "Registrar Gasto" o "Nuevo Egreso"</td><td>Se abre el formulario de egreso</td></tr>
+    <tr><td>2</td><td>Concepto: Servicios | Monto: $8.500 | Descripción: Factura de luz - Julio | Caja: Efectivo</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Confirmar el gasto</td><td>El saldo de la caja disminuye en $8.500 y el movimiento queda registrado</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-30</div><div class="tc-title-area"><div class="tc-title">Verificación del Saldo de Caja en Tiempo Real</div><div class="tc-meta"><span class="badge badge-module">Caja / Saldo</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Anotar el saldo actual de la caja efectivo ANTES de realizar movimientos</td><td>Saldo inicial anotado correctamente</td></tr>
+    <tr><td>2</td><td>Registrar una venta de $10.000 en efectivo y un gasto de $2.000 en efectivo</td><td>Ambos movimientos se registran</td></tr>
+    <tr><td>3</td><td>Verificar que el saldo final = Saldo inicial + $10.000 - $2.000</td><td>El sistema es matemáticamente consistente</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="block-header"><div class="block-icon">📊</div><div><h2>Bloque G — Métricas · H — Configuración · I — Seguridad · J — Borde</h2><p>TC-31 al TC-40 · Reportes, ajustes, permisos y casos extremos</p></div></div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-31</div><div class="tc-title-area"><div class="tc-title">Dashboard de Métricas y KPIs</div><div class="tc-meta"><span class="badge badge-module">Métricas</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Métricas" y verificar que se muestran indicadores: Ventas del mes, Trabajos activos, Clientes nuevos</td><td>Los KPIs tienen valores numéricos visibles</td></tr>
+    <tr><td>2</td><td>Cambiar el rango de fechas (ej. último trimestre)</td><td>Los gráficos se actualizan con los datos del período</td></tr>
+    <tr><td>3</td><td>Verificar que los totales coinciden con las ventas registradas en la sesión</td><td>Los datos de Caja se reflejan en las métricas</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-32</div><div class="tc-title-area"><div class="tc-title">Ranking de Productos Más Vendidos</div><div class="tc-meta"><span class="badge badge-module">Métricas / Reportes</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Métricas" y localizar el informe de "Productos más vendidos"</td><td>El reporte muestra nombre, cantidad vendida y monto total por producto</td></tr>
+    <tr><td>2</td><td>Aplicar filtro por la semana actual</td><td>Los resultados se actualizan con datos del período seleccionado</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-33</div><div class="tc-title-area"><div class="tc-title">Edición de Datos Generales de la Óptica</div><div class="tc-meta"><span class="badge badge-module">Configuración / General</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Configuración" → pestaña "General"</td><td>Se muestran los datos de la óptica</td></tr>
+    <tr><td>2</td><td>Modificar el Teléfono y la Dirección y hacer clic en "Guardar"</td><td>Los cambios se guardan correctamente</td></tr>
+    <tr><td>3</td><td>Recargar la página (F5) y volver a Configuración</td><td>Los datos modificados persisten correctamente</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-34</div><div class="tc-title-area"><div class="tc-title">Gestión de Obras Sociales (Alta y Cobertura)</div><div class="tc-meta"><span class="badge badge-module">Configuración / Obras Sociales</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a Configuración → "Obras Sociales" → "Nueva Obra Social"</td><td>Se abre el formulario de alta</td></tr>
+    <tr><td>2</td><td>Nombre: IOMA Test QA | Cobertura Cristales: $3.000 | Cobertura Armazones: $1.500</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Guardar la obra social y verificar que aparece en el listado</td><td>La mutua es visible en la lista de obras sociales</td></tr>
+    <tr><td>4</td><td>Editar la cobertura de "Cristales" a $4.000 y guardar</td><td>La cobertura se actualiza correctamente</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-35</div><div class="tc-title-area"><div class="tc-title">Gestión de Usuarios y Roles del Sistema</div><div class="tc-meta"><span class="badge badge-module">Configuración / Usuarios</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a Configuración → "Usuarios" y hacer clic en "Nuevo Usuario"</td><td>Se abre el formulario de alta de usuario</td></tr>
+    <tr><td>2</td><td>Nombre: Tester QA | Email: testerqa@optica.com | Rol: Vendedor</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Guardar y verificar que aparece en el listado</td><td>El usuario figura en la tabla de usuarios</td></tr>
+    <tr><td>4</td><td>Ir a "Permisos" y verificar los accesos del rol "Vendedor"</td><td>Se visualizan los módulos habilitados y restringidos por rol</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-36</div><div class="tc-title-area"><div class="tc-title">Alta de Cristal en la Tabla de Cristales</div><div class="tc-meta"><span class="badge badge-module">Configuración / Cristales</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a Configuración → "Tabla de Cristales" → "Nuevo Cristal"</td><td>Se abre el modal de alta</td></tr>
+    <tr><td>2</td><td>Marca: QA Brand | Tipo: Monofocal | Material: Orgánico | Índice: 1.50 | Precio: $8.000</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Rango Esférico: Mín -8.00 / Máx +8.00 y guardar</td><td>El cristal aparece en la tabla</td></tr>
+    <tr><td>4</td><td>Ir a "Nueva Orden" y verificar que "QA Brand" aparece en el desplegable de cristales</td><td>El cristal está disponible para seleccionar</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-37</div><div class="tc-title-area"><div class="tc-title">Sanitización de Entradas Maliciosas (XSS)</div><div class="tc-meta"><span class="badge badge-module">Seguridad</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Nuevo Cliente" y en el campo Nombre escribir: &lt;script&gt;alert('XSS')&lt;/script&gt;</td><td>El campo acepta el texto visualmente</td></tr>
+    <tr><td>2</td><td>Guardar el cliente</td><td>El sistema guarda el nombre como texto plano SIN ejecutar el script</td></tr>
+    <tr><td>3</td><td>Buscar al cliente en el listado</td><td>El nombre se muestra como texto literal; no hay ningún popup ni alerta ejecutada</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-38</div><div class="tc-title-area"><div class="tc-title">Acceso a Rutas Protegidas Sin Autenticación</div><div class="tc-meta"><span class="badge badge-module">Seguridad / Rutas</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Cerrar sesión completamente en el sistema</td><td>Se muestra la pantalla de login</td></tr>
+    <tr><td>2</td><td>Escribir en la URL: .../clients y presionar Enter</td><td>El sistema redirige automáticamente al login</td></tr>
+    <tr><td>3</td><td>Intentar .../inventory y .../settings sin sesión</td><td>Ambas rutas redirigen al login</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-39</div><div class="tc-title-area"><div class="tc-title">Validaciones con Campos Obligatorios Vacíos</div><div class="tc-meta"><span class="badge badge-module">Validaciones</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Nuevo Cliente", dejar todos los campos vacíos y hacer clic en "Guardar"</td><td>Se muestra validación de campos requeridos; el modal no se cierra</td></tr>
+    <tr><td>2</td><td>Verificar que los campos obligatorios se destacan visualmente (borde rojo o mensaje)</td><td>Los errores de validación son claros y legibles</td></tr>
+    <tr><td>3</td><td>Repetir en "Añadir Nuevo Producto" del inventario con campos vacíos</td><td>El mismo comportamiento de validación</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-40</div><div class="tc-title-area"><div class="tc-title">Responsive Design en Pantalla Reducida</div><div class="tc-meta"><span class="badge badge-module">UX / Responsive</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Abrir el sistema en escritorio (ventana completa)</td><td>Se visualiza correctamente en ancho completo</td></tr>
+    <tr><td>2</td><td>Reducir la ventana al 50% del ancho</td><td>El layout se adapta sin desbordamientos horizontales</td></tr>
+    <tr><td>3</td><td>Abrir DevTools del navegador → Toggle Device → simular tablet (768px)</td><td>Los menús y tablas son utilizables</td></tr>
+    <tr><td>4</td><td>Simular celular (375px)</td><td>Los formularios y botones son accesibles sin scroll horizontal innecesario</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<!-- ════════════════════ NUEVOS TC-41 AL TC-60 ════════════════════ -->
+<div class="block-header" style="margin-top:40px;">
+  <div class="block-icon">🆕</div>
+  <div><h2>Bloque K — 20 Casos Nuevos: Integración Avanzada y Borde</h2><p>TC-41 al TC-60 · Contabilidad, impresión, multi-sesión, concurrencia y exportación</p></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-41</div><div class="tc-title-area"><div class="tc-title">Anulación de una Venta Registrada</div><div class="tc-meta"><span class="badge badge-module">Caja / Anulaciones</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Caja" y localizar una venta registrada en el historial del día</td><td>La transacción es visible con su monto</td></tr>
+    <tr><td>2</td><td>Hacer clic en el botón de anular/void de esa transacción</td><td>Aparece un diálogo de confirmación de anulación</td></tr>
+    <tr><td>3</td><td>Confirmar la anulación</td><td>El monto se revierte en la caja y la transacción se marca como anulada</td></tr>
+    <tr><td>4</td><td>Verificar que el saldo de la caja refleja la resta del monto anulado</td><td>El balance es matemáticamente correcto post-anulación</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-42</div><div class="tc-title-area"><div class="tc-title">Aplicación de Descuento Porcentual en una Venta</div><div class="tc-meta"><span class="badge badge-module">POS / Descuentos</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Tener un pedido en el carrito con un total de por ejemplo $30.000</td><td>El total se muestra correctamente</td></tr>
+    <tr><td>2</td><td>Aplicar un descuento del 10% (si el campo está disponible en el cierre de venta)</td><td>El sistema calcula el nuevo total: $27.000</td></tr>
+    <tr><td>3</td><td>Confirmar la venta con el descuento aplicado</td><td>La venta se registra con el monto descontado</td></tr>
+    <tr><td>4</td><td>Verificar en el historial de caja que el monto registrado es el descontado</td><td>El movimiento muestra $27.000 (no el original)</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-43</div><div class="tc-title-area"><div class="tc-title">Recarga de Página — Persistencia de Datos</div><div class="tc-meta"><span class="badge badge-module">Persistencia / UX</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Crear un cliente, un producto y una venta en la sesión activa</td><td>Los tres registros son visibles en sus módulos</td></tr>
+    <tr><td>2</td><td>Presionar F5 para recargar la página del navegador</td><td>La sesión se mantiene activa (no cierra sesión)</td></tr>
+    <tr><td>3</td><td>Verificar que los tres registros persisten después de recargar</td><td>Los datos no se pierden al recargar</td></tr>
+    <tr><td>4</td><td>Cerrar el navegador y volver a abrirlo</td><td>La sesión puede haber expirado (es correcto); los datos de DB persisten</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-44</div><div class="tc-title-area"><div class="tc-title">Impresión de Ticket / Comprobante de Venta</div><div class="tc-meta"><span class="badge badge-module">Caja / Impresión</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Después de confirmar una venta, buscar el botón "Imprimir Comprobante" o "Ticket"</td><td>El botón está visible en la pantalla de confirmación</td></tr>
+    <tr><td>2</td><td>Hacer clic en el botón</td><td>Se abre una ventana de impresión con el comprobante</td></tr>
+    <tr><td>3</td><td>Verificar que el ticket contiene: nombre cliente, detalle de la compra, monto total, fecha y número de operación</td><td>Todos los datos son legibles y correctos</td></tr>
+    <tr><td>4</td><td>Cerrar la ventana de impresión</td><td>La ventana se cierra correctamente</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-45</div><div class="tc-title-area"><div class="tc-title">Alta de Laboratorio Proveedor</div><div class="tc-meta"><span class="badge badge-module">Configuración / Laboratorios</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a Configuración → pestaña "Laboratorios" → "Nuevo Laboratorio"</td><td>Se abre el formulario de alta</td></tr>
+    <tr><td>2</td><td>Nombre: Lab QA Test | Teléfono: 343-0000111 | Email: labqa@test.com | Contacto: Juan Lab</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Guardar el laboratorio</td><td>Aparece en el listado de laboratorios disponibles</td></tr>
+    <tr><td>4</td><td>Ir a una nueva receta y verificar que "Lab QA Test" aparece en el selector de laboratorio</td><td>El laboratorio está disponible para ser asignado a pedidos</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-46</div><div class="tc-title-area"><div class="tc-title">Alta de Banco / Caja Digital</div><div class="tc-meta"><span class="badge badge-module">Configuración / Bancos</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a Configuración → pestaña "Bancos" → "Nuevo Banco"</td><td>Se abre el formulario de alta</td></tr>
+    <tr><td>2</td><td>Nombre: Mercado Pago QA | Tipo: Digital Wallet</td><td>Los campos aceptan los datos</td></tr>
+    <tr><td>3</td><td>Guardar y verificar que aparece en el listado de cajas disponibles</td><td>La caja digital figura en la lista</td></tr>
+    <tr><td>4</td><td>Ir a Caja y verificar que "Mercado Pago QA" aparece como opción de medio de pago</td><td>La nueva caja está disponible para registrar transacciones</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-47</div><div class="tc-title-area"><div class="tc-title">Carga de Logo de la Óptica</div><div class="tc-meta"><span class="badge badge-module">Configuración / Apariencia</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a Configuración → "General" o "Apariencia" y localizar el campo para subir el logo</td><td>El campo de carga de imagen es visible</td></tr>
+    <tr><td>2</td><td>Subir un archivo de imagen (PNG o JPG, tamaño razonable)</td><td>La imagen se carga y se muestra como preview</td></tr>
+    <tr><td>3</td><td>Guardar los cambios</td><td>El logo se guarda correctamente</td></tr>
+    <tr><td>4</td><td>Ir a "Nueva Orden" y verificar que el logo aparece en la tarjeta de laboratorio imprimible</td><td>El logo de la óptica se muestra en documentos de impresión</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-48</div><div class="tc-title-area"><div class="tc-title">Cambio de Tema / Modo Oscuro</div><div class="tc-meta"><span class="badge badge-module">Configuración / Apariencia</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a Configuración → "Apariencia" y localizar la opción de Tema (Claro / Oscuro)</td><td>El selector de tema es visible</td></tr>
+    <tr><td>2</td><td>Cambiar al modo "Oscuro" y guardar</td><td>La interfaz cambia a tonos oscuros de forma inmediata</td></tr>
+    <tr><td>3</td><td>Navegar por varios módulos en modo oscuro</td><td>No hay textos ilegibles ni contraste insuficiente</td></tr>
+    <tr><td>4</td><td>Volver a modo "Claro" y verificar que la interfaz regresa a los colores originales</td><td>El cambio de tema funciona en ambas direcciones</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-49</div><div class="tc-title-area"><div class="tc-title">Búsqueda Global en el Sistema (Si Existe)</div><div class="tc-meta"><span class="badge badge-module">UX / Búsqueda</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Verificar si existe un campo de búsqueda global o comando de búsqueda (Ctrl+K o ícono de lupa en el header)</td><td>El campo de búsqueda global existe (o anotar que no existe)</td></tr>
+    <tr><td>2</td><td>Buscar el nombre "María García"</td><td>Se sugieren resultados del cliente desde distintos módulos</td></tr>
+    <tr><td>3</td><td>Hacer clic en el resultado del cliente</td><td>Navega directamente a la ficha de ese cliente</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-50</div><div class="tc-title-area"><div class="tc-title">Verificación de Paginación en Listados Extensos</div><div class="tc-meta"><span class="badge badge-module">UX / Rendimiento</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir al módulo de Clientes y verificar si existen controles de paginación (botones Siguiente/Anterior o scroll infinito)</td><td>Los controles de paginación son visibles y funcionales</td></tr>
+    <tr><td>2</td><td>Hacer clic en "Siguiente página" si aplica</td><td>Se carga la siguiente página de clientes sin errores</td></tr>
+    <tr><td>3</td><td>Repetir en Inventario con muchos productos</td><td>La lista no colapsa ni presenta lag notable</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-51</div><div class="tc-title-area"><div class="tc-title">Venta de Producto de Mostrador (Sin Receta)</div><div class="tc-meta"><span class="badge badge-module">Caja / Venta Directa</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Nueva Venta" o desde el módulo de Caja seleccionar "Venta Directa"</td><td>Se abre el formulario de venta de mostrador</td></tr>
+    <tr><td>2</td><td>Agregar un producto del inventario (ej. estuche, líquido de lentes) sin receta asociada</td><td>El producto se agrega al carrito con su precio</td></tr>
+    <tr><td>3</td><td>Seleccionar cliente "Mostrador" o sin cliente y confirmar la venta en efectivo</td><td>La venta se procesa correctamente sin requerir datos de graduación</td></tr>
+    <tr><td>4</td><td>Verificar el movimiento en caja</td><td>El movimiento queda registrado con el monto correcto</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-52</div><div class="tc-title-area"><div class="tc-title">Alta de Receta para Lentes de Contacto</div><div class="tc-meta"><span class="badge badge-module">Recetas / Lentes de Contacto</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Nueva Orden" y seleccionar tipo "Lentes de Contacto"</td><td>Se muestra el formulario específico para L.C. (potencia, curva base, diámetro)</td></tr>
+    <tr><td>2</td><td>Asociar un cliente y completar la potencia OD: -2.50 y OI: -2.75</td><td>Los campos aceptan los valores con signo negativo</td></tr>
+    <tr><td>3</td><td>Seleccionar el tipo de L.C. (diario, mensual) y confirmar</td><td>La orden se agrega al carrito correctamente</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-53</div><div class="tc-title-area"><div class="tc-title">Historial Comparativo de Recetas de un Cliente</div><div class="tc-meta"><span class="badge badge-module">Clientes / Ficha Óptica</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Buscar un cliente que tenga al menos 2 recetas previas y abrir su historial de órdenes</td><td>Se listan las órdenes históricas del cliente</td></tr>
+    <tr><td>2</td><td>Verificar que cada orden muestra la fecha, el tipo y los valores de graduación asociados</td><td>Los datos de cada receta son completos y ordenados cronológicamente</td></tr>
+    <tr><td>3</td><td>Comparar la graduación de la receta más antigua con la más nueva para ver la evolución</td><td>Es posible visualizar la evolución de la graduación del cliente</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-54</div><div class="tc-title-area"><div class="tc-title">Validación del Cristal Fuera de Rango de la Receta</div><div class="tc-meta"><span class="badge badge-module">Recetas / Cristales</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Crear una receta con gradación OD +6.00 y seleccionar un cristal con rango máximo de +4.00</td><td>El sistema muestra una advertencia en pantalla indicando que la graduación supera el rango del cristal</td></tr>
+    <tr><td>2</td><td>Verificar que la advertencia es visible y clara para el operador</td><td>El mensaje de validación es legible con el rango admitido del cristal</td></tr>
+    <tr><td>3</td><td>Seleccionar un cristal con rango compatible y verificar que la advertencia desaparece</td><td>La advertencia se elimina al elegir un cristal adecuado</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-55</div><div class="tc-title-area"><div class="tc-title">Alta de Categoría de Inventario Personalizada</div><div class="tc-meta"><span class="badge badge-module">Configuración / Categorías</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a Configuración → "Categorías" → agregar una nueva categoría: "Accesorios QA"</td><td>La categoría se crea y aparece en el listado</td></tr>
+    <tr><td>2</td><td>Ir a "Inventario" → "Añadir Nuevo" y verificar que "Accesorios QA" aparece en el desplegable de categorías</td><td>La nueva categoría está disponible para nuevos productos</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-56</div><div class="tc-title-area"><div class="tc-title">Visualización de Audit Log de Acciones</div><div class="tc-meta"><span class="badge badge-module">Configuración / Audit</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a Configuración → pestaña "Audit Log" o similar</td><td>Se muestra un historial de acciones registradas en el sistema</td></tr>
+    <tr><td>2</td><td>Verificar que las acciones realizadas en la sesión están registradas (alta de cliente, ventas, etc.)</td><td>Las acciones son trazables con usuario, fecha, hora y descripción</td></tr>
+    <tr><td>3</td><td>Verificar que el log es solo de lectura (no se puede editar ni eliminar)</td><td>No hay botones de edición en el log de auditoría</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-57</div><div class="tc-title-area"><div class="tc-title">Eliminación de un Cliente (Con Historial Asociado)</div><div class="tc-meta"><span class="badge badge-module">Clientes / Integridad</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Buscar un cliente que tenga ventas o trabajos asociados</td><td>El cliente aparece en la lista</td></tr>
+    <tr><td>2</td><td>Intentar eliminar el cliente (si el botón existe)</td><td>El sistema muestra una advertencia de que el cliente tiene historial asociado</td></tr>
+    <tr><td>3</td><td>Verificar que se requiere confirmación explícita o que el sistema impide la eliminación de clientes con actividad</td><td>No se elimina accidentalmente; el sistema protege la integridad de datos</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-58</div><div class="tc-title-area"><div class="tc-title">Formulario de Receta para un Solo Ojo (OD u OI)</div><div class="tc-meta"><span class="badge badge-module">Recetas / Casos Especiales</span><span class="badge badge-alta">🟡 Alta</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Ir a "Nueva Orden" → "Monofocal" y en el selector de ojos elegir solo "Ojo Derecho (OD)"</td><td>El formulario habilita solo los campos del ojo derecho</td></tr>
+    <tr><td>2</td><td>Completar la graduación solo para OD y hacer clic en "Agregar al Carrito"</td><td>El sistema pregunta si es intencional cargar solo un ojo</td></tr>
+    <tr><td>3</td><td>Confirmar que es intencional</td><td>La orden se agrega al carrito con solo el cristal del ojo derecho y el precio correspondiente (50% del cristal doble)</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-59</div><div class="tc-title-area"><div class="tc-title">Ingreso de Caracteres Especiales y Emojis en Campos de Texto</div><div class="tc-meta"><span class="badge badge-module">Seguridad / Robustez</span><span class="badge badge-media">🟢 Media</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>En "Nuevo Cliente", escribir en el campo Nombre: "Ángel Müñöz 😊 & Cía"</td><td>El campo acepta caracteres especiales, acentuados y emojis</td></tr>
+    <tr><td>2</td><td>Guardar el cliente</td><td>El nombre se guarda exactamente con todos los caracteres</td></tr>
+    <tr><td>3</td><td>Buscar "Müñöz" en el buscador</td><td>El cliente se encuentra correctamente con el nombre completo</td></tr>
+    <tr><td>4</td><td>Verificar que no hay errores de encoding ni caracteres corruptos</td><td>Los datos se muestran sin alteraciones</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+<div class="tc-card"><div class="tc-header"><div class="tc-id">TC-60</div><div class="tc-title-area"><div class="tc-title">Cierre de Sesión y Limpieza de Datos de la Sesión</div><div class="tc-meta"><span class="badge badge-module">Autenticación / Seguridad</span><span class="badge badge-critica">🔴 Crítica</span></div></div></div>
+  <div class="tc-body"><table class="steps"><thead><tr><th>#</th><th>Paso a Ejecutar</th><th>Resultado Esperado</th></tr></thead><tbody>
+    <tr><td>1</td><td>Hacer clic en el menú de usuario (avatar/nombre) y seleccionar "Cerrar Sesión"</td><td>El sistema redirige a la pantalla de login</td></tr>
+    <tr><td>2</td><td>Presionar el botón Atrás del navegador</td><td>No se permite volver a la pantalla anterior; redirige al login</td></tr>
+    <tr><td>3</td><td>Intentar acceder a cualquier ruta protegida directamente por URL</td><td>El sistema redirige al login sin mostrar datos de la sesión anterior</td></tr>
+    <tr><td>4</td><td>Iniciar sesión con otro usuario (si existe) y verificar que NO se ven datos de sesiones previas en caché</td><td>Cada sesión está aislada correctamente</td></tr>
+  </tbody></table></div>
+  <div class="tc-footer"><span>Estado:</span><div class="status-box"><div class="status-item"><div class="status-check"></div>✅ APROBADO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>❌ FALLIDO</div>&nbsp;&nbsp;<div class="status-item"><div class="status-check"></div>⚠️ ADVERTENCIA</div></div><div class="notes-line"></div><span>Notas:</span></div>
+</div>
+
+</div><!-- end page -->
+
+<!-- ════════════════════ TABLA RESUMEN ════════════════════ -->
+<div class="summary-section">
+  <div class="summary-title">📊 Hoja de Resultados del Equipo QA</div>
+  <div class="summary-sub">Sistema: opticagestionparacao.lnx.com.ar · Completar por cada tester · ✅ Aprobado · ❌ Fallido · ⚠️ Advertencia</div>
+  <table class="summary">
+    <thead><tr><th>ID</th><th>Caso de Prueba</th><th>Responsable</th><th>Estado</th><th>Fecha</th><th>Observaciones</th></tr></thead>
+    <tbody>
+      <tr><td>TC-01</td><td>Login con Credenciales Válidas</td><td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td><td><div class="cell-check"></div></td><td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td><td>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</td></tr>
+      <tr><td>TC-02</td><td>Login con Contraseña Incorrecta</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-03</td><td>Navegación Completa por el Menú</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-04</td><td>Alta de Cliente con Todos los Datos</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-05</td><td>Alta de Cliente con DNI Duplicado</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-06</td><td>Búsqueda de Cliente por DNI</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-07</td><td>Edición de Datos de un Cliente</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-08</td><td>Asignación de Obra Social a un Cliente</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-09</td><td>Vista del Historial de Compras</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-10</td><td>Cobro de Seña / Pago Parcial</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-11</td><td>Alta de Nuevo Producto</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-12</td><td>Bloqueo de Precio Negativo</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-13</td><td>Ingreso de Mercadería</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-14</td><td>Egreso de Stock por Rotura</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-15</td><td>Transferencia entre Sucursales</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-16</td><td>Transferencia con Stock Insuficiente</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-17</td><td>Búsqueda y Filtrado en Inventario</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-18</td><td>Eliminación de un Producto</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-19</td><td>Alta de Receta Monofocal Completa</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-20</td><td>Advertencia Dioptrías Fuera de Rango</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-21</td><td>Alta de Receta Multifocal</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-22</td><td>Receta con Descuento de Obra Social</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-23</td><td>Envío a Laboratorio Externo</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-24</td><td>Listado de Trabajos en Taller</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-25</td><td>Flujo Completo de Estados de Trabajo</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-26</td><td>Impresión de Tarjeta de Laboratorio</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-27</td><td>Venta Completa en Efectivo</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-28</td><td>Venta por Transferencia Bancaria</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-29</td><td>Registro de Gasto Operativo</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-30</td><td>Verificación del Saldo en Tiempo Real</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-31</td><td>Dashboard de Métricas y KPIs</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-32</td><td>Ranking de Productos Más Vendidos</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-33</td><td>Edición de Datos de la Óptica</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-34</td><td>Gestión de Obras Sociales</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-35</td><td>Gestión de Usuarios y Roles</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-36</td><td>Alta de Cristal en Tabla</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-37</td><td>Sanitización XSS</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-38</td><td>Acceso a Rutas Sin Autenticación</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-39</td><td>Validaciones con Campos Vacíos</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-40</td><td>Responsive / Pantalla Reducida</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-41</td><td>Anulación de Venta Registrada</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-42</td><td>Descuento Porcentual en Venta</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-43</td><td>Persistencia de Datos al Recargar</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-44</td><td>Impresión de Ticket de Venta</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-45</td><td>Alta de Laboratorio Proveedor</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-46</td><td>Alta de Banco / Caja Digital</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-47</td><td>Carga de Logo de la Óptica</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-48</td><td>Cambio de Tema / Modo Oscuro</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-49</td><td>Búsqueda Global del Sistema</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-50</td><td>Paginación en Listados Extensos</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-51</td><td>Venta de Mostrador (Sin Receta)</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-52</td><td>Receta para Lentes de Contacto</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-53</td><td>Historial Comparativo de Recetas</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-54</td><td>Cristal Fuera de Rango de Receta</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-55</td><td>Alta de Categoría Personalizada</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-56</td><td>Visualización del Audit Log</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-57</td><td>Eliminación de Cliente con Historial</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-58</td><td>Receta para un Solo Ojo</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-59</td><td>Caracteres Especiales y Emojis</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+      <tr><td>TC-60</td><td>Cierre de Sesión y Limpieza</td><td></td><td><div class="cell-check"></div></td><td></td><td></td></tr>
+    </tbody>
+  </table>
+  <div style="margin-top:30px; padding-top:20px; border-top:1px dashed #cbd5e1; font-size:10px; color:#64748b; text-align:center;">
+    Plan de QA Manual v2.0 · Óptica Paracáo · 60 Casos de Prueba · Generado por Antigravity AI · Julio 2026
+  </div>
+</div>
+
+</body>
+</html>

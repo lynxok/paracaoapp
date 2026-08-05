@@ -202,17 +202,24 @@ export function Inventory() {
     const form = e.currentTarget as HTMLFormElement;
     const formDataObj = new FormData(form);
 
-    const name = formDataObj.get("name") as string;
-    const sku = formDataObj.get("sku") as string;
+    const name = (formDataObj.get("name") as string || "").trim();
+    const sku = (formDataObj.get("sku") as string || "").trim();
     const cat = modalCategory;
     const productColor = formDataObj.get("productColor") as string || "";
     const lensType = formDataObj.get("lensType") as string || "";
-    const priceVal = parseFloat(formDataObj.get("price") as string) || 0;
-    const buyPriceVal = parseFloat(formDataObj.get("buyPrice") as string) || 0;
+    const rawPrice = formDataObj.get("price") as string;
+    const rawBuyPrice = formDataObj.get("buyPrice") as string;
+    const priceVal = parseFloat(rawPrice);
+    const buyPriceVal = parseFloat(rawBuyPrice);
     const criticalStockVal = parseInt(formDataObj.get("criticalStock") as string) || 5;
     
-    if (priceVal < 0 || buyPriceVal < 0) {
-      alert("El precio de venta y el precio de compra no pueden ser valores negativos.");
+    if (!name || !sku) {
+      alert("Por favor, completa los campos obligatorios: Nombre y SKU.");
+      return;
+    }
+
+    if (isNaN(priceVal) || priceVal < 0 || isNaN(buyPriceVal) || buyPriceVal < 0) {
+      alert("Los precios deben ser números válidos iguales o mayores a 0.");
       return;
     }
     

@@ -34,13 +34,15 @@ import {
   Plus,
   Info,
   FileText,
-  HelpCircle
+  HelpCircle,
+  BookOpen
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useAuth } from "../context/AuthContext";
 import { useNotifications } from "../context/NotificationsContext";
 import { useCart } from "../context/CartContext";
 import { CartSidebar } from "./CartSidebar";
+import { GuidedManualLauncher } from "./manual/GuidedManualLauncher";
 
 const menuItems = [
   { path: "/", icon: LayoutDashboard, label: "Inicio" },
@@ -72,6 +74,129 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
   });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [isManualLauncherOpen, setIsManualLauncherOpen] = useState(false);
+
+  const startInteractiveHoverMode = () => {
+    const guideEl = document.getElementById('manual-overlay-guide');
+    if (guideEl) {
+      guideEl.remove();
+    } else {
+      const overlay = document.createElement('div');
+      overlay.id = 'manual-overlay-guide';
+      overlay.className = 'fixed inset-0 z-[999] bg-transparent pointer-events-none flex flex-col justify-between p-6 animate-in fade-in duration-200';
+      overlay.innerHTML = `
+        <div class="flex justify-between items-center bg-slate-900/95 border border-blue-500/50 p-4 rounded-2xl shadow-2xl pointer-events-auto backdrop-blur-md">
+          <div class="flex items-center gap-3">
+            <span class="text-2xl">📖</span>
+            <div>
+              <h3 class="text-base font-bold text-blue-400">Modo Manual Interactivo Vivo (Activo)</h3>
+              <p class="text-xs text-slate-300">Pasa el mouse sobre cualquier botón, campo o tabla para ver su explicación en tiempo real.</p>
+            </div>
+          </div>
+          <button id="close-manual-btn" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs shadow-lg transition-all cursor-pointer">
+            ✕ Salir del Manual
+          </button>
+        </div>
+
+        <!-- Tooltip Flotante Esquina Inferior Derecha -->
+        <div id="manual-tooltip-card" class="fixed bottom-6 right-6 bg-slate-900/95 border border-blue-500/50 p-5 rounded-2xl w-96 text-left space-y-2 shadow-2xl pointer-events-none transition-all duration-200 backdrop-blur-md z-[1000]">
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-blue-500/20 text-blue-400 font-bold text-[10px] rounded uppercase tracking-wider">💡 Explicación en Tiempo Real</span>
+          </div>
+          <h4 id="manual-tip-title" class="text-sm font-bold text-white">Pasa el cursor sobre un elemento</h4>
+          <p id="manual-tip-desc" class="text-xs text-slate-300 leading-relaxed">
+            Mueve el cursor por el menú izquierdo, botones de acciones rápidas o formularios para leer para qué sirve cada uno.
+          </p>
+        </div>
+      `;
+      document.body.appendChild(overlay);
+
+      const closeBtn = document.getElementById('close-manual-btn');
+      if (closeBtn) {
+        closeBtn.onclick = () => {
+          document.getElementById('manual-overlay-guide')?.remove();
+          document.removeEventListener('mouseover', handleMouseOver);
+        };
+      }
+
+      const handleMouseOver = (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        const titleEl = document.getElementById('manual-tip-title');
+        const descEl = document.getElementById('manual-tip-desc');
+        if (!titleEl || !descEl) return;
+
+        // 1. Priorizar atributos explícitos data-manual-title y data-manual-description
+        const manualAttrEl = target.closest('[data-manual-title]') as HTMLElement;
+        if (manualAttrEl) {
+          titleEl.innerText = manualAttrEl.getAttribute('data-manual-title') || 'Elemento del Sistema';
+          descEl.innerText = manualAttrEl.getAttribute('data-manual-description') || 'Sin descripción detallada disponible.';
+          return;
+        }
+
+        const text = target.innerText?.trim() || target.getAttribute('placeholder') || target.getAttribute('title') || '';
+
+        // Detecciones por coincidencia de texto
+        if (text.includes('Registrar Cliente') || target.closest('a[href="/clients/new"]')) {
+          titleEl.innerText = "Registrar Cliente";
+          descEl.innerText = "Abre la ficha de alta para ingresar DNI, Nombre, Teléfono y Obra Social de un nuevo paciente.";
+        } else if (text.includes('Nuevo Cliente') || text.includes('+ Nuevo Cliente')) {
+          titleEl.innerText = "Alta de Nuevo Paciente";
+          descEl.innerText = "Permite registrar un nuevo paciente completando sus datos personales y cobertura de mutual.";
+        } else if (text.includes('Recetados') || target.closest('a[href="/orders/new"]')) {
+          titleEl.innerText = "Nuevo Pedido / Recetados";
+          descEl.innerText = "Abre la pantalla de carga técnica para graduaciones oftálmicas (Monofocales, Multifocales, Contactología).";
+        } else if (text.includes('Monofocales') || text.includes('Monofocal')) {
+          titleEl.innerText = "Cristales Monofocales";
+          descEl.innerText = "Visión sencilla para lejos o cerca. Carga única de Esfera, Cilindro y Eje.";
+        } else if (text.includes('Multifocales') || text.includes('Multifocal')) {
+          titleEl.innerText = "Cristales Multifocales Progresivos";
+          descEl.innerText = "Visión progresiva multifocal. Requiere carga de Adición (ADD) y Altura Pupilar.";
+        } else if (text.includes('Ocupacionales')) {
+          titleEl.innerText = "Lentes Ocupacionales";
+          descEl.innerText = "Lentes de visión intermedia para oficinas y computadoras.";
+        } else if (text.includes('Contactología') || text.includes('Lentes de Contacto')) {
+          titleEl.innerText = "Lentes de Contacto";
+          descEl.innerText = "Carga de parámetros específicos para lentes de contacto blandas, tóricas o gas permeables.";
+        } else if (text.includes('Agregar marco') || text.includes('Armazón')) {
+          titleEl.innerText = "Selección de Armazón";
+          descEl.innerText = "Enlaza un armazón del inventario por SKU o ingresa una montura propia del cliente.";
+        } else if (text.includes('Enviar a Laboratorio') || text.includes('Enviar a Taller')) {
+          titleEl.innerText = "Derivación a Laboratorio";
+          descEl.innerText = "Genera el remito de trabajo técnico para taller de biselado o laboratorio externo.";
+        } else if (text.includes('Agregar al Carrito')) {
+          titleEl.innerText = "Agregar al Carrito de Ventas";
+          descEl.innerText = "Envia el pedido técnico al resumen de venta para cobro o registro de seña.";
+        } else if (text.includes('Venta No Recetados') || target.closest('a[href="/sales"]')) {
+          titleEl.innerText = "Venta No Recetados (Venta Rápida)";
+          descEl.innerText = "Despacho directo de mostrador para lentes de sol, líquidos limpiadores, estuches y accesorios de stock.";
+        } else if (text.includes('Ingreso Mercadería') || target.closest('a[href="/inventory/reception"]')) {
+          titleEl.innerText = "Ingreso de Mercadería";
+          descEl.innerText = "Permite recibir paquetes físicos de proveedores incrementando masivamente el inventario de SKUs.";
+        } else if (text.includes('Arqueo de Caja') || target.closest('a[href="/finance"]')) {
+          titleEl.innerText = "Arqueo de Caja y Finanzas";
+          descEl.innerText = "Gestión de efectivo diario (apertura, ingresos, egresos) y módulo de conciliación bancaria.";
+        } else if (text.includes('Clientes') || target.closest('a[href="/clients"]')) {
+          titleEl.innerText = "Módulo de Clientes";
+          descEl.innerText = "Directorio general de pacientes, consulta de Cuenta Corriente, cobro de saldos y legajo histórico.";
+        } else if (text.includes('Stock') || target.closest('a[href="/inventory"]')) {
+          titleEl.innerText = "Módulo de Stock e Inventario";
+          descEl.innerText = "Catálogo de existencias de armazones, cristales base e insumos con alertas de stock mínimo.";
+        } else if (text.includes('Proveedores') || target.closest('a[href="/suppliers"]')) {
+          titleEl.innerText = "Módulo de Proveedores y Compras";
+          descEl.innerText = "Directorio de distribuidores, carga de facturas de compra y tablero de facturas pendientes de pago.";
+        } else if (text.includes('Laboratorios') || target.closest('a[href="/lab-management"]')) {
+          titleEl.innerText = "Liquidación de Laboratorios";
+          descEl.innerText = "Control de trabajos en taller enviado a laboratorios externos de tallado y montajes.";
+        } else {
+          // Fallback limpio cuando el elemento no tiene coincidencia específica
+          titleEl.innerText = "Elemento del Sistema";
+          descEl.innerText = "Este elemento todavía no tiene ayuda contextual específica asignada.";
+        }
+      };
+
+      document.addEventListener('mouseover', handleMouseOver);
+    }
+  };
   const { currentUser, currentBranch, logout } = useAuth();
   
   const [profileData, setProfileData] = useState({
@@ -403,6 +528,16 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
               </div>
             </button>
 
+            {/* Toggle Modo Manual / Guiado */}
+            <button 
+              onClick={() => setIsManualLauncherOpen(true)}
+              className="px-3 py-2 rounded-full glass-panel hover:bg-blue-600/20 border border-blue-500/30 text-blue-600 dark:text-blue-400 transition-all font-bold text-xs flex items-center gap-2 active:scale-95 shadow-sm"
+              title="Abrir Modo Manual y Tutoriales Guiados"
+            >
+              <BookOpen className="w-4 h-4 text-blue-500 animate-pulse" />
+              <span className="hidden sm:inline">Modo Manual</span>
+            </button>
+
             {/* Cart Toggle Button */}
             <div className="relative">
               <button
@@ -653,6 +788,12 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
             </div>
           </div>
         )}
+        {/* Guided Manual Launcher Component */}
+        <GuidedManualLauncher
+          isOpen={isManualLauncherOpen}
+          onClose={() => setIsManualLauncherOpen(false)}
+          onStartInteractiveHoverMode={startInteractiveHoverMode}
+        />
       </div>
     </div>
   );

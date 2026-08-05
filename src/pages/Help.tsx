@@ -46,6 +46,7 @@ export function Help() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("todos");
   const [openFaq, setOpenFaq] = useState<string | null>(null);
+  const [openArticleId, setOpenArticleId] = useState<string | null>(null);
 
   // Transposition Calculator State
   const [sph, setSph] = useState("");
@@ -718,7 +719,21 @@ Enviado desde el Centro de Ayuda del Sistema.`;
             Explora las guías operativas paso a paso y la documentación técnica de todos los módulos de tu sistema de gestión óptica.
           </p>
           
-          <div className="relative mt-6">
+          {/* Direct Shortcut to Guided Tasks */}
+          <div className="pt-2 flex flex-wrap items-center gap-3">
+            <button
+              onClick={() => {
+                const btn = document.querySelector('button[title="Abrir Modo Manual y Tutoriales Guiados"]') as HTMLButtonElement;
+                if (btn) btn.click();
+              }}
+              className="px-5 py-3 bg-white text-blue-900 hover:bg-blue-50 font-bold text-xs rounded-xl shadow-xl transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+            >
+              <BookOpen className="w-4 h-4 text-blue-600 animate-bounce" />
+              Aprender una Tarea (Tutoriales Guiados con Animación)
+            </button>
+          </div>
+
+          <div className="relative pt-2">
             <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
@@ -874,40 +889,74 @@ Enviado desde el Centro de Ayuda del Sistema.`;
             </h2>
             
             {filteredArticles.length > 0 ? (
-              filteredArticles.map((art) => (
-                <div 
-                  key={art.id} 
-                  className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm hover:shadow-md transition-shadow space-y-4 animate-in fade-in-50 duration-200"
-                >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-md">
-                        {categories.find(c => c.id === art.category)?.label}
-                      </span>
-                      <h3 className="text-lg font-bold dark:text-white mt-2">{art.title}</h3>
-                      <p className="text-slate-500 dark:text-slate-400 text-xs">{art.shortDesc}</p>
+              filteredArticles.map((art) => {
+                const isOpen = openArticleId === art.id;
+                return (
+                  <div 
+                    key={art.id} 
+                    className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm hover:shadow-md transition-all space-y-4 animate-in fade-in-50 duration-200"
+                  >
+                    <div 
+                      onClick={() => setOpenArticleId(isOpen ? null : art.id)}
+                      className="flex items-start justify-between gap-4 cursor-pointer select-none"
+                    >
+                      <div className="space-y-1">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 px-2.5 py-1 rounded-md">
+                          {categories.find(c => c.id === art.category)?.label}
+                        </span>
+                        <h3 className="text-lg font-bold dark:text-white mt-2 flex items-center gap-2">
+                          {art.title}
+                        </h3>
+                        <p className="text-slate-500 dark:text-slate-400 text-xs">{art.shortDesc}</p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const btn = document.querySelector('button[title="Abrir Modo Manual y Tutoriales Guiados"]') as HTMLButtonElement;
+                            if (btn) btn.click();
+                          }}
+                          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-blue-600/10 hover:bg-blue-600 text-blue-600 hover:text-white dark:text-blue-400 dark:hover:text-white rounded-xl text-xs font-bold transition-all border border-blue-500/20"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" /> Ver Demo Animada
+                        </button>
+                        <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500">
+                          {isOpen ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                        </div>
+                      </div>
+                    </div>
+                    {isOpen && (
+                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 animate-in fade-in duration-200 space-y-4">
+                        {art.content}
+                        <div className="flex justify-end pt-2">
+                          <button
+                            onClick={() => {
+                              const btn = document.querySelector('button[title="Abrir Modo Manual y Tutoriales Guiados"]') as HTMLButtonElement;
+                              if (btn) btn.click();
+                            }}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold shadow flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <BookOpen className="w-4 h-4" /> Iniciar Tutorial Guiado Animado
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-1.5 pt-2">
+                      {art.tags.map(tag => (
+                        <span 
+                          key={tag} 
+                          onClick={() => setSearchTerm(tag)}
+                          className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 px-2 py-0.5 rounded-full cursor-pointer transition-colors"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
-                  
-                  <hr className="border-slate-100 dark:border-slate-800" />
-                  
-                  <div className="text-slate-700 dark:text-slate-300">
-                    {art.content}
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 pt-2">
-                    {art.tags.map(tag => (
-                      <span 
-                        key={tag} 
-                        onClick={() => setSearchTerm(tag)}
-                        className="text-[10px] font-medium text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400 px-2 py-0.5 rounded-full cursor-pointer transition-colors"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-12 text-center space-y-4">
                 <Info className="w-12 h-12 text-slate-400 mx-auto" />

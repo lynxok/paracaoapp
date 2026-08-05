@@ -312,10 +312,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       payment_method: newDraft.paymentMethod,
       billed: newDraft.billed,
       items: newDraft.items
-    }]).catch(console.error);
+    }]).then(({ error }) => {
+      if (error) console.error('Error saving billing draft:', error);
+    });
 
+    const itemsSummary = cart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }));
     clearCart();
-    return { success: true, message: `Venta cobrada por $${totalAmount.toLocaleString()} vía ${boxName}` };
+    return { 
+      success: true, 
+      message: `Venta cobrada por $${totalAmount.toLocaleString('es-AR')} vía ${boxName}`,
+      receipt: {
+        id: `REC-${Date.now().toString().slice(-6)}`,
+        date: dateStr,
+        time: timeStr,
+        clientName: selectedClient?.name || 'Cliente Mostrador',
+        items: itemsSummary,
+        total: totalAmount,
+        paymentMethod: boxName
+      }
+    };
   };
 
   return (

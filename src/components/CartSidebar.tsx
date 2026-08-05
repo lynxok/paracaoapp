@@ -19,7 +19,8 @@ import {
   Eye, 
   Sparkles, 
   AlertCircle,
-  Edit
+  Edit,
+  Printer
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -54,13 +55,29 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
     setExpandedItems(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
+  const [discountPercent, setDiscountPercent] = useState<number>(0);
   const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const tax = total - (total / 1.21);
-  const subtotal = total - tax;
+  const discountAmount = (total * discountPercent) / 100;
+  const finalTotal = Math.max(0, total - discountAmount);
+  const tax = finalTotal - (finalTotal / 1.21);
+  const subtotal = finalTotal - tax;
+
+  const [completedReceipt, setCompletedReceipt] = useState<any | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const handleCheckoutClick = () => {
-    const res = checkout();
-    alert(res.message);
+    if (isProcessing) return;
+    setIsProcessing(true);
+    try {
+      const res = checkout();
+      if (res.receipt) {
+        setCompletedReceipt(res.receipt);
+      } else {
+        alert(res.message);
+      }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -267,13 +284,37 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
             <span>Subtotal</span>
             <span>${subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
           </div>
+
+          {/* Descuento TC-42 */}
+          <div className="flex items-center justify-between text-xs gap-2 py-1">
+            <span className="font-bold text-slate-600 dark:text-slate-400">Descuento (%)</span>
+            <div className="flex items-center gap-1">
+              <input 
+                type="number"
+                min="0"
+                max="100"
+                value={discountPercent || ''}
+                onChange={(e) => setDiscountPercent(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                placeholder="0"
+                className="w-16 h-7 text-right px-2 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 font-bold text-xs outline-none focus:ring-1 focus:ring-blue-600"
+              />
+              <span className="font-bold text-slate-400">%</span>
+            </div>
+          </div>
+          {discountAmount > 0 && (
+            <div className="flex justify-between text-xs font-bold text-emerald-600 dark:text-emerald-400">
+              <span>Descuento aplicado</span>
+              <span>-${discountAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+            </div>
+          )}
+
           <div className="flex justify-between text-xs font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-2.5">
             <span>IVA (21%)</span>
             <span>${tax.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
           </div>
           <div className="flex justify-between text-base font-black text-slate-900 dark:text-white pt-1">
             <span>TOTAL DE VENTA</span>
-            <span className="text-blue-600 dark:text-blue-400">${total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+            <span className="text-blue-600 dark:text-blue-400">${finalTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
 
@@ -505,6 +546,76 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
                   </button>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Receipt Modal */}
+      {completedReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+            <div className="p-4 bg-emerald-500 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Check className="w-6 h-6 bg-white/20 p-1 rounded-full" />
+                <div>
+                  <h3 className="font-bold text-sm">Venta Exitosa</h3>
+                  <p className="text-[10px] opacity-90">Comprobante #{completedReceipt.id}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setCompletedReceipt(null)}
+                className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 font-mono text-xs text-slate-700 dark:text-slate-300">
+              <div className="text-center border-b border-slate-200 dark:border-slate-800 pb-3">
+                <p className="font-black text-sm text-slate-900 dark:text-white">ÓPTICA PARACAO</p>
+                <p className="text-[10px] text-slate-400">Comprobante X - Venta Mostrador</p>
+                <p className="text-[10px] text-slate-400 mt-1">{completedReceipt.date} - {completedReceipt.time}</p>
+              </div>
+
+              <div className="space-y-1">
+                <p className="font-bold text-slate-500 text-[10px]">CLIENTE:</p>
+                <p className="font-bold text-slate-900 dark:text-white">{completedReceipt.clientName}</p>
+                <p className="font-bold text-slate-500 text-[10px] mt-2">MÉTODO DE PAGO:</p>
+                <p className="font-bold text-slate-900 dark:text-white">{completedReceipt.paymentMethod}</p>
+              </div>
+
+              <div className="border-t border-b border-slate-200 dark:border-slate-800 py-3 space-y-2">
+                <p className="font-bold text-slate-500 text-[10px]">DETALLE DE ITEMS:</p>
+                {completedReceipt.items.map((item: any, idx: number) => (
+                  <div key={idx} className="flex justify-between text-[11px]">
+                    <span>{item.quantity}x {item.name}</span>
+                    <span className="font-bold">${(item.price * item.quantity).toLocaleString('es-AR')}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-between items-center text-sm font-black text-slate-900 dark:text-white pt-1">
+                <span>TOTAL:</span>
+                <span className="text-emerald-600 dark:text-emerald-400 text-base">${completedReceipt.total.toLocaleString('es-AR')}</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+              <button
+                onClick={() => {
+                  window.print();
+                }}
+                className="flex-1 bg-slate-800 hover:bg-slate-900 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
+              >
+                <Printer className="w-4 h-4" /> Imprimir Comprobante
+              </button>
+              <button
+                onClick={() => setCompletedReceipt(null)}
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
+              >
+                Aceptar / Nueva Venta
+              </button>
             </div>
           </div>
         </div>

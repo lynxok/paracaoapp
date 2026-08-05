@@ -45,6 +45,12 @@ export function ClientProvider({ children }: { children: ReactNode }) {
 
 
   const addClient = async (clientData: Omit<Client, 'id' | 'balance'>) => {
+    const existing = clients.find(c => c.dni.trim() === clientData.dni.trim());
+    if (existing) {
+      alert(`Ya existe un cliente registrado con el DNI ${clientData.dni}: ${existing.name}`);
+      throw new Error(`DNI Duplicado: ${clientData.dni}`);
+    }
+
     const newClient: Client = {
       ...clientData,
       id: Date.now().toString(),

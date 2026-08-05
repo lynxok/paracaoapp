@@ -547,12 +547,13 @@ export function Finance() {
                             <th className="px-6 py-3 font-black">Fecha/Hora</th>
                             <th className="px-6 py-3 font-black">Concepto</th>
                             <th className="px-6 py-3 font-black text-right">Monto</th>
+                            <th className="px-6 py-3 font-black text-center">Acciones</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {boxTransactions.length === 0 ? (
                             <tr>
-                              <td colSpan={3} className="px-6 py-12 text-center text-slate-400 italic">No hay movimientos registrados hoy</td>
+                              <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">No hay movimientos registrados hoy</td>
                             </tr>
                           ) : (
                             boxTransactions.map(tx => (
@@ -572,6 +573,19 @@ export function Finance() {
                                   tx.type === 'income' ? "text-emerald-600" : "text-rose-600"
                                 )}>
                                   {tx.type === 'income' ? '+' : '-'}${tx.amount.toLocaleString()}
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  <button
+                                    onClick={() => {
+                                      if (confirm(`¿Estás seguro de anular el movimiento "${tx.concept}" por $${tx.amount.toLocaleString()}?`)) {
+                                        voidTransaction(tx.id);
+                                      }
+                                    }}
+                                    className="px-2.5 py-1 text-[11px] font-bold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg transition-colors border border-rose-200 dark:border-rose-800/50"
+                                    title="Anular venta / movimiento"
+                                  >
+                                    Anular
+                                  </button>
                                 </td>
                               </tr>
                             ))
