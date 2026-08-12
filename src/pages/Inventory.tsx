@@ -83,6 +83,7 @@ export function Inventory() {
   const [modalCategory, setModalCategory] = useState("");
   const [isStockEntryOpen, setIsStockEntryOpen] = useState(false);
   const [isStockExitOpen, setIsStockExitOpen] = useState(false);
+  const [selectedExitSku, setSelectedExitSku] = useState("");
   const [isStockTransferOpen, setIsStockTransferOpen] = useState(false);
   const [stockTransferData, setStockTransferData] = useState({ sourceBranchId: "", targetBranchId: "", quantity: "" });
   const [menuPosition, setMenuPosition] = useState<{ x: number, y: number } | null>(null);
@@ -273,7 +274,7 @@ export function Inventory() {
   const formattedTotalValueCosto = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(totalValueCosto);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* ... stats ... */}
         <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 flex justify-between items-center shadow-sm">
@@ -534,7 +535,17 @@ export function Inventory() {
                 onClick={() => setIsStockEntryOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-sm font-bold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
-                <Truck className="w-4 h-4" /> Ingreso de Mercadería
+                <Truck className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Ingreso de Mercadería
+              </button>
+              <button 
+                onClick={() => {
+                  setContextItem(null);
+                  setSelectedExitSku("");
+                  setIsStockExitOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 border border-red-200 dark:border-red-900/40 text-red-700 dark:text-red-400 rounded-lg text-sm font-bold hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors shadow-sm"
+              >
+                <ArrowUpFromLine className="w-4 h-4 text-red-600 dark:text-red-400" /> Retiro de Stock
               </button>
               <button 
                 onClick={() => {
@@ -1102,20 +1113,20 @@ export function Inventory() {
       )}
 
 
-      {/* Stock Exit Modal (Egreso) */}
+      {/* Stock Exit Modal (Egreso / Retiro de Stock) */}
       {isStockExitOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
                 <ArrowUpFromLine className="w-6 h-6 text-red-600" />
-                Registrar Egreso de Stock
+                Registrar Retiro de Stock
               </h3>
-              <button onClick={() => setIsStockExitOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
+              <button onClick={() => { setIsStockExitOpen(false); setContextItem(null); setSelectedExitSku(""); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <form onSubmit={(e) => { 
+            <form onSubmit={async (e) => { 
               e.preventDefault(); 
               const form = e.currentTarget;
               const formDataObj = new FormData(form);
@@ -1124,19 +1135,25 @@ export function Inventory() {
               const reasonVal = formDataObj.get("reason") as string;
               const notesVal = formDataObj.get("notes") as string || "";
 
+              const targetProduct = contextItem || inventory.find(i => i.sku === selectedExitSku);
+
+              if (!targetProduct) {
+                alert("Por favor selecciona un producto para realizar el retiro de stock.");
+                return;
+              }
+
               const branch = BRANCHES.find(b => b.id === branchIdVal);
               
-              if (contextItem && branch) {
-                // Check if branch has enough stock
-                const currentStock = contextItem.stocks[branch.id] || 0;
+              if (branch) {
+                const currentStock = targetProduct.stocks[branch.id] || 0;
                 if (currentStock < quantityVal) {
-                  alert(`Stock insuficiente en la sucursal ${branch.name}. Stock actual: ${currentStock}`);
+                  alert(`Stock insuficiente en la sucursal ${branch.name}. Stock disponible: ${currentStock} unidades.`);
                   return;
                 }
 
-                registerMovement({
-                  sku: contextItem.sku,
-                  productName: contextItem.name,
+                await registerMovement({
+                  sku: targetProduct.sku,
+                  productName: targetProduct.name,
                   branchId: branch.id,
                   branchName: branch.name,
                   quantity: quantityVal,
@@ -1144,27 +1161,52 @@ export function Inventory() {
                   reason: reasonVal,
                   notes: notesVal
                 });
-                alert("Egreso de mercadería registrado con éxito.");
+                alert(`Retiro de stock de ${quantityVal} unid. de ${targetProduct.name} registrado con éxito en Supabase.`);
                 setIsStockExitOpen(false);
+                setContextItem(null);
+                setSelectedExitSku("");
               }
             }}>
               <div className="p-6 space-y-4">
-                <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl space-y-2">
-                  <p className="text-xs font-bold text-red-700 dark:text-red-400">Producto: {contextItem?.name} ({contextItem?.sku})</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-2">
-                    {BRANCHES.map(b => (
-                      <p key={b.id} className="text-[10px] text-red-600 dark:text-red-500">
-                        <span className="font-bold">{b.name}:</span> {contextItem?.stocks[b.id] || 0} unid.
-                      </p>
-                    ))}
+                {contextItem ? (
+                  <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-xl space-y-2">
+                    <p className="text-xs font-bold text-red-700 dark:text-red-400">Producto: {contextItem?.name} ({contextItem?.sku})</p>
+                    <div className="flex flex-wrap gap-x-4 gap-y-2">
+                      {BRANCHES.map(b => (
+                        <p key={b.id} className="text-[10px] text-red-600 dark:text-red-500">
+                          <span className="font-bold">{b.name}:</span> {contextItem?.stocks[b.id] || 0} unid.
+                        </p>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Producto a Retirar *</label>
+                    <select
+                      value={selectedExitSku}
+                      onChange={(e) => setSelectedExitSku(e.target.value)}
+                      required
+                      className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm"
+                    >
+                      <option value="">Seleccionar un producto...</option>
+                      {inventory.map(item => {
+                        const totalStk = (Object.values(item.stocks) as number[]).reduce((a, b) => a + b, 0);
+                        return (
+                          <option key={item.sku} value={item.sku}>
+                            {item.name} ({item.sku}) — Stock total: {totalStk} unid.
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+                )}
+
                 <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Sucursal de Origen</label>
+                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Sucursal de Origen *</label>
                   <select 
                     name="branchId"
                     required
-                    className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
+                    className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm"
                   >
                     <option value="">Seleccionar sucursal...</option>
                     {BRANCHES.map(b => (
@@ -1174,7 +1216,7 @@ export function Inventory() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Cantidad a Retirar</label>
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Cantidad a Retirar *</label>
                     <input 
                       type="number" 
                       name="quantity"
@@ -1185,34 +1227,37 @@ export function Inventory() {
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Motivo</label>
-                    <select name="reason" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white">
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Motivo del Retiro *</label>
+                    <select name="reason" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
                       <option value="Ajuste de Inventario">Ajuste de Inventario</option>
                       <option value="Rotura / Daño">Rotura / Daño</option>
                       <option value="Vencimiento">Vencimiento</option>
                       <option value="Venta (Manual)">Venta (Manual)</option>
                       <option value="Donación">Donación</option>
+                      <option value="Muestra Gratis / Promoción">Muestra Gratis / Promoción</option>
+                      <option value="Uso Interno">Uso Interno</option>
+                      <option value="Otro">Otro Motivo</option>
                     </select>
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Observaciones</label>
-                  <textarea name="notes" className="h-20 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white resize-none text-sm" placeholder="Detalles del movimiento..."></textarea>
+                  <textarea name="notes" className="h-20 p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white resize-none text-sm" placeholder="Añade detalles aclaratorios sobre el motivo del retiro..."></textarea>
                 </div>
               </div>
               <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900/50">
                 <button 
                   type="button"
-                  onClick={() => setIsStockExitOpen(false)}
+                  onClick={() => { setIsStockExitOpen(false); setContextItem(null); setSelectedExitSku(""); }}
                   className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit"
-                  className="px-8 py-2.5 bg-red-600 text-white rounded-lg font-bold shadow-sm hover:bg-red-700 transition-all text-sm"
+                  className="px-8 py-2.5 bg-red-600 text-white rounded-lg font-bold shadow-sm hover:bg-red-700 transition-all text-sm flex items-center gap-1.5"
                 >
-                  Confirmar Egreso
+                  <ArrowUpFromLine className="w-4 h-4" /> Confirmar Retiro
                 </button>
               </div>
             </form>

@@ -61,7 +61,7 @@ export function Login() {
       <div className="w-full max-w-md z-10 animate-in fade-in zoom-in-95 duration-500">
         <div className="flex flex-col items-center -mb-20 relative z-20 pointer-events-none">
           <div className="absolute inset-0 bg-white/30 blur-[60px] rounded-full scale-[1.5] -z-10 hidden dark:block"></div>
-          <img src="/argoslogo.png" alt="Argos" className="w-auto h-72 object-contain drop-shadow-2xl" />
+          <img src={`${window.location.origin}/argoslogo.png`} alt="Argos" className="w-auto h-72 object-contain drop-shadow-2xl" />
         </div>
 
         <div className="bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl border border-black/[0.05] dark:border-white/[0.05] shadow-2xl rounded-3xl p-8">

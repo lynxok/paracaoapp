@@ -1,5 +1,7 @@
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
 import { 
   FileText, 
   CheckCircle2, 
@@ -10,19 +12,25 @@ import {
   CreditCard,
   Check,
   AlertCircle,
+  AlertTriangle,
   Eye,
   MapPin,
   Printer,
-  X
+  X,
+  Store
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { BillingDraft } from "../types";
 
 export function BillingDrafts() {
-  const { billingDrafts, markDraftsAsBilled } = useCart();
+  const { billingDrafts, markDraftsAsBilled, updateDraftBranch } = useCart();
+  const { branches, currentBranch } = useAuth();
   const [activeTab, setActiveTab] = useState<'pending' | 'billed'>('pending');
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  
+  // Check if real AFIP/ARCA connection is configured
+  const isArcaConfigured = !!localStorage.getItem('optica_afip_cuit') && localStorage.getItem('optica_afip_cuit') !== '';
   
   // Modal states
   const [isBillingModalOpen, setIsBillingModalOpen] = useState(false);
@@ -35,28 +43,22 @@ export function BillingDrafts() {
   const [isInvoicePreviewOpen, setIsInvoicePreviewOpen] = useState(false);
   const [previewDraft, setPreviewDraft] = useState<BillingDraft | null>(null);
 
-  // Filters
-  const filteredDrafts = billingDrafts.filter(draft => {
-    const matchesSearch = draft.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          draft.concept.toLowerCase().includes(searchTerm.toLowerCase());
-    if (activeTab === 'pending') {
-      return !draft.billed && matchesSearch;
-    } else {
-      return draft.billed && matchesSearch;
-    }
-  });
+  const pendingDrafts = billingDrafts.filter(d => !d.billed);
+  const billedDrafts = billingDrafts.filter(d => d.billed);
 
-  // Calculate totals
-  const totalPendingAmount = billingDrafts
-    .filter(d => !d.billed)
-    .reduce((acc, curr) => acc + curr.amount, 0);
+  const totalPendingAmount = pendingDrafts.reduce((acc, d) => acc + d.amount, 0);
+  const totalBilledAmount = billedDrafts.reduce((acc, d) => acc + d.amount, 0);
+  const pendingCount = pendingDrafts.length;
+  const billedCount = billedDrafts.length;
 
-  const totalBilledAmount = billingDrafts
-    .filter(d => d.billed)
-    .reduce((acc, curr) => acc + curr.amount, 0);
+  const currentList = activeTab === 'pending' ? pendingDrafts : billedDrafts;
 
-  const pendingCount = billingDrafts.filter(d => !d.billed).length;
-  const billedCount = billingDrafts.filter(d => d.billed).length;
+  const filteredDrafts = currentList.filter(d => 
+    d.clientName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.concept.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    d.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (d.branchName && d.branchName.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.checked) {
@@ -66,14 +68,17 @@ export function BillingDrafts() {
     }
   };
 
-  const handleSelectOne = (id: string) => {
+  const handleToggleSelect = (id: string) => {
     setSelectedIds(prev => 
-      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
 
-  const handleOpenBilling = () => {
-    if (selectedIds.length === 0) return;
+  const handleOpenBillingModal = () => {
+    if (selectedIds.length === 0) {
+      alert("Seleccioná al menos un borrador para facturar.");
+      return;
+    }
     setIdentificador("");
     setDireccion("");
     setIsConsumidorFinal(true);
@@ -100,7 +105,12 @@ export function BillingDrafts() {
 
     setIsBillingModalOpen(false);
     setSelectedIds([]);
-    alert("¡Borradores facturados correctamente!");
+    
+    if (!isArcaConfigured) {
+      alert("Esta factura se está facturando con el simulador, para facturar con factura real de ARCA configurar la conexión en ajustes");
+    } else {
+      alert("¡Borradores facturados correctamente!");
+    }
   };
 
   const handleOpenPreview = (draft: BillingDraft) => {
@@ -113,8 +123,21 @@ export function BillingDrafts() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 animate-in fade-in duration-300">
+    <div className="space-y-6 p-4 md:p-6 animate-in fade-in duration-300">
       
+      {/* Simulation Warning Banner */}
+      {!isArcaConfigured && (
+        <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs shadow-sm">
+          <div className="flex items-center gap-2.5 text-amber-800 dark:text-amber-300 font-medium">
+            <AlertTriangle className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <span><strong>Simulador de Facturación Activo:</strong> Esta factura se está facturando con el simulador, para facturar con factura real de ARCA configurar la conexión en ajustes.</span>
+          </div>
+          <Link to="/settings" className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition-colors shrink-0 shadow-sm">
+            Configurar Ajustes
+          </Link>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 dark:from-amber-950/20 dark:to-orange-950/20 p-5 rounded-2xl border border-amber-200/50 dark:border-amber-900/40 shadow-sm flex items-center gap-4">
@@ -189,7 +212,7 @@ export function BillingDrafts() {
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
               <input
                 type="text"
-                placeholder="Buscar cliente, importe..."
+                placeholder="Buscar cliente, sucursal, importe..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
                 className="h-9 pl-9 pr-4 w-full text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white placeholder-slate-400 focus:ring-2 focus:ring-emerald-600 outline-none transition-all"
@@ -198,12 +221,12 @@ export function BillingDrafts() {
 
             {activeTab === 'pending' && (
               <button
+                onClick={handleOpenBillingModal}
                 disabled={selectedIds.length === 0}
-                onClick={handleOpenBilling}
                 className={cn(
-                  "h-9 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all",
+                  "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 shadow-sm",
                   selectedIds.length > 0
-                    ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                    ? "bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-500/20"
                     : "bg-slate-100 dark:bg-slate-855 text-slate-400 cursor-not-allowed border border-slate-200/50 dark:border-slate-800"
                 )}
               >
@@ -230,6 +253,7 @@ export function BillingDrafts() {
                 )}
                 <th className="px-6 py-4">Fecha</th>
                 <th className="px-6 py-4">Cliente</th>
+                <th className="px-6 py-4">Local / Sucursal</th>
                 <th className="px-6 py-4">Detalle / Concepto</th>
                 <th className="px-6 py-4">Medio de Cobro</th>
                 {activeTab === 'billed' && <th className="px-6 py-4">Datos Factura</th>}
@@ -251,7 +275,7 @@ export function BillingDrafts() {
                       <input
                         type="checkbox"
                         checked={selectedIds.includes(draft.id)}
-                        onChange={() => handleSelectOne(draft.id)}
+                        onChange={() => handleToggleSelect(draft.id)}
                         className="w-4 h-4 rounded text-emerald-600 border-slate-350 focus:ring-emerald-500"
                       />
                     </td>
@@ -261,6 +285,28 @@ export function BillingDrafts() {
                   </td>
                   <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">
                     {draft.clientName}
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-1.5">
+                      <Store className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                      <select
+                        value={draft.branchId || currentBranch?.id || branches[0]?.id || '1'}
+                        onChange={(e) => {
+                          const selectedBranch = branches.find(b => b.id === e.target.value);
+                          if (selectedBranch) {
+                            updateDraftBranch(draft.id, selectedBranch.id, selectedBranch.name);
+                          }
+                        }}
+                        className="h-8 px-2 py-1 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer hover:border-indigo-400"
+                        title="Seleccionar sucursal / local de cobro"
+                      >
+                        {branches.map(b => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </td>
                   <td className="px-6 py-4 text-slate-650 dark:text-slate-300 text-xs">
                     {draft.concept}
@@ -410,6 +456,18 @@ export function BillingDrafts() {
                   />
                 </div>
               </div>
+
+              {!isArcaConfigured && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 rounded-xl flex items-start gap-2.5 text-xs mt-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
+                  <div className="text-amber-800 dark:text-amber-300 space-y-0.5">
+                    <p className="font-bold">Modo Simulador de Facturación</p>
+                    <p className="text-[11px] leading-tight opacity-90">
+                      esta factura se está facturadno con el simulador, para facutar con factura real de ARCA configurar la conexión en ajustes
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Modal Footer */}
@@ -489,6 +547,7 @@ export function BillingDrafts() {
                     <span className="text-lg font-black text-slate-900 dark:text-white tracking-tight">ÓPTICA PARACAO</span>
                   </div>
                   <div className="space-y-0.5 text-[11px] text-slate-550 dark:text-slate-400 font-medium">
+                    <p className="font-bold text-indigo-600 dark:text-indigo-400">Sucursal de Cobro: {previewDraft.branchName || "Casa Central"}</p>
                     <p>Razón Social: Optica Paracao S.R.L.</p>
                     <p>Domicilio Comercial: Av. Principal 123 - Paraná, Entre Ríos</p>
                     <p>Condición frente al IVA: IVA Responsable Inscripto</p>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   Calculator, 
   DollarSign, 
@@ -21,6 +21,7 @@ import {
   LayoutGrid
 } from "lucide-react";
 import { cn } from "../lib/utils";
+import { supabase } from "../lib/supabase";
 import { CashBox, Transaction, Denomination, FinanceCategory } from "../types";
 import { BoxForm } from "../components/finance/BoxForm";
 import { TransactionForm } from "../components/finance/TransactionForm";
@@ -71,7 +72,8 @@ export function Finance() {
     addSupplierTransaction, 
     linkPaymentToInvoices,
     toggleTransactionReconciliation,
-    updateBoxClosingBalance
+    updateBoxClosingBalance,
+    voidTransaction
   } = useFinance();
   const [activeTab, setActiveTab] = useState<FinanceTab>('cajas');
   const [selectedBoxId, setSelectedBoxId] = useState<string>('consolidated');
@@ -83,6 +85,23 @@ export function Finance() {
   const [reconcileAmount, setReconcileAmount] = useState<string>("");
   const [reconcileTarget, setReconcileTarget] = useState<string>("");
   const [reconcileSource, setReconcileSource] = useState<string>("");
+  const [todayInsuranceClaims, setTodayInsuranceClaims] = useState<number>(0);
+
+  useEffect(() => {
+    async function loadTodayClaims() {
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const { data, error } = await supabase.from('insurance_claims').select('total_amount').eq('date', todayStr);
+        if (!error && data) {
+          const total = data.reduce((sum: number, r: any) => sum + (Number(r.total_amount) || 0), 0);
+          setTodayInsuranceClaims(total);
+        }
+      } catch (e) {
+        console.error("Error loading today claims in Finance:", e);
+      }
+    }
+    loadTodayClaims();
+  }, []);
 
   const selectedBox = useMemo(() => 
     boxes.find(b => b.id === selectedBoxId)
@@ -177,7 +196,7 @@ export function Finance() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8">
+    <div className="space-y-6 pb-24 lg:pb-8">
       {/* Reconcile Modal */}
       {showReconcileModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -237,12 +256,12 @@ export function Finance() {
       )}
 
       {/* Module Navigation */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-        <div className="flex gap-1 w-full sm:w-auto">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white dark:bg-slate-900 p-2 sm:p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+        <div className="flex gap-1.5 overflow-x-auto custom-scrollbar pb-1 sm:pb-0 w-full sm:w-auto shrink-0">
           <button 
             onClick={() => setActiveTab('cajas')}
             className={cn(
-              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all",
+              "shrink-0 flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all",
               activeTab === 'cajas' ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
             )}
           >
@@ -251,7 +270,7 @@ export function Finance() {
           <button 
             onClick={() => setActiveTab('ingresos')}
             className={cn(
-              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all",
+              "shrink-0 flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all",
               activeTab === 'ingresos' ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
             )}
           >
@@ -260,7 +279,7 @@ export function Finance() {
           <button 
             onClick={() => setActiveTab('egresos')}
             className={cn(
-              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all",
+              "shrink-0 flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all",
               activeTab === 'egresos' ? "bg-rose-600 text-white shadow-lg shadow-rose-600/20" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
             )}
           >
@@ -269,7 +288,7 @@ export function Finance() {
           <button 
             onClick={() => setActiveTab('transferencias')}
             className={cn(
-              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all",
+              "shrink-0 flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all",
               activeTab === 'transferencias' ? "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
             )}
           >
@@ -278,7 +297,7 @@ export function Finance() {
           <button 
             onClick={() => setActiveTab('conciliacion')}
             className={cn(
-              "flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl font-bold transition-all",
+              "shrink-0 flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all",
               activeTab === 'conciliacion' ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
             )}
           >
@@ -286,10 +305,10 @@ export function Finance() {
           </button>
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-2 border-l border-slate-100 dark:border-slate-800">
-          <p className="text-xs font-black text-slate-400 uppercase tracking-widest hidden lg:block">Total Disponible:</p>
+        <div className="flex items-center justify-between sm:justify-end gap-2 px-3 py-1.5 sm:py-2 border-t sm:border-t-0 sm:border-l border-slate-100 dark:border-slate-800">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Disponible:</p>
           <p className={cn(
-            "text-lg font-black",
+            "text-base sm:text-lg font-black",
             consolidatedStats.balance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600"
           )}>
             ${consolidatedStats.balance.toLocaleString()}
@@ -632,12 +651,24 @@ export function Finance() {
                           </form>
                         )}
 
-                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                          <div>
-                            <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Esperado en Sistema</p>
-                            <p className="text-xl font-black text-slate-900 dark:text-white">${selectedBox.expectedCash?.toLocaleString()}</p>
+                        <div className="space-y-3">
+                          <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                            <div>
+                              <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Esperado en Sistema (Efectivo/Banco)</p>
+                              <p className="text-xl font-black text-slate-900 dark:text-white">${selectedBox.expectedCash?.toLocaleString()}</p>
+                            </div>
+                            <DollarSign className="w-6 h-6 text-blue-600" />
                           </div>
-                          <DollarSign className="w-6 h-6 text-blue-600" />
+
+                          {todayInsuranceClaims > 0 && (
+                            <div className="flex justify-between items-center bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-900/40">
+                              <div>
+                                <p className="text-[10px] text-amber-700 dark:text-amber-400 font-black uppercase tracking-widest">A Cobrar por Obra Social / Prepaga (Hoy)</p>
+                                <p className="text-lg font-black text-amber-700 dark:text-amber-400 font-mono">${todayInsuranceClaims.toLocaleString('es-AR')}</p>
+                              </div>
+                              <span className="text-[10px] font-bold bg-amber-200 dark:bg-amber-900 text-amber-800 dark:text-amber-200 px-2 py-1 rounded-md">Reintegros</span>
+                            </div>
+                          )}
                         </div>
                         
                         <div className="space-y-4 max-h-60 overflow-y-auto pr-2 custom-scrollbar">

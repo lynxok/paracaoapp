@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays, AlertTriangle } from "lucide-react";
+import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays, AlertTriangle, UserPlus, ShieldCheck } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useFinance } from "../context/FinanceContext";
 import { useClients } from "../context/ClientContext";
@@ -9,6 +9,8 @@ import { useInventory } from "../context/InventoryContext";
 import { useLabs } from "../context/LabContext";
 import { useCart } from "../context/CartContext";
 import { CrystalPricingCondition } from "../types";
+import { AddClientModal } from "../components/AddClientModal";
+import { supabase } from "../lib/supabase";
 
 export function NewOrder() {
   const { boxes, addTransaction } = useFinance();
@@ -33,6 +35,8 @@ export function NewOrder() {
 
   // Client state
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+  const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
+  const [addClientDni, setAddClientDni] = useState("");
   const [selectedClient, setSelectedClient] = useState<any>(null);
   const [clientSearch, setClientSearch] = useState("");
   const [tempDni, setTempDni] = useState("");
@@ -159,6 +163,15 @@ export function NewOrder() {
     }
   };
 
+  // Auto-seleccionar la obra social cuando cambia el cliente seleccionado
+  useEffect(() => {
+    if (selectedClient?.insuranceId) {
+      setSelectedInsuranceId(selectedClient.insuranceId);
+    } else {
+      setSelectedInsuranceId('');
+    }
+  }, [selectedClient]);
+
   // Payment state
   const [paymentMethod, setPaymentMethod] = useState("contado");
   const [selectedBankId, setSelectedBankId] = useState("");
@@ -202,6 +215,25 @@ export function NewOrder() {
     ];
   });
 
+  useEffect(() => {
+    async function fetchDoctorsFromSupabase() {
+      try {
+        const { data, error } = await supabase.from('doctors').select('*');
+        if (!error && data && data.length > 0) {
+          const mapped = data.map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            matricula: d.mp || ''
+          }));
+          setDoctors(mapped);
+        }
+      } catch (err) {
+        console.warn("Error fetching doctors from Supabase:", err);
+      }
+    }
+    fetchDoctorsFromSupabase();
+  }, []);
+
   const [matricula, setMatricula] = useState("");
   const [selectedDoctor, setSelectedDoctor] = useState<any | null>(null);
   const [showSaveDoctorBtn, setShowSaveDoctorBtn] = useState(false);
@@ -228,23 +260,39 @@ export function NewOrder() {
     }
   };
 
-  const handleSaveDoctor = () => {
+  const handleSaveDoctor = async () => {
     if (!medico || !matricula) return;
     const newDoc = {
       id: `doc-${Date.now()}`,
       name: medico,
       matricula: matricula
     };
+
+    try {
+      await supabase.from('doctors').upsert([{
+        id: newDoc.id,
+        name: newDoc.name,
+        mp: newDoc.matricula
+      }]);
+    } catch (e) {
+      console.error("Error saving doctor to Supabase:", e);
+    }
+
     const updated = [...doctors, newDoc];
     setDoctors(updated);
     localStorage.setItem('optica_doctors', JSON.stringify(updated));
     setSelectedDoctor(newDoc);
     setShowSaveDoctorBtn(false);
-    alert(`Médico ${medico} registrado con éxito en la base de datos.`);
+    alert(`Médico ${medico} (Matrícula: ${matricula}) registrado con éxito en la base de datos de Supabase.`);
   };
 
   const [observaciones, setObservaciones] = useState("");
   const [lensColor, setLensColor] = useState(lensColors[0] || '');
+
+  // Cobertura / Obra Social state
+  const [selectedInsuranceId, setSelectedInsuranceId] = useState<string>('');
+  const [manualFrameCoverage, setManualFrameCoverage] = useState<string>('');
+  const [manualCrystalCoverage, setManualCrystalCoverage] = useState<string>('');
 
   // Internal lab cost (when no external lab used)
   const [internalLabCost, setInternalLabCost] = useState('');
@@ -274,17 +322,21 @@ export function NewOrder() {
   const labIntCost = parseFloat(internalLabCost) || 0;
   const subtotal = crystalPrice + framePrice + labIntCost;
 
-  let crystalCoverage = 0;
-  let frameCoverage = 0;
-  const clientInsurance = selectedClient?.insuranceId ? insurances.find(i => i.id === selectedClient.insuranceId) : null;
-  
-  if (clientInsurance && clientInsurance.coverages) {
-    if (crystalPrice > 0) {
-       const rule = clientInsurance.coverages.find((c: any) => c.categoryId === 'Cristales');
+  const rawInsuranceId = selectedInsuranceId !== '' ? selectedInsuranceId : (selectedClient?.insuranceId || '');
+  const activeInsuranceId = (rawInsuranceId && rawInsuranceId !== 'particular' && rawInsuranceId !== 'ninguna') ? rawInsuranceId : '';
+  const activeInsurance = insurances.find(i => i.id === activeInsuranceId) || null;
+
+  let crystalCoverage = parseFloat(manualCrystalCoverage) || 0;
+  let frameCoverage = parseFloat(manualFrameCoverage) || 0;
+
+  // Si no se ingresaron montos manuales pero el cliente/receta tiene obra social seleccionada, usar reglas predeterminadas si existen
+  if (activeInsurance && activeInsurance.coverages) {
+    if (crystalPrice > 0 && !manualCrystalCoverage) {
+       const rule = activeInsurance.coverages.find((c: any) => c.categoryId === 'Cristales');
        if (rule) crystalCoverage = Math.min(crystalPrice, rule.amount || 0);
     }
-    if (selectedFrame) {
-       const rule = clientInsurance.coverages.find((c: any) => c.categoryId === selectedFrame.cat);
+    if (selectedFrame && !manualFrameCoverage) {
+       const rule = activeInsurance.coverages.find((c: any) => c.categoryId === selectedFrame.cat);
        if (rule) frameCoverage = Math.min(framePrice, rule.amount || 0);
     }
   }
@@ -375,28 +427,44 @@ export function NewOrder() {
   }, [selectedCrystal, lejosOD, lejosOI, cercaOD, cercaOI, adicionOD, adicionOI, selectedOjos]);
 
   const handleConfirm = () => {
-    // Alerta de confirmación si es solo un ojo
+    handleConfirmWithLab();
+  };
+
+  const handleSendToLab = () => {
+    const lab = labs.find(l => l.id === selectedLabId);
+    if (!lab || !deliveryDate) return;
+    const updatedAssignedLab = { ...lab, deliveryDate };
+    setAssignedLab(updatedAssignedLab);
+    setIsLabModalOpen(false);
+
+    // Proceder inmediatamente a agregar al carrito de venta con los datos del lab actualizados
+    handleConfirmWithLab(updatedAssignedLab);
+  };
+
+  const handleConfirmWithLab = (labData?: typeof assignedLab) => {
     if (isSingleEyeCharged) {
-    const validateDiopterRange = (valStr: string) => {
-      if (!valStr) return true;
-      const num = parseFloat(valStr.replace(',', '.'));
-      if (isNaN(num)) return true;
-      return num >= -30 && num <= 30;
-    };
+      const validateDiopterRange = (valStr: string) => {
+        if (!valStr) return true;
+        const num = parseFloat(valStr.replace(',', '.'));
+        if (isNaN(num)) return true;
+        return num >= -30 && num <= 30;
+      };
 
-    const invalidDiopters = [
-      lejosOD.esf, lejosOD.cil, lejosOI.esf, lejosOI.cil,
-      cercaOD.esf, cercaOD.cil, cercaOI.esf, cercaOI.cil
-    ].some(val => !validateDiopterRange(val));
+      const invalidDiopters = [
+        lejosOD.esf, lejosOD.cil, lejosOI.esf, lejosOI.cil,
+        cercaOD.esf, cercaOD.cil, cercaOI.esf, cercaOI.cil
+      ].some(val => !validateDiopterRange(val));
 
-    if (invalidDiopters) {
-      const proceed = window.confirm("⚠️ ADVERTENCIA DE GRADUACIÓN:\nUna o más dioptrías ingresadas exceden el rango habitual (±30.00).\n¿Deseas continuar de todos modos?");
-      if (!proceed) return;
-    }
+      if (invalidDiopters) {
+        const proceed = window.confirm("⚠️ ADVERTENCIA DE GRADUACIÓN:\nUna o más dioptrías ingresadas exceden el rango habitual (±30.00).\n¿Deseas continuar de todos modos?");
+        if (!proceed) return;
+      }
 
-    const confirmSingle = window.confirm("¿Estás seguro que deseas cargar solamente los datos de un cristal?");
+      const confirmSingle = window.confirm("¿Estás seguro que deseas cargar solamente los datos de un cristal?");
       if (!confirmSingle) return;
     }
+
+    const currentLab = labData !== undefined ? labData : assignedLab;
 
     const itemData = {
       id: isEditMode ? cartItemId! : `prescription-${Date.now()}`,
@@ -428,8 +496,10 @@ export function NewOrder() {
         selectedCrystalItem: selectedCrystal,
         selectedTreatments: selectedTreatmentNames,
         selectedFrame,
-        assignedLab,
+        assignedLab: currentLab,
         deliveryDate,
+        insuranceId: activeInsuranceId,
+        insuranceName: activeInsurance?.name || '',
         crystalCoverage,
         frameCoverage,
         subtotal,
@@ -449,14 +519,6 @@ export function NewOrder() {
       setIsCartOpen(true);
       setShowSuccessModal(true);
     }
-  };
-
-  const handleSendToLab = () => {
-    const lab = labs.find(l => l.id === selectedLabId);
-    if (!lab || !deliveryDate) return;
-    setAssignedLab({ ...lab, deliveryDate });
-    setIsLabModalOpen(false);
-    setIsPrintModalOpen(true);
   };
 
   const handlePrint = () => {
@@ -561,7 +623,20 @@ export function NewOrder() {
     );
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-20">
+    <div className="flex flex-col gap-6 pb-20">
+      {/* Add Client Modal */}
+      <AddClientModal
+        isOpen={isAddClientModalOpen}
+        onClose={() => setIsAddClientModalOpen(false)}
+        initialDni={addClientDni}
+        onClientAdded={(newClient) => {
+          setSelectedClient(newClient);
+          setTempDni("");
+          setClientSearch("");
+          setIsClientModalOpen(false);
+        }}
+      />
+
       {/* Client Modal */}
       {isClientModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
@@ -618,14 +693,36 @@ export function NewOrder() {
                     </button>
                   ))
                 ) : (
-                  <div className="p-8 text-center text-slate-500">
+                  <div className="p-8 text-center text-slate-500 space-y-3">
                     <p className="text-sm">No se encontraron clientes</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsClientModalOpen(false);
+                        setAddClientDni(clientSearch);
+                        setIsAddClientModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg transition-colors text-xs shadow-sm"
+                    >
+                      <UserPlus className="w-4 h-4" /> Registrar Nuevo Cliente {clientSearch ? `(${clientSearch})` : ''}
+                    </button>
                   </div>
                 )}
               </div>
             </div>
 
-            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsClientModalOpen(false);
+                  setAddClientDni(clientSearch);
+                  setIsAddClientModalOpen(true);
+                }}
+                className="px-4 py-2 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 text-blue-600 dark:text-blue-400 rounded-lg font-bold transition-colors text-sm flex items-center gap-1.5"
+              >
+                <UserPlus className="w-4 h-4" /> Nuevo Cliente
+              </button>
               <button 
                 onClick={() => setIsClientModalOpen(false)}
                 className="px-6 py-2 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm"
@@ -715,7 +812,7 @@ export function NewOrder() {
           <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <FlaskConical className="w-6 h-6 text-violet-600" /> Enviar a Laboratorio
+                <FlaskConical className="w-6 h-6 text-violet-600" /> Enviar a laboratorio y sumar a carro
               </h3>
               <button onClick={() => setIsLabModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-500">
                 <X className="w-5 h-5" />
@@ -765,7 +862,7 @@ export function NewOrder() {
                 disabled={!selectedLabId || !deliveryDate}
                 className="flex-1 h-11 rounded-xl bg-violet-600 text-white font-black hover:bg-violet-700 transition-all shadow-lg shadow-violet-500/20 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                <Check className="w-5 h-5" /> Confirmar Envío
+                <Check className="w-5 h-5" /> Enviar y Sumar al Carrito
               </button>
             </div>
           </div>
@@ -957,6 +1054,24 @@ export function NewOrder() {
                 onChange={handleDniSearch}
                 readOnly={!!selectedClient}
               />
+              {!selectedClient && tempDni.trim().length >= 3 && !clients.some(c => c.dni.replace(/\D/g, '') === tempDni.replace(/\D/g, '')) && (
+                <div className="mt-1.5 p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg flex items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-1.5 text-amber-800 dark:text-amber-300 font-medium">
+                    <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                    <span>No se encontró cliente con DNI <strong>{tempDni}</strong>.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAddClientDni(tempDni);
+                      setIsAddClientModalOpen(true);
+                    }}
+                    className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-md transition-colors flex items-center gap-1 shadow-sm shrink-0"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" /> Agregar Cliente
+                  </button>
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Nombre del Cliente</label>
@@ -984,7 +1099,7 @@ export function NewOrder() {
                 <label className="text-sm font-semibold text-slate-700 dark:text-slate-300">Obra Social / Cobertura</label>
                 <div className="flex items-center gap-2 p-2.5 px-3 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/10">
                   <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                    {clientInsurance ? clientInsurance.name : "Particular / Sin Cobertura"}
+                    {activeInsurance ? activeInsurance.name : "Particular / Sin Cobertura"}
                   </span>
                   {selectedClient.affiliateNumber && (
                     <span className="text-sm text-emerald-600 dark:text-emerald-500">
@@ -1530,6 +1645,59 @@ export function NewOrder() {
                         : "La combinación de Modelo y Material no está configurada en administración."}
                     </p>
                   )}
+                  {/* Selección de Obra Social y Cobertura */}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                        Obra Social / Cobertura Médica
+                      </label>
+                      <select
+                        value={activeInsuranceId}
+                        onChange={e => setSelectedInsuranceId(e.target.value)}
+                        className="w-full h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none"
+                      >
+                        <option value="">-- Ninguna (Particular) --</option>
+                        {insurances.map(ins => (
+                          <option key={ins.id} value={ins.id}>{ins.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {activeInsuranceId && (
+                      <div className="space-y-2 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/40 animate-in fade-in duration-200">
+                        <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                          <ShieldCheck className="w-3.5 h-3.5" /> Reintegro / Cobertura a pedir:
+                        </p>
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 block mb-0.5">Reintegro Cristal ($)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={manualCrystalCoverage}
+                              onChange={e => setManualCrystalCoverage(e.target.value)}
+                              placeholder={crystalCoverage > 0 && !manualCrystalCoverage ? crystalCoverage.toString() : "0"}
+                              className="w-full h-8 px-2 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 block mb-0.5">Reintegro Armazón ($)</label>
+                            <input
+                              type="number"
+                              min="0"
+                              value={manualFrameCoverage}
+                              onChange={e => setManualFrameCoverage(e.target.value)}
+                              placeholder={frameCoverage > 0 && !manualFrameCoverage ? frameCoverage.toString() : "0"}
+                              className="w-full h-8 px-2 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {crystalPrice > 0 && (
                     <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 mt-2">
                       <span className="text-xs text-slate-500 font-bold">Total Cristales:</span>
@@ -1602,7 +1770,7 @@ export function NewOrder() {
                     <span className="text-sm font-bold text-slate-600 dark:text-slate-300">${subtotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800">
-                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">Cubre O. Social ({clientInsurance?.name}):</p>
+                    <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">A Reclamar O. Social ({activeInsurance?.name}):</p>
                     <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">-${totalCoverage.toFixed(2)}</span>
                   </div>
                 </>
@@ -1620,53 +1788,7 @@ export function NewOrder() {
             </div>
           </div>
 
-          <div className="space-y-4">
-            <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Método de Pago:</label>
-            <div className="grid grid-cols-1 gap-2">
-              {[
-                { id: 'contado', name: '1- Contado', icon: <Banknote className="w-4 h-4" /> },
-                { id: 'transferencia', name: '2- Transferencias', icon: <Building className="w-4 h-4" /> },
-                { id: 'tarjeta', name: '3- Tarjeta de Crédito', icon: <CreditCard className="w-4 h-4" /> },
-                { id: 'mercado-pago', name: '4- Mercado Pago', icon: <Wallet className="w-4 h-4" /> }
-              ].map(method => (
-                <div key={method.id} className="space-y-2">
-                  <button
-                    onClick={() => setPaymentMethod(method.id)}
-                    className={cn(
-                      "w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all",
-                      paymentMethod === method.id 
-                        ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-lg" 
-                        : "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300"
-                    )}
-                  >
-                    {method.icon}
-                    <span className="text-sm font-bold flex-1">{method.name}</span>
-                    {method.id === 'transferencia' && <ChevronDown className={cn("w-4 h-4 transition-transform", paymentMethod === 'transferencia' ? "rotate-180" : "")} />}
-                  </button>
 
-                  {method.id === 'transferencia' && paymentMethod === 'transferencia' && (
-                    <div className="pl-6 space-y-1 animate-in slide-in-from-top-2 duration-200">
-                      {boxes.filter(b => b.type === 'bank').map(bank => (
-                        <button
-                          key={bank.id}
-                          onClick={() => setSelectedBankId(bank.id)}
-                          className={cn(
-                            "w-full flex items-center gap-2 p-2 rounded-lg border text-xs font-bold transition-all",
-                            selectedBankId === bank.id 
-                              ? "bg-blue-600 border-blue-600 text-white shadow-sm" 
-                              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400"
-                          )}
-                        >
-                          <Building className="w-3 h-3" />
-                          {bank.name}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
 
           {!isContact && (
             <div>
@@ -1691,9 +1813,9 @@ export function NewOrder() {
               ) : (
                 <button
                   onClick={() => setIsLabModalOpen(true)}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400 font-bold h-11 hover:bg-violet-50 dark:hover:bg-violet-900/20 hover:border-violet-500 transition-all"
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border-2 border-dashed border-violet-300 dark:border-violet-700 text-violet-600 dark:text-violet-400 font-bold h-11 hover:bg-violet-50 dark:hover:bg-violet-900/20 hover:border-violet-500 transition-all text-sm"
                 >
-                  <FlaskConical className="w-5 h-5" /> Enviar a Laboratorio
+                  <FlaskConical className="w-5 h-5" /> Enviar a laboratorio y sumar a carro de venta
                 </button>
               )}
             </div>

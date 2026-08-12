@@ -35,7 +35,10 @@ import {
   Info,
   FileText,
   HelpCircle,
-  BookOpen
+  BookOpen,
+  ChevronLeft,
+  ChevronRight,
+  Shield
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useAuth } from "../context/AuthContext";
@@ -43,6 +46,7 @@ import { useNotifications } from "../context/NotificationsContext";
 import { useCart } from "../context/CartContext";
 import { CartSidebar } from "./CartSidebar";
 import { GuidedManualLauncher } from "./manual/GuidedManualLauncher";
+import { hasPermission } from "../lib/permissions";
 
 const menuItems = [
   { path: "/", icon: LayoutDashboard, label: "Inicio" },
@@ -75,6 +79,20 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isManualLauncherOpen, setIsManualLauncherOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('sidebar_collapsed') === 'true';
+    }
+    return false;
+  });
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      localStorage.setItem('sidebar_collapsed', String(next));
+      return next;
+    });
+  };
 
   const startInteractiveHoverMode = () => {
     const guideEl = document.getElementById('manual-overlay-guide');
@@ -198,6 +216,8 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
     }
   };
   const { currentUser, currentBranch, logout } = useAuth();
+  const isPathAllowed = hasPermission(currentUser?.role, location.pathname);
+  const visibleMenuItems = menuItems.filter(item => hasPermission(currentUser?.role, item.path));
   
   const [profileData, setProfileData] = useState({
     name: currentUser?.name || "Usuario",
@@ -393,38 +413,55 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed lg:static inset-y-4 left-4 z-50 w-[260px] flex-shrink-0 glass-panel flex flex-col transition-all duration-500 ease-[cubic-bezier(0.16,1,0.3,1)] rounded-2xl lg:mx-4 my-4",
-        isMobileMenuOpen ? "translate-x-0" : "-translate-x-[120%] lg:translate-x-0"
+        "fixed lg:static inset-y-3 left-3 z-50 flex-shrink-0 glass-panel flex flex-col transition-all duration-300 ease-in-out rounded-2xl lg:ml-3 lg:mr-1 my-3",
+        isSidebarCollapsed ? "lg:w-[80px]" : "lg:w-[260px]",
+        isMobileMenuOpen ? "translate-x-0 w-[260px]" : "-translate-x-[120%] lg:translate-x-0"
       )}>
-        <div className="flex flex-col items-center justify-center p-6 border-b border-slate-900/5 dark:border-white/[0.05] relative pt-8">
+        <div className={cn("flex flex-col items-center justify-center border-b border-slate-900/5 dark:border-white/[0.05] relative transition-all duration-300", isSidebarCollapsed ? "p-3 pt-6" : "p-6 pt-8")}>
           <button className="lg:hidden absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
             <X className="w-5 h-5" />
           </button>
           
-          <div className="relative -mb-2 mt-1">
+          <button 
+            onClick={toggleSidebarCollapse}
+            className="hidden lg:flex absolute top-3 right-3 p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800/80 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-700 transition-all shadow-sm z-20"
+            title={isSidebarCollapsed ? "Expandir menú" : "Colapsar menú"}
+          >
+            {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
+          
+          <div className="relative -mb-2 mt-1 flex items-center justify-center">
             <div className="absolute inset-0 bg-white/40 blur-[30px] rounded-full scale-125 -z-10 hidden dark:block"></div>
-            <img src="/argoslogo.png" alt="Argos" className="h-28 w-auto object-contain drop-shadow-md" />
+            <img 
+              src={`${window.location.origin}/argoslogo.png`} 
+              alt="Argos" 
+              className={cn("w-auto object-contain drop-shadow-md transition-all duration-300", isSidebarCollapsed ? "h-14 max-w-[50px]" : "h-28")} 
+            />
           </div>
           
-          <div className="flex items-center gap-2 mt-0 z-10">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <p className="text-[11px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400">
-              {profileData.branch}
-            </p>
-          </div>
+          {!isSidebarCollapsed && (
+            <div className="flex items-center gap-2 mt-0 z-10 animate-in fade-in duration-200">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <p className="text-[11px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400">
+                {profileData.branch}
+              </p>
+            </div>
+          )}
         </div>
         
-        <div className="flex flex-col gap-2 p-4 flex-1 overflow-y-auto custom-scrollbar">
+        <div className={cn("flex flex-col gap-2 flex-1 overflow-y-auto custom-scrollbar transition-all duration-300", isSidebarCollapsed ? "p-2" : "p-4")}>
           <nav className="flex flex-col gap-1.5">
-            {menuItems.map(item => {
+            {visibleMenuItems.map(item => {
               const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
               return (
                 <Link 
                   key={item.path}
                   to={item.path}
+                  title={isSidebarCollapsed ? item.label : undefined}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group relative overflow-hidden",
+                    "flex items-center gap-3 py-3 rounded-xl transition-all duration-300 group relative overflow-hidden",
+                    isSidebarCollapsed ? "justify-center px-2" : "px-4",
                     isActive 
                       ? "bg-blue-500/5 dark:bg-white/[0.08] text-blue-600 dark:text-white font-medium border border-blue-500/10 dark:border-white/[0.05] shadow-[inset_0_1px_1px_rgba(0,0,0,0.02)] dark:shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)]" 
                       : "text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-900/5 dark:hover:bg-white/[0.03]"
@@ -433,8 +470,10 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-1/2 bg-blue-500 rounded-r-full shadow-[0_0_10px_rgba(59,130,246,0.8)]" />
                   )}
-                  <item.icon className={cn("w-5 h-5 transition-transform duration-300", isActive ? "scale-110 text-blue-600 dark:text-blue-400" : "group-hover:scale-110")} />
-                  <span className="text-sm tracking-wide">{item.label}</span>
+                  <item.icon className={cn("w-5 h-5 shrink-0 transition-transform duration-300", isActive ? "scale-110 text-blue-600 dark:text-blue-400" : "group-hover:scale-110")} />
+                  {!isSidebarCollapsed && (
+                    <span className="text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">{item.label}</span>
+                  )}
                 </Link>
               );
             })}
@@ -442,20 +481,23 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
         </div>
 
         {/* User Profile at Bottom */}
-        <div className="px-4 pt-4 pb-1 border-t border-slate-900/5 dark:border-white/[0.05] bg-slate-50/50 dark:bg-slate-900/40">
-          <div className="flex items-center justify-between gap-2">
+        <div className={cn("pt-4 pb-1 border-t border-slate-900/5 dark:border-white/[0.05] bg-slate-50/50 dark:bg-slate-900/40 transition-all duration-300", isSidebarCollapsed ? "px-2" : "px-4")}>
+          <div className={cn("flex items-center gap-2", isSidebarCollapsed ? "flex-col justify-center" : "justify-between")}>
             <button 
               onClick={() => setIsProfileModalOpen(true)}
-              className="flex items-center gap-3 overflow-hidden text-left hover:bg-white dark:hover:bg-slate-800 p-1 rounded-lg transition-colors flex-1 min-w-0"
+              title={isSidebarCollapsed ? profileData.name : undefined}
+              className={cn("flex items-center gap-3 overflow-hidden text-left hover:bg-white dark:hover:bg-slate-800 p-1 rounded-lg transition-colors min-w-0", isSidebarCollapsed ? "justify-center" : "flex-1")}
             >
               <div 
                 className="bg-center bg-no-repeat aspect-square bg-cover rounded-full h-9 w-9 border-2 border-blue-600/20 shrink-0" 
                 style={{backgroundImage: `url(${profileData.avatar})`}}
               ></div>
-              <div className="flex flex-col overflow-hidden">
-                <h1 className="text-slate-900 dark:text-white text-xs font-bold truncate">{profileData.name}</h1>
-                <p className="text-slate-500 dark:text-slate-400 text-[10px] truncate uppercase tracking-wider font-semibold">{profileData.role}</p>
-              </div>
+              {!isSidebarCollapsed && (
+                <div className="flex flex-col overflow-hidden animate-in fade-in duration-200">
+                  <h1 className="text-slate-900 dark:text-white text-xs font-bold truncate">{profileData.name}</h1>
+                  <p className="text-slate-500 dark:text-slate-400 text-[10px] truncate uppercase tracking-wider font-semibold">{profileData.role}</p>
+                </div>
+              )}
             </button>
             <button 
               onClick={() => {
@@ -470,18 +512,26 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
             </button>
           </div>
         </div>
-        <div className="pb-4 pt-0 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-900/40 rounded-b-2xl">
-          <a href="https://www.lnx.com.ar" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center group cursor-pointer gap-0">
-            <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">Desarrollado por</span>
-            <img src="/logolynxnaranja.png" alt="LYNX" className="h-10 w-auto object-contain grayscale group-hover:grayscale-0 transition-all opacity-80 group-hover:opacity-100 mt-0.5" />
-          </a>
-        </div>
+        {!isSidebarCollapsed ? (
+          <div className="pb-4 pt-0 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-900/40 rounded-b-2xl animate-in fade-in duration-200">
+            <a href="https://www.lnx.com.ar" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center justify-center group cursor-pointer gap-0">
+              <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">Desarrollado por</span>
+              <img src="/logolynxnaranja.png" alt="LYNX" className="h-10 w-auto object-contain grayscale group-hover:grayscale-0 transition-all opacity-80 group-hover:opacity-100 mt-0.5" />
+            </a>
+          </div>
+        ) : (
+          <div className="pb-3 pt-1 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-900/40 rounded-b-2xl">
+            <a href="https://www.lnx.com.ar" target="_blank" rel="noopener noreferrer" title="Desarrollado por LYNX" className="group cursor-pointer">
+              <img src="/logolynxnaranja.png" alt="LYNX" className="h-5 w-auto object-contain grayscale group-hover:grayscale-0 transition-all opacity-80 group-hover:opacity-100" />
+            </a>
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative z-10">
         {/* Header */}
-        <header className="h-20 flex items-center justify-between px-6 lg:px-8 bg-transparent shrink-0 z-50 no-print mt-2">
+        <header className="h-16 flex items-center justify-between pl-2 lg:pl-3 pr-4 lg:pr-6 bg-transparent shrink-0 z-50 no-print mt-1">
           <div className="flex items-center gap-4">
             <button className="lg:hidden p-2 -ml-2 text-slate-600 dark:text-slate-300" onClick={() => setIsMobileMenuOpen(true)}>
               <Menu className="w-5 h-5" />
@@ -633,8 +683,26 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
         {/* Main Content Area with Cart Sidebar */}
         <div className="flex-1 flex overflow-hidden relative">
           {/* Main Area */}
-          <main className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8 pb-24 lg:pb-8">
-            {children}
+          <main className="flex-1 overflow-y-auto pl-2 lg:pl-3 pr-4 lg:pr-6 pt-2 pb-24 lg:pb-8">
+            {isPathAllowed ? (
+              children
+            ) : (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] text-center p-8 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm my-4">
+                <div className="p-4 bg-rose-50 dark:bg-rose-950/40 rounded-full text-rose-600 dark:text-rose-400 mb-4">
+                  <Shield className="w-12 h-12" />
+                </div>
+                <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Acceso Restringido</h2>
+                <p className="text-slate-500 dark:text-slate-400 text-sm max-w-md mb-6 font-medium">
+                  Tu perfil de usuario (<span className="font-bold text-slate-900 dark:text-white uppercase">{currentUser?.role || 'Vendedor'}</span>) no cuenta con permisos autorizados para acceder a esta sección.
+                </p>
+                <button
+                  onClick={() => navigate('/')}
+                  className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-all text-sm"
+                >
+                  Volver al Inicio
+                </button>
+              </div>
+            )}
           </main>
           <CartSidebar isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} />
         </div>

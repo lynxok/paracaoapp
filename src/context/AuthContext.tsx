@@ -25,10 +25,14 @@ export interface Branch {
   afipCertContent?: string;
   afipKeyName?: string;
   afipKeyContent?: string;
+  afipIvaCondicion?: string;
+  afipIibb?: string;
+  afipNextNumber?: string;
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
+  isLoading: boolean;
   currentUser: User | null;
   currentBranch: Branch | null;
   users: User[];
@@ -55,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentBranch, setCurrentBranch] = useState<Branch | null>(INITIAL_BRANCHES[0]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Load session & user profile on mount
   useEffect(() => {
@@ -128,6 +133,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } catch (e) {
         console.error("Error fetching Supabase session:", e);
+      } finally {
+        setIsLoading(false);
       }
     }
 
@@ -169,7 +176,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (match && match.email) {
           loginEmail = match.email;
         } else {
-          loginEmail = `${loginEmail}@visionclara.com`;
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('email')
+            .ilike('username', loginEmail)
+            .single();
+
+          if (profile && profile.email) {
+            loginEmail = profile.email;
+          } else {
+            loginEmail = `${loginEmail}@visionclara.com`;
+          }
         }
       }
 
@@ -325,6 +342,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       isAuthenticated: !!currentUser,
+      isLoading,
       currentUser,
       currentBranch,
       users,

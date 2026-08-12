@@ -159,6 +159,7 @@ export function Clients() {
       phone: target.elements.phone.value,
       email: target.elements.email.value,
       insuranceId: (target.elements.namedItem('insuranceId') as HTMLSelectElement)?.value,
+      insurancePlan: (target.elements.namedItem('insurancePlan') as HTMLInputElement)?.value,
       affiliateNumber: (target.elements.namedItem('affiliateNumber') as HTMLInputElement)?.value,
       address: {
         street: target.elements.street.value,
@@ -215,7 +216,7 @@ export function Clients() {
   };
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="relative w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
@@ -358,6 +359,10 @@ export function Clients() {
                   </select>
                 </div>
                 <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Plan (Opcional)</label>
+                  <input name="insurancePlan" type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: Plan 210, A1" defaultValue={contextItem?.insurancePlan} />
+                </div>
+                <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nº Afiliado (Opcional)</label>
                   <input name="affiliateNumber" type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: 12345678" defaultValue={contextItem?.affiliateNumber} />
                 </div>
@@ -421,36 +426,37 @@ export function Clients() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
+                    <div className="flex justify-end gap-1.5 items-center">
                       <button 
-                        onClick={() => {
-                          setContextItem(c);
-                          setIsModalOpen(true);
-                        }}
-                        className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-blue-600 dark:text-blue-400 transition-colors" 
-                        title="Editar"
+                         onClick={() => {
+                           setContextItem(c);
+                           setIsOrdersModalOpen(true);
+                         }}
+                         className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm" 
+                         title="Ver Historial de Compras"
                       >
-                        <Edit2 className="w-4 h-4" />
+                        <History className="w-3.5 h-3.5" />
+                        <span>Historial de Compras</span>
                       </button>
                       <button 
                          onClick={() => {
                            setContextItem(c);
                            setIsCCModalOpen(true);
                          }}
-                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-emerald-600 transition-colors" 
+                         className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-emerald-600 transition-colors" 
                          title="Cuenta Corriente"
                       >
                         <Receipt className="w-4 h-4" />
                       </button>
                       <button 
-                         onClick={() => {
-                           setContextItem(c);
-                           setIsOrdersModalOpen(true);
-                         }}
-                         className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-indigo-600 transition-colors" 
-                         title="Pedidos"
+                        onClick={() => {
+                          setContextItem(c);
+                          setIsModalOpen(true);
+                        }}
+                        className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-blue-600 dark:text-blue-400 transition-colors" 
+                        title="Editar"
                       >
-                        <Package className="w-4 h-4" />
+                        <Edit2 className="w-4 h-4" />
                       </button>
                     </div>
                   </td>
@@ -510,7 +516,7 @@ export function Clients() {
             }}
             className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
-            <Package className="w-4 h-4" /> Ver Pedidos
+            <History className="w-4 h-4 text-indigo-600" /> Historial de Compras
           </button>
           
           <button 
@@ -518,7 +524,7 @@ export function Clients() {
               deleteClient(contextItem.id);
               closeMenu();
             }}
-            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors border-t border-slate-100 dark:border-slate-800 mt-1 pt-2"
           >
             <Trash2 className="w-4 h-4" /> Eliminar Cliente
           </button>
@@ -681,18 +687,18 @@ export function Clients() {
         </div>
       )}
 
-      {/* Orders Modal */}
+      {/* Orders / Purchase History Modal */}
       {isOrdersModalOpen && contextItem && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-indigo-50/50 dark:bg-indigo-900/10">
               <div className="flex items-center gap-3">
-                <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl text-indigo-600">
-                  <Package className="w-6 h-6" />
+                <div className="p-3 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl text-indigo-600 dark:text-indigo-400">
+                  <History className="w-6 h-6" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold dark:text-white">Pedidos Realizados</h3>
-                  <p className="text-sm text-slate-500">{contextItem.name}</p>
+                  <h3 className="text-xl font-bold text-slate-900 dark:text-white">Historial de Compras</h3>
+                  <p className="text-sm text-slate-500">{contextItem.name} ({contextItem.dni})</p>
                 </div>
               </div>
               <button onClick={() => { setIsOrdersModalOpen(false); setContextItem(null); }} className="text-slate-500 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200">
@@ -700,64 +706,91 @@ export function Clients() {
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto max-h-[500px] custom-scrollbar">
-               {getClientOrders(contextItem.id).length > 0 ? (
-                 <div className="space-y-4">
-                    {getClientOrders(contextItem.id).map(order => (
-                      <div key={order.id} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-300 dark:hover:border-indigo-700 transition-all group">
-                         <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-3">
-                               <div className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
-                                  {order.type === 'monofocal' || order.type === 'multifocal' || order.type === 'ocupacional' ? <Eye className="w-4 h-4" /> : <Package className="w-4 h-4" />}
-                               </div>
-                               <div>
-                                  <p className="text-xs font-black text-indigo-600 uppercase tracking-widest">{order.id} · {order.date}</p>
-                                  <h4 className="font-bold text-slate-900 dark:text-white">{order.service}</h4>
-                               </div>
-                            </div>
-                            <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-bold text-slate-600 uppercase tracking-widest">
-                               {order.status}
-                            </span>
-                         </div>
-                         <div className="flex items-center justify-between pt-3 border-t border-slate-50 dark:border-slate-800">
-                            <div className="flex gap-4">
-                               <div>
-                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monto Total</p>
-                                  <p className="font-bold text-slate-900 dark:text-white">${order.amount.toLocaleString()}</p>
-                               </div>
-                               <div>
-                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pendiente</p>
-                                  <p className="font-bold text-rose-600">${(order.amount - order.paid).toLocaleString()}</p>
-                               </div>
-                            </div>
-                            <Link to={`/orders/new/${order.type}`} className="flex items-center gap-1 text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:translate-x-1 transition-transform">
-                               Ver Detalle <ArrowRight className="w-3 h-3" />
-                            </Link>
-                         </div>
+            <div className="p-6 overflow-y-auto max-h-[500px] custom-scrollbar space-y-4">
+              {(() => {
+                const clientOrders = getClientOrders(contextItem.id);
+                const totalSpent = clientOrders.reduce((sum, o) => sum + (o.amount || 0), 0);
+
+                if (clientOrders.length === 0) {
+                  return (
+                    <div className="text-center py-16 text-slate-400">
+                      <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                      <p className="font-bold text-slate-600 dark:text-slate-300">No hay compras registradas para este cliente</p>
+                      <p className="text-xs text-slate-400 mt-1">Las compras realizadas en el carrito o recetas aparecerán aquí.</p>
+                      <button 
+                        onClick={() => {
+                          setIsOrdersModalOpen(false);
+                          navigate('/orders/new/monofocal', { state: { clientId: contextItem.id, clientName: contextItem.name } });
+                        }}
+                        className="mt-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-500/20"
+                      >
+                        Iniciar un Pedido
+                      </button>
+                    </div>
+                  );
+                }
+
+                return (
+                  <>
+                    <div className="grid grid-cols-2 gap-4 mb-2">
+                      <div className="p-4 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
+                        <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Total de Compras</p>
+                        <p className="text-2xl font-black text-indigo-700 dark:text-indigo-300">{clientOrders.length} <span className="text-xs font-normal">órdenes</span></p>
                       </div>
-                    ))}
-                 </div>
-               ) : (
-                 <div className="text-center py-16 text-slate-400">
-                    <Package className="w-12 h-12 mx-auto mb-4 opacity-20" />
-                    <p className="font-bold">No hay pedidos registrados</p>
-                    <button 
-                       onClick={() => {
-                         setIsOrdersModalOpen(false);
-                         navigate('/orders/new/monofocal', { state: { clientId: contextItem.id, clientName: contextItem.name } });
-                       }}
-                       className="mt-4 px-6 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-xl text-sm font-bold hover:bg-indigo-100 transition-all"
-                     >
-                       Iniciar un Pedido
-                     </button>
-                 </div>
-               )}
+                      <div className="p-4 bg-emerald-50/50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-900/30">
+                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Monto Invertido</p>
+                        <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">${totalSpent.toLocaleString()}</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      {clientOrders.map(order => (
+                        <div key={order.id} className="p-4 rounded-2xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950 hover:border-indigo-300 dark:hover:border-indigo-700 transition-all shadow-sm">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-lg text-indigo-600 dark:text-indigo-400">
+                                {order.type === 'producto' ? <ShoppingCart className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                              </div>
+                              <div>
+                                <p className="text-xs font-black text-indigo-600 uppercase tracking-widest">{order.id} · {order.date}</p>
+                                <h4 className="font-bold text-slate-900 dark:text-white text-sm">{order.service}</h4>
+                              </div>
+                            </div>
+                            <span className="px-3 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">
+                              {order.status}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+                            <div className="flex gap-4">
+                              <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monto</p>
+                                <p className="font-bold text-slate-900 dark:text-white">${order.amount.toLocaleString()}</p>
+                              </div>
+                              {order.medico && (
+                                <div>
+                                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Médico</p>
+                                  <p className="font-medium text-slate-600 dark:text-slate-400">{order.medico}</p>
+                                </div>
+                              )}
+                            </div>
+                            {order.type !== 'producto' && (
+                              <Link to={`/orders/new/${order.type}`} className="flex items-center gap-1 text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:translate-x-1 transition-transform">
+                                Ver Detalle <ArrowRight className="w-3 h-3" />
+                              </Link>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             
             <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800">
-               <button onClick={() => setIsOrdersModalOpen(false)} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 py-3 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
-                  Cerrar
-               </button>
+              <button onClick={() => setIsOrdersModalOpen(false)} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 py-3 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
+                Cerrar
+              </button>
             </div>
           </div>
         </div>

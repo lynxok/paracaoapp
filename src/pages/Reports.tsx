@@ -1,14 +1,97 @@
-import { TrendingUp, TrendingDown, DollarSign, Percent, PieChart, BarChart3, Users } from "lucide-react";
+import React, { useState, useMemo, useEffect } from "react";
+import { TrendingUp, TrendingDown, DollarSign, Percent, PieChart, BarChart3, Users, Building2, Calendar, Filter, ShieldCheck, CheckCircle2, Clock, FileSpreadsheet } from "lucide-react";
 import { useFinance } from "../context/FinanceContext";
 import { useClients } from "../context/ClientContext";
+import { useAuth } from "../context/AuthContext";
+import { useSettings } from "../context/SettingsContext";
+import { supabase } from "../lib/supabase";
+import { InsuranceClaim } from "../types";
+
+type PeriodType = 'all' | 'day' | 'month' | 'quarter' | 'year' | 'custom';
 
 export function Reports() {
   const { transactions } = useFinance();
   const { orders } = useClients();
+  const { branches } = useAuth();
+
+  // Filters State
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
+  const [periodType, setPeriodType] = useState<PeriodType>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+
+  const periodLabel = useMemo(() => {
+    switch (periodType) {
+      case 'day': return 'Hoy';
+      case 'month': return 'Este Mes';
+      case 'quarter': return 'Este Trimestre';
+      case 'year': return 'Este Año';
+      case 'custom': return `Personalizado (${startDate || 'Inicio'} a ${endDate || 'Fin'})`;
+      case 'all':
+      default: return 'Histórico Completo';
+    }
+  }, [periodType, startDate, endDate]);
+
+  const branchLabel = useMemo(() => {
+    if (selectedBranchId === 'all') return 'Todas las Sucursales';
+    const found = branches.find(b => b.id === selectedBranchId);
+    return found ? found.name : `Sucursal ${selectedBranchId}`;
+  }, [selectedBranchId, branches]);
+
+  // Helper date checker
+  const isDateInPeriod = (dateStr: string) => {
+    if (!dateStr) return false;
+    const itemDate = new Date(dateStr);
+    const today = new Date();
+    
+    // Reset time for fair day comparisons
+    const dItem = new Date(itemDate.getFullYear(), itemDate.getMonth(), itemDate.getDate());
+    const dToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+
+    switch (periodType) {
+      case 'day':
+        return dItem.getTime() === dToday.getTime();
+      case 'month':
+        return itemDate.getFullYear() === today.getFullYear() && itemDate.getMonth() === today.getMonth();
+      case 'quarter': {
+        const currentQuarter = Math.floor(today.getMonth() / 3);
+        const itemQuarter = Math.floor(itemDate.getMonth() / 3);
+        return itemDate.getFullYear() === today.getFullYear() && itemQuarter === currentQuarter;
+      }
+      case 'year':
+        return itemDate.getFullYear() === today.getFullYear();
+      case 'custom': {
+        if (startDate && new Date(dateStr) < new Date(startDate)) return false;
+        if (endDate && new Date(dateStr) > new Date(endDate + 'T23:59:59')) return false;
+        return true;
+      }
+      case 'all':
+      default:
+        return true;
+    }
+  };
+
+  // Filtered Transactions & Orders
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      // Filter by branch if transaction has branchId or box matches branch
+      const matchesBranch = selectedBranchId === 'all' || !t.boxId || t.boxId.includes(selectedBranchId);
+      const matchesPeriod = isDateInPeriod(t.date);
+      return matchesBranch && matchesPeriod;
+    });
+  }, [transactions, selectedBranchId, periodType, startDate, endDate]);
+
+  const filteredOrders = useMemo(() => {
+    return orders.filter(o => {
+      const matchesBranch = selectedBranchId === 'all' || !o.branchId || o.branchId === selectedBranchId;
+      const matchesPeriod = isDateInPeriod(o.date);
+      return matchesBranch && matchesPeriod;
+    });
+  }, [orders, selectedBranchId, periodType, startDate, endDate]);
 
   // Calculate totals
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpenses = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+  const totalExpenses = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const netIncome = totalIncome - totalExpenses;
   const margin = totalIncome > 0 ? ((netIncome / totalIncome) * 100).toFixed(2) : "0.00";
 
@@ -16,7 +99,7 @@ export function Reports() {
     new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 }).format(val);
 
   // Group expenses by category
-  const expensesByCategory = transactions
+  const expensesByCategory = filteredTransactions
     .filter(t => t.type === 'expense')
     .reduce((acc, t) => {
       const cat = t.category || 'Otros';
@@ -34,14 +117,14 @@ export function Reports() {
   const gradientStops = sortedCategories.length > 0 
     ? sortedCategories.map((item, idx) => {
         const amount = item[1];
-        const percentage = (amount / totalExpenses) * 100;
+        const percentage = (amount / (totalExpenses || 1)) * 100;
         const stop = `${categoryColors[idx]} ${currentPercentage}% ${currentPercentage + percentage}%`;
         currentPercentage += percentage;
         return stop;
       }).join(', ')
     : '#e2e8f0 0% 100%'; // empty state
 
-  // Chart data for last 6 months
+  // Dynamic Chart Data (Last 6 Months)
   const today = new Date();
   const last6Months = Array.from({length: 6}, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
@@ -53,7 +136,7 @@ export function Reports() {
     };
   });
 
-  transactions.forEach(t => {
+  filteredTransactions.forEach(t => {
     const tMonth = t.date.slice(0, 7);
     const monthData = last6Months.find(m => m.monthStr === tMonth);
     if (monthData) {
@@ -66,7 +149,7 @@ export function Reports() {
   const maxChartValue = Math.max(...last6Months.map(m => Math.max(m.income, m.expense)), 1);
 
   // Group and rank doctors by order referral count
-  const doctorReferrals = orders
+  const doctorReferrals = filteredOrders
     .filter(o => o.medico && o.medico.trim() !== '')
     .reduce((acc, o) => {
       const doc = o.medico!.trim();
@@ -81,13 +164,84 @@ export function Reports() {
   const totalReferrals = (Object.values(doctorReferrals) as number[]).reduce((sum, count) => sum + count, 0);
 
   return (
-    <div className="space-y-8 max-w-7xl mx-auto">
+    <div className="space-y-8">
+      {/* Panel de Filtros Globales de Reportes */}
+      <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 text-slate-800 dark:text-white font-bold border-b border-slate-100 dark:border-slate-800 pb-3">
+          <Filter className="w-5 h-5 text-blue-600" />
+          <span>Filtros de Reporte</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
+          {/* Selector de Local / Sucursal */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-blue-500" /> Sucursal / Local
+            </label>
+            <select
+              value={selectedBranchId}
+              onChange={(e) => setSelectedBranchId(e.target.value)}
+              className="h-10 px-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none transition-all"
+            >
+              <option value="all">Todas las sucursales</option>
+              {branches.map(b => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Selector de Período */}
+          <div>
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+              <Calendar className="w-3.5 h-3.5 text-violet-500" /> Período
+            </label>
+            <select
+              value={periodType}
+              onChange={(e) => setPeriodType(e.target.value as PeriodType)}
+              className="h-10 px-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none transition-all"
+            >
+              <option value="all">Todo el histórico</option>
+              <option value="day">Día actual</option>
+              <option value="month">Este mes</option>
+              <option value="quarter">Este trimestre</option>
+              <option value="year">Este año</option>
+              <option value="custom">Rango Personalizado</option>
+            </select>
+          </div>
+
+          {/* Fechas personalizadas */}
+          {periodType === 'custom' && (
+            <>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Desde</label>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="h-10 px-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold outline-none"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Hasta</label>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="h-10 px-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold outline-none"
+                />
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* TARJETAS KPI */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: "Ingresos", val: formatCurrency(totalIncome), change: "Total", color: "blue", icon: DollarSign },
-          { label: "Gastos", val: formatCurrency(totalExpenses), change: "Total", color: "rose", icon: TrendingDown },
-          { label: "Utilidad Neta", val: formatCurrency(netIncome), change: "Total", color: "emerald", icon: TrendingUp },
-          { label: "Margen", val: `${margin}%`, change: "Total", color: "indigo", icon: Percent },
+          { label: "Ingresos", val: formatCurrency(totalIncome), change: "Filtrado", color: "blue", icon: DollarSign },
+          { label: "Gastos", val: formatCurrency(totalExpenses), change: "Filtrado", color: "rose", icon: TrendingDown },
+          { label: "Utilidad Neta", val: formatCurrency(netIncome), change: "Filtrado", color: "emerald", icon: TrendingUp },
+          { label: "Margen", val: `${margin}%`, change: "Filtrado", color: "indigo", icon: Percent },
         ].map((stat, idx) => (
           <div key={idx} className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
             <div className="flex justify-between mb-4">
@@ -110,10 +264,6 @@ export function Reports() {
             <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Ventas vs Egresos (6 meses)
             </h3>
-            <select className="text-sm bg-slate-50 dark:bg-slate-800 border-none rounded-md px-3 py-1.5 text-slate-600 dark:text-slate-300 outline-none">
-              <option>Últimos 6 meses</option>
-              <option>Este año</option>
-            </select>
           </div>
           
           <div className="h-64 flex items-end justify-between gap-2 sm:gap-4 px-2">
@@ -157,7 +307,7 @@ export function Reports() {
           <div className="relative w-48 h-48 rounded-full" style={{background: `conic-gradient(${gradientStops})`}}>
             <div className="absolute inset-0 m-auto w-32 h-32 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shadow-inner">
               <div className="text-center">
-                <span className="block text-2xl font-bold text-slate-900 dark:text-white">{formatCurrency(totalExpenses)}</span>
+                <span className="block text-xl font-bold text-slate-900 dark:text-white">{formatCurrency(totalExpenses)}</span>
                 <span className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase">Total</span>
               </div>
             </div>
@@ -173,7 +323,7 @@ export function Reports() {
                     <span className="w-3 h-3 rounded-full" style={{backgroundColor: categoryColors[idx]}}></span> <span className="capitalize">{cat}</span>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="font-bold text-slate-900 dark:text-white">{((amount / totalExpenses) * 100).toFixed(1)}%</span>
+                    <span className="font-bold text-slate-900 dark:text-white">{totalExpenses > 0 ? ((amount / totalExpenses) * 100).toFixed(1) : 0}%</span>
                     <span className="text-[10px] text-slate-400">{formatCurrency(amount)}</span>
                   </div>
                 </div>
@@ -242,7 +392,7 @@ export function Reports() {
             <div className="text-center py-8 text-slate-400">
               <Users className="w-12 h-12 mx-auto mb-3 opacity-20" />
               <p className="font-bold">Sin derivaciones registradas</p>
-              <p className="text-xs">Los médicos aparecerán a medida que registres recetas.</p>
+              <p className="text-xs">Los médicos aparecerán a medida que registres recetas en este filtro.</p>
             </div>
           )}
         </div>
@@ -259,7 +409,7 @@ export function Reports() {
             <div className="space-y-4">
               <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                 <span className="text-xs font-bold text-slate-500 uppercase">Total Recetas</span>
-                <span className="font-black text-slate-900 dark:text-white font-mono">{orders.filter(o => o.type !== 'sale').length}</span>
+                <span className="font-black text-slate-900 dark:text-white font-mono">{filteredOrders.filter(o => o.type !== 'sale').length}</span>
               </div>
               <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                 <span className="text-xs font-bold text-slate-500 uppercase">Médicos Activos</span>
@@ -268,8 +418,8 @@ export function Reports() {
               <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
                 <span className="text-xs font-bold text-slate-500 uppercase">Tasa Derivación</span>
                 <span className="font-black text-emerald-600 font-mono">
-                  {orders.filter(o => o.type !== 'sale').length > 0
-                    ? `${Math.round((totalReferrals / orders.filter(o => o.type !== 'sale').length) * 100)}%`
+                  {filteredOrders.filter(o => o.type !== 'sale').length > 0
+                    ? `${Math.round((totalReferrals / filteredOrders.filter(o => o.type !== 'sale').length) * 100)}%`
                     : "0%"
                   }
                 </span>
@@ -278,6 +428,352 @@ export function Reports() {
           </div>
         </div>
       </div>
+
+      {/* REPORTE DE REINTEGROS / COBERTURAS POR OBRA SOCIAL */}
+      <InsuranceClaimsSection 
+        isDateInPeriod={isDateInPeriod} 
+        formatCurrency={formatCurrency}
+        periodLabel={periodLabel}
+        branchLabel={branchLabel}
+      />
+    </div>
+  );
+}
+
+function InsuranceClaimsSection({ 
+  isDateInPeriod, 
+  formatCurrency, 
+  periodLabel, 
+  branchLabel 
+}: { 
+  isDateInPeriod: (d: string) => boolean; 
+  formatCurrency: (v: number) => string; 
+  periodLabel: string; 
+  branchLabel: string; 
+}) {
+  const [claims, setClaims] = useState<InsuranceClaim[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchClaims = async () => {
+    try {
+      const { data, error } = await supabase.from('insurance_claims').select('*');
+      if (!error && data) {
+        setClaims(data.map((row: any) => ({
+          id: row.id,
+          orderId: row.order_id,
+          clientId: row.client_id,
+          clientName: row.client_name,
+          clientDni: row.client_dni,
+          insuranceId: row.insurance_id,
+          insuranceName: row.insurance_name,
+          itemType: row.item_type,
+          frameCoverage: Number(row.frame_coverage) || 0,
+          crystalCoverage: Number(row.crystal_coverage) || 0,
+          totalAmount: Number(row.total_amount) || 0,
+          status: row.status || 'Pendiente',
+          date: row.date
+        })));
+      }
+    } catch (e) {
+      console.error("Error fetching insurance claims:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchClaims();
+  }, []);
+
+  const handleUpdateStatus = async (id: string, newStatus: 'Pendiente' | 'Presentado' | 'Cobrado') => {
+    setClaims(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c));
+    try {
+      await supabase.from('insurance_claims').update({ status: newStatus }).eq('id', id);
+    } catch (e) {
+      console.error("Error updating claim status:", e);
+    }
+  };
+
+  const { insurances } = useSettings();
+  const [selectedInsuranceFilter, setSelectedInsuranceFilter] = useState<string>("all");
+
+  const filteredClaims = useMemo(() => {
+    return claims.filter(c => {
+      const matchesPeriod = isDateInPeriod(c.date);
+      const matchesInsurance = selectedInsuranceFilter === 'all' || 
+        c.insuranceId === selectedInsuranceFilter || 
+        c.insuranceName.toLowerCase() === selectedInsuranceFilter.toLowerCase();
+      return matchesPeriod && matchesInsurance;
+    });
+  }, [claims, isDateInPeriod, selectedInsuranceFilter]);
+
+  // Agrupado por Obra Social
+  const groupedByInsurance = useMemo(() => {
+    const map: Record<string, { name: string; pending: number; collected: number; count: number; items: InsuranceClaim[] }> = {};
+    filteredClaims.forEach(claim => {
+      const insName = claim.insuranceName || 'Otra Obra Social';
+      if (!map[insName]) {
+        map[insName] = { name: insName, pending: 0, collected: 0, count: 0, items: [] };
+      }
+      map[insName].count += 1;
+      map[insName].items.push(claim);
+      if (claim.status === 'Cobrado') {
+        map[insName].collected += claim.totalAmount;
+      } else {
+        map[insName].pending += claim.totalAmount;
+      }
+    });
+    return Object.values(map).sort((a, b) => b.pending - a.pending);
+  }, [filteredClaims]);
+
+  const totalPendingClaims = filteredClaims.filter(c => c.status !== 'Cobrado').reduce((sum, c) => sum + c.totalAmount, 0);
+  const totalCollectedClaims = filteredClaims.filter(c => c.status === 'Cobrado').reduce((sum, c) => sum + c.totalAmount, 0);
+
+  const handleExportExcel = (targetGroup?: { name: string; items: InsuranceClaim[] }) => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    // Si viene un grupo particular, exportamos ese grupo. Si no, exportamos los filteredClaims acumulados
+    const itemsToExport = targetGroup ? targetGroup.items : filteredClaims;
+    const groupTitle = targetGroup 
+      ? targetGroup.name 
+      : (selectedInsuranceFilter !== 'all' ? (insurances.find(i => i.id === selectedInsuranceFilter)?.name || selectedInsuranceFilter) : "TODAS LAS COBERTURAS");
+      
+    const totalGroupAmount = itemsToExport.reduce((sum, item) => sum + item.totalAmount, 0);
+    const fmt = (num: number) => `$ ${num.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+    const htmlContent = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8" />
+        <style>
+          table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; }
+          .header-row { font-weight: bold; font-size: 14px; text-align: center; height: 35px; background-color: #f2f2f2; border: 2px solid #000; }
+          .th-row th { border: 1px solid #000; padding: 8px; background-color: #e6e6e6; font-weight: bold; }
+          .td-cell { border: 1px solid #000; padding: 6px; }
+          .total-row td { border: 1px solid #000; padding: 8px; font-weight: bold; font-style: italic; }
+          .text-center { text-align: center; }
+          .text-right { text-align: right; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr>
+            <td colspan="4" class="header-row">
+              COMERCIO: OPTICA PARACAO: "${groupTitle.toUpperCase()}"- ${periodLabel.toUpperCase()}
+            </td>
+          </tr>
+          <tr class="th-row">
+            <th>Afiliados</th>
+            <th>N°</th>
+            <th>Fecha RECETA</th>
+            <th>Monto Total</th>
+          </tr>
+          ${itemsToExport.map(item => `
+            <tr>
+              <td class="td-cell">${item.clientName.toUpperCase()}</td>
+              <td class="td-cell text-center">${item.affiliateNumber || item.clientDni || '-'}</td>
+              <td class="td-cell text-center">${item.date}</td>
+              <td class="td-cell text-right">${fmt(item.totalAmount)}</td>
+            </tr>
+          `).join('')}
+          <tr class="total-row">
+            <td colspan="2"></td>
+            <td class="text-right">TOTAL:</td>
+            <td class="text-right">${fmt(totalGroupAmount)}</td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    const cleanInsuranceName = groupTitle.toUpperCase().replace(/[^a-zA-Z0-9_\-]/g, '_');
+    link.href = url;
+    link.setAttribute('download', `Reintegro_${cleanInsuranceName}_${todayStr}.xls`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 shadow-sm space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
+        <div>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <ShieldCheck className="w-6 h-6 text-emerald-600" />
+            Reporte de Reintegros & Coberturas por Obra Social
+          </h3>
+          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Control de subsidios a pedir a Prepagas y Obras Sociales por reintegro de Armazones y Cristales.
+            </p>
+            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+              Período seleccionado: <span className="text-blue-600 dark:text-blue-400 font-extrabold">{periodLabel}</span>
+            </span>
+            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+              Sucursal: <span className="text-purple-600 dark:text-purple-400 font-extrabold">{branchLabel}</span>
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Selector de Obra Social */}
+          <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800 p-1.5 rounded-xl border border-slate-200 dark:border-slate-700">
+            <Filter className="w-3.5 h-3.5 text-slate-400 ml-1" />
+            <select
+              value={selectedInsuranceFilter}
+              onChange={(e) => setSelectedInsuranceFilter(e.target.value)}
+              className="bg-transparent text-xs font-bold text-slate-800 dark:text-slate-200 outline-none pr-2"
+            >
+              <option value="all">Todas las Obras Sociales</option>
+              {insurances.filter(ins => ins.name.trim().toLowerCase() !== 'particular' && !ins.name.trim().toLowerCase().includes('sin cobertura')).map(ins => (
+                <option key={ins.id} value={ins.id}>{ins.name.toUpperCase()}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Botón Permanente de Exportar Excel */}
+          <button
+            onClick={() => handleExportExcel()}
+            disabled={filteredClaims.length === 0}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 ${
+              filteredClaims.length > 0
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'
+                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed border border-slate-200 dark:border-slate-700'
+            }`}
+            title={filteredClaims.length > 0 ? "Exportar datos actuales a Excel" : "Sin datos para exportar"}
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            Exportar Excel
+          </button>
+
+          <div className="flex gap-3">
+            <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 px-3 py-1.5 rounded-xl">
+              <p className="text-[9px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Pendiente</p>
+              <p className="text-sm font-black text-amber-700 dark:text-amber-400 font-mono">{formatCurrency(totalPendingClaims)}</p>
+            </div>
+            <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 px-3 py-1.5 rounded-xl">
+              <p className="text-[9px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Cobrado</p>
+              <p className="text-sm font-black text-emerald-700 dark:text-emerald-400 font-mono">{formatCurrency(totalCollectedClaims)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="p-8 text-center text-slate-500 text-sm">Cargando reporte de reintegros...</div>
+      ) : groupedByInsurance.length === 0 ? (
+        <div className="p-8 text-center text-slate-400 text-sm">
+          <ShieldCheck className="w-12 h-12 mx-auto mb-3 opacity-20" />
+          No hay solicitudes de reintegro por obra social registradas para el <span className="font-bold text-slate-700 dark:text-slate-300">Período ({periodLabel})</span> en <span className="font-bold text-slate-700 dark:text-slate-300">{branchLabel}</span>.
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {groupedByInsurance.map(group => (
+            <div key={group.name} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+              <div className="bg-slate-50 dark:bg-slate-800/60 p-4 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 flex items-center justify-center font-bold">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-slate-900 dark:text-white text-base">{group.name}</h4>
+                    <p className="text-xs text-slate-500">{group.count} solicitudes registradas</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="text-right border-r border-slate-200 dark:border-slate-700 pr-4">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Pendiente de Reintegro</p>
+                    <p className="text-base font-black text-amber-600 dark:text-amber-400 font-mono">{formatCurrency(group.pending)}</p>
+                  </div>
+                  <div className="text-right border-r border-slate-200 dark:border-slate-700 pr-4">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Liquidado / Cobrado</p>
+                    <p className="text-base font-black text-emerald-600 dark:text-emerald-400 font-mono">{formatCurrency(group.collected)}</p>
+                  </div>
+                  <button
+                    onClick={() => handleExportExcel(group)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm shrink-0"
+                    title="Exportar planilla a Excel"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    Exportar Excel
+                  </button>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 uppercase font-bold text-[10px] bg-white dark:bg-slate-900">
+                      <th className="p-3">Fecha</th>
+                      <th className="p-3">Orden / Pedido</th>
+                      <th className="p-3">Paciente / Cliente</th>
+                      <th className="p-3">DNI</th>
+                      <th className="p-3 text-right">Reintegro Cristal</th>
+                      <th className="p-3 text-right">Reintegro Armazón</th>
+                      <th className="p-3 text-right">Total Cobertura</th>
+                      <th className="p-3 text-center">Estado</th>
+                      <th className="p-3 text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                    {group.items.map(claim => (
+                      <tr key={claim.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                        <td className="p-3 text-slate-600 dark:text-slate-300 font-medium">{claim.date}</td>
+                        <td className="p-3 font-bold text-slate-900 dark:text-white font-mono">{claim.orderId}</td>
+                        <td className="p-3 font-semibold text-slate-850 dark:text-slate-200">{claim.clientName}</td>
+                        <td className="p-3 font-mono text-slate-500">{claim.clientDni || '-'}</td>
+                        <td className="p-3 text-right font-mono font-medium text-slate-700 dark:text-slate-300">
+                          {claim.crystalCoverage > 0 ? formatCurrency(claim.crystalCoverage) : '-'}
+                        </td>
+                        <td className="p-3 text-right font-mono font-medium text-slate-700 dark:text-slate-300">
+                          {claim.frameCoverage > 0 ? formatCurrency(claim.frameCoverage) : '-'}
+                        </td>
+                        <td className="p-3 text-right font-mono font-black text-emerald-600 dark:text-emerald-400">
+                          {formatCurrency(claim.totalAmount)}
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                            claim.status === 'Cobrado'
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400'
+                              : claim.status === 'Presentado'
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'
+                              : 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400'
+                          }`}>
+                            {claim.status === 'Cobrado' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                            {claim.status}
+                          </span>
+                        </td>
+                        <td className="p-3 text-right">
+                          {claim.status !== 'Cobrado' ? (
+                            <button
+                              onClick={() => handleUpdateStatus(claim.id, 'Cobrado')}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[10px] font-bold transition-all"
+                            >
+                              Marcar Cobrado
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleUpdateStatus(claim.id, 'Pendiente')}
+                              className="px-2 py-1 text-slate-400 hover:text-amber-600 text-[10px] font-semibold"
+                            >
+                              Deshacer
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

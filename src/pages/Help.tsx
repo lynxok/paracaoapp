@@ -705,7 +705,7 @@ Enviado desde el Centro de Ayuda del Sistema.`;
   });
 
   return (
-    <div className="mx-auto max-w-7xl space-y-8 animate-in fade-in duration-300">
+    <div className="space-y-8 animate-in fade-in duration-300">
       {/* Hero Header with Search */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-800 p-8 md:p-12 text-white shadow-xl">
         <div className="relative z-10 max-w-2xl space-y-4">

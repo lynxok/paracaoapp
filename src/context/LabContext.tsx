@@ -50,6 +50,7 @@ export interface LabJob {
     totalPrice: number;
   };
   treatments?: Array<{ id: string; name: string; price: number }>;
+  estimatedLabDeliveryDate?: string;
   observaciones?: string;
   branchName?: string;
   sellerName?: string;
@@ -72,6 +73,7 @@ interface LabContextType {
   deleteLab: (id: string) => void;
   addJob: (job: Omit<LabJob, 'id'>) => void;
   updateJobStatus: (id: string, status: LabJobStatus) => void;
+  updateJobEstimatedDelivery: (id: string, estimatedLabDeliveryDate: string) => void;
   addPayment: (payment: Omit<LabPayment, 'id'>) => void;
   getLabBalance: (labId: string) => { totalJobs: number; totalCost: number; totalPaid: number; balance: number };
 }
@@ -91,10 +93,40 @@ export function LabProvider({ children }: { children: ReactNode }) {
         if (!lErr && dbLabs) setLabs(dbLabs);
 
         const { data: dbJobs, error: jErr } = await supabase.from('lab_jobs').select('*');
-        if (!jErr && dbJobs) setJobs(dbJobs);
+        if (!jErr && dbJobs) {
+          const mappedJobs: LabJob[] = dbJobs.map(row => ({
+            id: row.id,
+            labId: row.lab_id || row.labId,
+            orderId: row.order_id || row.orderId,
+            date: row.date,
+            concept: row.concept,
+            cost: Number(row.cost) || 0,
+            status: row.status,
+            labName: row.lab_name || row.labName,
+            clientName: row.client_name || row.clientName,
+            clientDni: row.client_dni || row.clientDni,
+            prescription: row.prescription,
+            crystalDetails: row.crystal_details || row.crystalDetails,
+            treatments: row.treatments,
+            estimatedLabDeliveryDate: row.estimated_lab_delivery_date || row.estimatedLabDeliveryDate,
+            observaciones: row.observaciones,
+            branchName: row.branch_name || row.branchName,
+            sellerName: row.seller_name || row.sellerName
+          }));
+          setJobs(mappedJobs);
+        }
 
         const { data: dbPayments, error: pErr } = await supabase.from('lab_payments').select('*');
-        if (!pErr && dbPayments) setPayments(dbPayments);
+        if (!pErr && dbPayments) {
+          const mappedPayments: LabPayment[] = dbPayments.map(row => ({
+            id: row.id,
+            labId: row.lab_id || row.labId,
+            date: row.date,
+            amount: Number(row.amount) || 0,
+            reference: row.reference
+          }));
+          setPayments(mappedPayments);
+        }
       } catch (err) {
         console.warn("Could not load lab data from Supabase:", err);
       }
@@ -106,29 +138,47 @@ export function LabProvider({ children }: { children: ReactNode }) {
 
   const addLab = async (lab: Omit<Lab, 'id'>) => {
     const newLab: Lab = { ...lab, id: Date.now().toString() };
-    setLabs(prev => [...prev, newLab]);
     try {
-      await supabase.from('labs').upsert([newLab]);
-    } catch (e) {
+      const { error } = await supabase.from('labs').upsert([newLab]);
+      if (error) {
+        alert(`⚠️ Error al registrar el laboratorio en la base de datos: ${error.message}`);
+        throw error;
+      }
+      setLabs(prev => [...prev, newLab]);
+    } catch (e: any) {
       console.error("Supabase addLab error:", e);
+      alert(`⚠️ Error al conectar con la base de datos: ${e?.message || 'Error desconocido'}`);
+      throw e;
     }
   };
 
   const updateLab = async (lab: Lab) => {
-    setLabs(prev => prev.map(l => l.id === lab.id ? lab : l));
     try {
-      await supabase.from('labs').upsert([lab]);
-    } catch (e) {
+      const { error } = await supabase.from('labs').upsert([lab]);
+      if (error) {
+        alert(`⚠️ Error al actualizar laboratorio en la base de datos: ${error.message}`);
+        throw error;
+      }
+      setLabs(prev => prev.map(l => l.id === lab.id ? lab : l));
+    } catch (e: any) {
       console.error("Supabase updateLab error:", e);
+      alert(`⚠️ Error al actualizar en la base de datos: ${e?.message || 'Error desconocido'}`);
+      throw e;
     }
   };
 
   const deleteLab = async (id: string) => {
-    setLabs(prev => prev.filter(l => l.id !== id));
     try {
-      await supabase.from('labs').delete().eq('id', id);
-    } catch (e) {
+      const { error } = await supabase.from('labs').delete().eq('id', id);
+      if (error) {
+        alert(`⚠️ Error al eliminar el laboratorio de la base de datos: ${error.message}`);
+        throw error;
+      }
+      setLabs(prev => prev.filter(l => l.id !== id));
+    } catch (e: any) {
       console.error("Supabase deleteLab error:", e);
+      alert(`⚠️ Error al eliminar de la base de datos: ${e?.message || 'Error desconocido'}`);
+      throw e;
     }
   };
 
@@ -136,7 +186,25 @@ export function LabProvider({ children }: { children: ReactNode }) {
     const newJob: LabJob = { ...job, id: Date.now().toString() };
     setJobs(prev => [...prev, newJob]);
     try {
-      await supabase.from('lab_jobs').upsert([newJob]);
+      await supabase.from('lab_jobs').upsert([{
+        id: newJob.id,
+        lab_id: newJob.labId,
+        order_id: newJob.orderId,
+        date: newJob.date,
+        concept: newJob.concept,
+        cost: newJob.cost,
+        status: newJob.status,
+        lab_name: newJob.labName,
+        client_name: newJob.clientName,
+        client_dni: newJob.clientDni,
+        prescription: newJob.prescription,
+        crystal_details: newJob.crystalDetails,
+        treatments: newJob.treatments,
+        estimated_lab_delivery_date: newJob.estimatedLabDeliveryDate,
+        observaciones: newJob.observaciones,
+        branch_name: newJob.branchName,
+        seller_name: newJob.sellerName
+      }]);
     } catch (e) {
       console.error("Supabase addJob error:", e);
     }
@@ -179,12 +247,27 @@ export function LabProvider({ children }: { children: ReactNode }) {
       console.error("Supabase updateJobStatus error:", e);
     }
   };
+
+  const updateJobEstimatedDelivery = async (id: string, estimatedLabDeliveryDate: string) => {
+    setJobs(prevJobs => prevJobs.map(j => j.id === id ? { ...j, estimatedLabDeliveryDate } : j));
+    try {
+      await supabase.from('lab_jobs').update({ estimated_lab_delivery_date: estimatedLabDeliveryDate }).eq('id', id);
+    } catch (e) {
+      console.error("Supabase updateJobEstimatedDelivery error:", e);
+    }
+  };
   
   const addPayment = async (payment: Omit<LabPayment, 'id'>) => {
     const newPayment: LabPayment = { ...payment, id: Date.now().toString() };
     setPayments(prev => [...prev, newPayment]);
     try {
-      await supabase.from('lab_payments').upsert([newPayment]);
+      await supabase.from('lab_payments').upsert([{
+        id: newPayment.id,
+        lab_id: newPayment.labId,
+        date: newPayment.date,
+        amount: newPayment.amount,
+        reference: newPayment.reference
+      }]);
     } catch (e) {
       console.error("Supabase addPayment error:", e);
     }
@@ -202,7 +285,7 @@ export function LabProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <LabContext.Provider value={{ labs, jobs, payments, addLab, updateLab, deleteLab, addJob, updateJobStatus, addPayment, getLabBalance }}>
+    <LabContext.Provider value={{ labs, jobs, payments, addLab, updateLab, deleteLab, addJob, updateJobStatus, updateJobEstimatedDelivery, addPayment, getLabBalance }}>
       {children}
     </LabContext.Provider>
   );

@@ -175,13 +175,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       id: `st-${Date.now()}`
     };
 
+    let calculatedNewBalance: number | null = null;
+
     setSuppliers(prev => prev.map(sup => {
       if (sup.id === supplierId) {
         const newBalance = txData.type === 'invoice' 
           ? sup.balance + txData.amount 
           : sup.balance - txData.amount;
         
-        supabase.from('suppliers').update({ balance: newBalance }).eq('id', supplierId).catch(console.error);
+        calculatedNewBalance = newBalance;
 
         return {
           ...sup,
@@ -191,6 +193,14 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return sup;
     }));
+
+    if (calculatedNewBalance !== null) {
+      try {
+        await supabase.from('suppliers').update({ balance: calculatedNewBalance }).eq('id', supplierId);
+      } catch (e) {
+        console.error("Supabase update balance error:", e);
+      }
+    }
 
     try {
       await supabase.from('supplier_transactions').upsert([{
@@ -263,7 +273,6 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       if (sup.id === supplierId) {
         const updatedTransactions = sup.transactions.map(tx => {
           if (invoiceIds.includes(tx.id)) {
-            supabase.from('supplier_transactions').update({ status: 'paid' }).eq('id', tx.id).catch(console.error);
             return { ...tx, status: 'paid' as const };
           }
           return tx;
@@ -275,6 +284,16 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
       return sup;
     }));
+
+    try {
+      await Promise.all(
+        invoiceIds.map(id =>
+          supabase.from('supplier_transactions').update({ status: 'paid' }).eq('id', id)
+        )
+      );
+    } catch (e) {
+      console.error("Supabase linkPaymentToInvoices error:", e);
+    }
   };
 
   const toggleTransactionReconciliation = async (transactionId: string) => {
@@ -313,8 +332,57 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   };
 
-  const addBox = (box: CashBox) => {
-    setBoxes(prev => [...prev, box]);
+  // Realtime subscription for banks table updates
+  useEffect(() => {
+    const channel = supabase
+      .channel('banks-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'banks' },
+        (payload: any) => {
+          if (payload.new && payload.new.name) {
+            const b = payload.new;
+            const newBox: CashBox = {
+              id: `bank-${b.id}`,
+              name: b.name,
+              type: b.name.toLowerCase().includes('pago') || b.name.toLowerCase().includes('digital') ? 'digital' : 'bank',
+              initialBalance: 0,
+              incomes: 0,
+              expenses: 0
+            };
+            setBoxes(prev => {
+              if (prev.some(existing => existing.id === newBox.id || existing.name.toLowerCase() === newBox.name.toLowerCase())) {
+                return prev;
+              }
+              return [...prev, newBox];
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const addBox = async (box: CashBox) => {
+    setBoxes(prev => {
+      if (prev.some(b => b.id === box.id)) return prev;
+      return [...prev, box];
+    });
+
+    if (box.type === 'bank' || box.type === 'digital') {
+      try {
+        const cleanId = box.id.replace('bank-', '').replace('box-', '');
+        await supabase.from('banks').upsert([{
+          id: cleanId,
+          name: box.name
+        }]);
+      } catch (e) {
+        console.error("Error saving box to Supabase banks table:", e);
+      }
+    }
   };
 
   const transferFunds = (fromId: string, toId: string, amount: number, concept: string) => {

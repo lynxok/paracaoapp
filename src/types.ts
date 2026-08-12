@@ -21,6 +21,7 @@ export interface Client {
   };
   insurance?: string; // Legacy string name, migrating to insuranceId
   insuranceId?: string;
+  insurancePlan?: string;
   affiliateNumber?: string;
   lastVisit?: string;
   balance: number; // Balance for Current Account (C.C.)
@@ -36,6 +37,23 @@ export interface Insurance {
   name: string;
   active: boolean;
   coverages: InsuranceCoverage[];
+}
+
+export interface InsuranceClaim {
+  id: string;
+  orderId: string;
+  clientId: string;
+  clientName: string;
+  clientDni?: string;
+  affiliateNumber?: string;
+  insuranceId: string;
+  insuranceName: string;
+  itemType: 'armazon' | 'cristal' | 'ambos';
+  frameCoverage: number;
+  crystalCoverage: number;
+  totalAmount: number;
+  status: 'Pendiente' | 'Presentado' | 'Cobrado';
+  date: string;
 }
 
 export interface Order {
@@ -178,6 +196,8 @@ export interface BillingDraft {
   amount: number;
   paymentMethod: string;
   billed: boolean;
+  branchId?: string;
+  branchName?: string;
   billingData?: {
     isConsumidorFinal: boolean;
     identificador?: string;

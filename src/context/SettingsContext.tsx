@@ -433,7 +433,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         // 3. Inventory Categories
         const { data: catData } = await supabase.from('inventory_categories').select('*');
         if (catData && catData.length > 0) {
-          setInventoryCategories(catData.map((c: any) => c.name || c.id));
+          setInventoryCategories(Array.from(new Set(catData.map((c: any) => c.name || c.id).filter(Boolean))));
         }
 
         // 4. Crystal Rules
@@ -461,13 +461,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             brand: i.brand,
             design: i.design,
             color: i.color,
-            basePrice: Number(i.basePrice || i.base_price || 0),
+            basePrice: Number(i.baseprice ?? i.basePrice ?? i.base_price ?? 0),
             active: i.active !== undefined ? i.active : true,
-            sphMin: Number(i.sphMin || i.sph_min || 0),
-            sphMax: Number(i.sphMax || i.sph_max || 0),
-            cylMax: Number(i.cylMax || i.cyl_max || 0),
-            addMin: i.addMin !== undefined ? Number(i.addMin) : undefined,
-            addMax: i.addMax !== undefined ? Number(i.addMax) : undefined,
+            sphMin: Number(i.sphmin ?? i.sphMin ?? i.sph_min ?? 0),
+            sphMax: Number(i.sphmax ?? i.sphMax ?? i.sph_max ?? 0),
+            cylMax: Number(i.cylmax ?? i.cylMax ?? i.cyl_max ?? 0),
+            addMin: i.addmin !== undefined ? Number(i.addmin) : (i.addMin !== undefined ? Number(i.addMin) : undefined),
+            addMax: i.addmax !== undefined ? Number(i.addmax) : (i.addMax !== undefined ? Number(i.addMax) : undefined),
             treatments: i.treatments || []
           })));
         }
@@ -554,8 +554,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     async function syncCategories() {
       if (inventoryCategories.length > 0) {
         try {
+          const uniqueCategories = Array.from(new Set(inventoryCategories.filter(Boolean)));
           await supabase.from('inventory_categories').upsert(
-            inventoryCategories.map(c => ({ id: c, name: c }))
+            uniqueCategories.map(c => ({ id: c, name: c }))
           );
         } catch (e) {
           console.error("Error syncing inventory categories:", e);
@@ -618,13 +619,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               brand: i.brand,
               design: i.design,
               color: i.color,
-              basePrice: i.basePrice,
+              baseprice: i.basePrice,
               active: i.active,
-              sphMin: i.sphMin,
-              sphMax: i.sphMax,
-              cylMax: i.cylMax,
-              addMin: i.addMin,
-              addMax: i.addMax,
+              sphmin: i.sphMin,
+              sphmax: i.sphMax,
+              cylmax: i.cylMax,
+              addmin: i.addMin,
+              addmax: i.addMax,
               treatments: i.treatments || []
             }))
           );

@@ -59,14 +59,21 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
   const total = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const discountAmount = (total * discountPercent) / 100;
   const finalTotal = Math.max(0, total - discountAmount);
-  const tax = finalTotal - (finalTotal / 1.21);
-  const subtotal = finalTotal - tax;
+  const subtotal = total;
 
   const [completedReceipt, setCompletedReceipt] = useState<any | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const handleCheckoutClick = () => {
     if (isProcessing) return;
+
+    // Verificar si hay cliente en la receta del carrito o cliente seleccionado
+    const hasRecipeClient = cart.some(c => c.details?.client);
+    if (!selectedClient && !hasRecipeClient) {
+      setIsClientModalOpen(true);
+      return;
+    }
+
     setIsProcessing(true);
     try {
       const res = checkout();
@@ -83,9 +90,16 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
   if (!isOpen) return null;
 
   return (
-    <aside className={cn(
-      "w-full lg:w-[380px] h-full flex flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden shrink-0 z-40 transition-all duration-300 animate-in slide-in-from-right"
-    )}>
+    <>
+      {/* Mobile Backdrop Overlay */}
+      <div 
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 lg:hidden animate-in fade-in duration-200"
+        onClick={onClose || (() => setIsCartOpen(false))}
+      />
+
+      <aside className={cn(
+        "fixed lg:static inset-y-0 right-0 z-50 w-full sm:max-w-md lg:w-[380px] h-full flex flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden shrink-0 transition-all duration-300 animate-in slide-in-from-right"
+      )}>
       {/* Header */}
       <div className="p-4 md:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
         <h2 className="font-black flex items-center gap-2 text-slate-900 dark:text-white text-base">
@@ -277,7 +291,7 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
       </div>
 
       {/* Checkout Area */}
-      <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 space-y-4">
+      <div className="p-4 md:p-6 bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800 space-y-4 pb-24 lg:pb-6">
         {/* Money breakdown */}
         <div className="space-y-2.5">
           <div className="flex justify-between text-xs font-bold text-slate-500 dark:text-slate-400">
@@ -308,11 +322,7 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
             </div>
           )}
 
-          <div className="flex justify-between text-xs font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-800 pb-2.5">
-            <span>IVA (21%)</span>
-            <span>${tax.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div className="flex justify-between text-base font-black text-slate-900 dark:text-white pt-1">
+          <div className="flex justify-between text-base font-black text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800 pt-2.5">
             <span>TOTAL DE VENTA</span>
             <span className="text-blue-600 dark:text-blue-400">${finalTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
           </div>
@@ -480,7 +490,7 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
           Finalizar Venta
         </button>
 
-        {/* Client Selection (Consolidated) */}
+        {/* Client Selection (Required) */}
         {selectedClient ? (
           <div className="flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/30 animate-in fade-in">
             <div className="flex items-center gap-2">
@@ -500,9 +510,10 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
           cart.length > 0 && (
             <button 
               onClick={() => setIsClientModalOpen(true)}
-              className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-bold text-slate-500 hover:text-blue-600 transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 rounded-xl hover:bg-amber-100 transition-colors"
             >
-              <User className="w-4 h-4" /> Asociar Cliente (Opcional)
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Asociar Cliente (Requerido)</span>
             </button>
           )
         )}
@@ -513,9 +524,14 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
             <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-sm font-bold flex items-center gap-1.5 text-slate-900 dark:text-white">
-                <User className="w-5 h-5 text-blue-600" /> Asociar Cliente
-              </h3>
+              <div>
+                <h3 className="text-sm font-bold flex items-center gap-1.5 text-slate-900 dark:text-white">
+                  <User className="w-5 h-5 text-blue-600" /> Asociar Cliente para la Venta
+                </h3>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                  Selecciona un cliente o elije "Cliente Mostrador" para continuar.
+                </p>
+              </div>
               <button onClick={() => setIsClientModalOpen(false)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-400">
                 <X className="w-4 h-4" />
               </button>
@@ -525,26 +541,40 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
                 type="text"
                 value={clientSearch}
                 onChange={(e) => setClientSearch(e.target.value)}
-                placeholder="Buscar cliente..."
+                placeholder="Buscar por nombre o DNI..."
                 className="w-full px-3 h-10 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-xs"
+                autoFocus
               />
-              <div className="max-h-48 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
-                {filteredClients.map(client => (
-                  <button
-                    key={client.id}
-                    onClick={() => {
-                      setSelectedClient(client);
-                      setIsClientModalOpen(false);
-                    }}
-                    className="w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-850 text-left text-xs"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-900 dark:text-white">{client.name}</p>
-                      <p className="text-[10px] text-slate-500 font-mono">{client.dni}</p>
-                    </div>
-                    <Plus className="w-3.5 h-3.5 text-blue-600" />
-                  </button>
-                ))}
+              <div className="max-h-56 overflow-y-auto border border-slate-100 dark:border-slate-800 rounded-lg divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredClients.map(client => {
+                  const isMostrador = client.id === 'cliente-mostrador' || client.name.toLowerCase() === 'cliente mostrador';
+                  return (
+                    <button
+                      key={client.id}
+                      onClick={() => {
+                        setSelectedClient(client);
+                        setIsClientModalOpen(false);
+                      }}
+                      className={cn(
+                        "w-full flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 text-left text-xs transition-colors",
+                        isMostrador && "bg-blue-50/50 dark:bg-blue-900/20"
+                      )}
+                    >
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-bold text-slate-900 dark:text-white">{client.name}</p>
+                          {isMostrador && (
+                            <span className="text-[9px] font-extrabold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 px-1.5 py-0.2 rounded">
+                              Por defecto
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 font-mono">{client.dni}</p>
+                      </div>
+                      <Plus className="w-3.5 h-3.5 text-blue-600" />
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -621,5 +651,6 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
         </div>
       )}
     </aside>
+    </>
   );
 }

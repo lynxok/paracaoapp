@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles, FileText, FlaskConical, Check } from "lucide-react";
 import { cn } from "../lib/utils";
-import { getSavedConnections, saveConnections, getActiveConnectionId, switchConnection, SupabaseConnection } from "../lib/supabase";
+import { supabase, getSavedConnections, saveConnections, getActiveConnectionId, switchConnection, SupabaseConnection } from "../lib/supabase";
 import { logger } from "../lib/logger";
 import { useSettings } from "../context/SettingsContext";
 import { useAuth } from "../context/AuthContext";
@@ -30,7 +30,6 @@ const tabs = [
 ];
 
 export function Settings() {
-  const currentUser = { name: "Ignacio Valente", role: "superadmin" }; // User Mock for permissions
   const [activeTab, setActiveTab] = useState('general');
   const [connections, setConnections] = useState<SupabaseConnection[]>(() => getSavedConnections());
   const activeConnectionId = getActiveConnectionId();
@@ -42,10 +41,15 @@ export function Settings() {
 
   
   // Load points of sale from CRM/Marketing context
-  const [puntosVenta] = useState<string[]>(() => {
+  const [puntosVenta, setPuntosVenta] = useState<string[]>(() => {
     const saved = localStorage.getItem('optica_puntos_venta');
     return saved ? JSON.parse(saved) : ["0001 - P.V. Central", "0002 - P.V. Shopping", "0003 - P.V. Online"];
   });
+
+  const [isPvModalOpen, setIsPvModalOpen] = useState(false);
+  const [newPvNumber, setNewPvNumber] = useState('');
+  const [newPvDescription, setNewPvDescription] = useState('');
+  const [editingPvIndex, setEditingPvIndex] = useState<number | null>(null);
 
   const [selectedPV, setSelectedPV] = useState(() => {
     return localStorage.getItem('optica_default_pv') || (puntosVenta[0] || "0001");
@@ -57,6 +61,7 @@ export function Settings() {
   });
 
   // AFIP Certificates and Credentials
+  const [selectedArcaBranchId, setSelectedArcaBranchId] = useState<string>("");
   const [afipCuit, setAfipCuit] = useState(() => localStorage.getItem('optica_afip_cuit') || "30-71234567-8");
   const [afipEnv, setAfipEnv] = useState(() => localStorage.getItem('optica_afip_env') || "homologacion");
   const [afipCertName, setAfipCertName] = useState(() => localStorage.getItem('optica_afip_cert') || "certificado_prod_paracao.crt");
@@ -222,7 +227,27 @@ export function Settings() {
     new: false,
     confirm: false
   });
-  const { users, addUser, updateUser, deleteUser, branches } = useAuth();
+  const { users, addUser, updateUser, deleteUser, branches, addBranch, updateBranch, deleteBranch, activeBranch, currentUser } = useAuth();
+  const [editingBranch, setEditingBranch] = useState<any>(null);
+  const [branchForm, setBranchForm] = useState({ name: '', address: '', phone: '', afipPtoVenta: '' });
+
+  const loggedInUserRole = (currentUser?.role || '').toLowerCase();
+  
+  const canEditUserRole = (targetRole?: string) => {
+    if (loggedInUserRole === 'standard' || loggedInUserRole === 'vendedor') return false;
+    const targetNorm = (targetRole || '').toLowerCase();
+    if (targetNorm === 'superadmin') {
+      return loggedInUserRole === 'superadmin';
+    }
+    return loggedInUserRole === 'superadmin' || loggedInUserRole === 'admin' || loggedInUserRole === 'administrador';
+  };
+
+  const canDeleteUserRole = (targetRole?: string) => {
+    if (loggedInUserRole === 'standard' || loggedInUserRole === 'vendedor') return false;
+    const targetNorm = (targetRole || '').toLowerCase();
+    if (targetNorm === 'superadmin') return false;
+    return loggedInUserRole === 'superadmin' || loggedInUserRole === 'admin' || loggedInUserRole === 'administrador';
+  };
 
 
   const [notificationConfig, setNotificationConfig] = useState({
@@ -232,6 +257,41 @@ export function Settings() {
     whatsappBridge: true,
     emailLogins: true
   });
+
+  const handleSavePv = () => {
+    if (!newPvNumber.trim()) {
+      alert("Por favor, ingresá el número de Punto de Venta (ej: 0004).");
+      return;
+    }
+    const formattedPv = `${newPvNumber.padStart(4, '0')} - ${newPvDescription.trim() || 'Punto de Venta'}`;
+    
+    let updated: string[];
+    if (editingPvIndex !== null) {
+      updated = [...puntosVenta];
+      updated[editingPvIndex] = formattedPv;
+    } else {
+      updated = [...puntosVenta, formattedPv];
+    }
+    
+    setPuntosVenta(updated);
+    localStorage.setItem('optica_puntos_venta', JSON.stringify(updated));
+    setIsPvModalOpen(false);
+    setNewPvNumber('');
+    setNewPvDescription('');
+    setEditingPvIndex(null);
+  };
+
+  const handleDeletePv = (indexToDelete: number) => {
+    if (puntosVenta.length <= 1) {
+      alert("Debes tener al menos un Punto de Venta configurado.");
+      return;
+    }
+    if (confirm(`¿Estás seguro de eliminar el Punto de Venta "${puntosVenta[indexToDelete]}"?`)) {
+      const updated = puntosVenta.filter((_, idx) => idx !== indexToDelete);
+      setPuntosVenta(updated);
+      localStorage.setItem('optica_puntos_venta', JSON.stringify(updated));
+    }
+  };
 
   const initialPermissions = [
     { id: 'dashboard', module: "Dashboard / Inicio", admin: [true, true, true, false], standard: [true, false, false, false] },
@@ -479,17 +539,58 @@ export function Settings() {
     sql += `DROP POLICY IF EXISTS "Permitir todo en suppliers" ON suppliers;\n`;
     sql += `CREATE POLICY "Permitir todo en suppliers" ON suppliers FOR ALL USING (true) WITH CHECK (true);\n\n`;
 
-    sql += `-- 10. Tabla de Laboratorios Ópticos\n`;
-    sql += `CREATE TABLE IF NOT EXISTS labs (
+    sql += `-- 10. Tabla de Laboratorios Ópticos
+CREATE TABLE IF NOT EXISTS labs (
   id text PRIMARY KEY,
   name text,
+  contact text,
   phone text,
   email text,
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
-);\n`;
-    sql += `ALTER TABLE labs ENABLE ROW LEVEL SECURITY;\n`;
-    sql += `DROP POLICY IF EXISTS "Permitir todo en labs" ON labs;\n`;
-    sql += `CREATE POLICY "Permitir todo en labs" ON labs FOR ALL USING (true) WITH CHECK (true);\n\n`;
+);
+ALTER TABLE labs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir todo en labs" ON labs;
+CREATE POLICY "Permitir todo en labs" ON labs FOR ALL USING (true) WITH CHECK (true);
+
+-- 10.1 Tabla de Trabajos de Laboratorio (lab_jobs)
+CREATE TABLE IF NOT EXISTS lab_jobs (
+  id text PRIMARY KEY,
+  lab_id text,
+  order_id text,
+  date text,
+  concept text,
+  cost numeric DEFAULT 0,
+  status text,
+  lab_name text,
+  client_name text,
+  client_dni text,
+  prescription jsonb,
+  crystal_details jsonb,
+  treatments jsonb,
+  estimated_lab_delivery_date text,
+  observaciones text,
+  branch_name text,
+  seller_name text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE lab_jobs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir todo en lab_jobs" ON lab_jobs;
+CREATE POLICY "Permitir todo en lab_jobs" ON lab_jobs FOR ALL USING (true) WITH CHECK (true);
+
+-- 10.2 Tabla de Pagos a Laboratorio (lab_payments)
+CREATE TABLE IF NOT EXISTS lab_payments (
+  id text PRIMARY KEY,
+  lab_id text,
+  date text,
+  amount numeric DEFAULT 0,
+  reference text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);
+ALTER TABLE lab_payments ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Permitir todo en lab_payments" ON lab_payments;
+CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (true) WITH CHECK (true);
+
+`;
 
     sql += `-- 11. Tabla de Catálogo de Cristales\n`;
     sql += `CREATE TABLE IF NOT EXISTS crystal_items (
@@ -784,7 +885,7 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-8 max-w-7xl mx-auto">
+    <div className="flex flex-col lg:flex-row gap-8">
       {/* Context Menu */}
       {contextMenu.show && (
         <div 
@@ -1072,7 +1173,11 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Gestiona los locales físicos de tu óptica.</p>
               </div>
               <button 
-                onClick={() => setIsBranchModalOpen(true)}
+                onClick={() => {
+                  setEditingBranch(null);
+                  setBranchForm({ name: '', address: '', phone: '', afipPtoVenta: '' });
+                  setIsBranchModalOpen(true);
+                }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm"
               >
                 <Plus className="w-4 h-4" /> Nueva Sucursal
@@ -1092,15 +1197,38 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                           <h4 className="font-bold text-slate-900 dark:text-white">{branch.name}</h4>
                           {branch.main && <span className="px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-[10px] font-black text-blue-600 dark:text-blue-400 uppercase">Principal</span>}
                         </div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{branch.address}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{branch.address || 'Sin dirección'}</p>
                       </div>
                     </div>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button className="p-2 hover:bg-white dark:hover:bg-slate-900 rounded-lg text-slate-500 transition-colors">
+                    <div className="flex gap-1">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setEditingBranch(branch);
+                          setBranchForm({
+                            name: branch.name || '',
+                            address: branch.address || '',
+                            phone: branch.phone || '',
+                            afipPtoVenta: branch.afipPtoVenta || ''
+                          });
+                          setIsBranchModalOpen(true);
+                        }}
+                        className="p-2 hover:bg-blue-50 dark:hover:bg-slate-800 rounded-lg text-blue-600 transition-colors border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs"
+                        title="Editar Sucursal"
+                      >
                         <Edit2 className="w-4 h-4" />
                       </button>
                       {!branch.main && (
-                        <button className="p-2 hover:bg-white dark:hover:bg-slate-900 rounded-lg text-red-500 transition-colors">
+                        <button 
+                          type="button"
+                          onClick={async () => {
+                            if (confirm(`¿Estás seguro de eliminar la sucursal "${branch.name}"?`)) {
+                              await deleteBranch(branch.id);
+                            }
+                          }}
+                          className="p-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg text-rose-600 transition-colors border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xs"
+                          title="Eliminar Sucursal"
+                        >
                           <Trash2 className="w-4 h-4" />
                         </button>
                       )}
@@ -1109,8 +1237,13 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                   <div className="mt-4 flex items-center gap-4 text-xs font-medium text-slate-600 dark:text-slate-400">
                     <div className="flex items-center gap-1.5">
                       <Smartphone className="w-3.5 h-3.5 opacity-60" />
-                      {branch.phone}
+                      {branch.phone || 'Sin teléfono'}
                     </div>
+                    {branch.afipPtoVenta && (
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded font-bold">
+                        PV: {branch.afipPtoVenta}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1128,15 +1261,17 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Administra los accesos y roles de tu equipo.</p>
               </div>
               <div className="flex gap-2">
-                <button 
-                  onClick={() => {
-                    setSelectedUser(null);
-                    setIsUserModalOpen(true);
-                  }}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm self-start"
-                >
-                  <Plus className="w-4 h-4" /> Nuevo Usuario
-                </button>
+                {canEditUserRole('admin') && (
+                  <button 
+                    onClick={() => {
+                      setSelectedUser(null);
+                      setIsUserModalOpen(true);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2 text-sm self-start"
+                  >
+                    <Plus className="w-4 h-4" /> Nuevo Usuario
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1152,77 +1287,92 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {users.map((user) => (
-                    <tr 
-                      key={user.id} 
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-context-menu"
-                      onContextMenu={(e) => handleUserContextMenu(e, user)}
-                    >
-                      <td className="px-8 py-4">
-                        <div className="font-bold text-slate-900 dark:text-white">{user.name}</div>
-                        <div className="text-xs text-slate-500 dark:text-slate-400">{user.email}</div>
-                      </td>
-                      <td className="px-8 py-4">
-                        <span className={cn(
-                          "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
-                          user.role === 'superadmin' ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600" :
-                          user.role === 'admin' ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600" :
-                          "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600"
-                        )}>
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className="px-8 py-4">
-                        <div className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                          <MapPin className="w-3 h-3 opacity-40" /> {branches.find(b => b.id === user.defaultBranchId)?.name || 'Todas'}
-                        </div>
-                      </td>
-                      <td className="px-8 py-4">
-                        <span className={cn(
-                          "inline-flex items-center gap-1.5 text-xs font-bold",
-                          user.status === 'Activo' ? "text-emerald-600" : "text-slate-400"
-                        )}>
-                          <span className={cn("w-1.5 h-1.5 rounded-full", user.status === 'Activo' ? "bg-emerald-600" : "bg-slate-400")} />
-                          {user.status}
-                        </span>
-                      </td>
-                      <td className="px-8 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button 
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setIsUserModalOpen(true);
-                            }}
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 transition-colors"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button 
-                            onClick={() => {
-                              setSelectedUser(user);
-                              setIsPasswordModalOpen(true);
-                            }}
-                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-emerald-600 transition-colors"
-                            title="Cambiar Contraseña"
-                          >
-                            <KeyRound className="w-4 h-4" />
-                          </button>
-                          {user.role !== 'superadmin' && (
-                            <button 
-                              onClick={() => {
-                                if(confirm(`¿Estás seguro de eliminar a ${user.name}?`)) {
-                                  deleteUser(user.id);
-                                }
-                              }}
-                              className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-500 transition-colors"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {users.map((user) => {
+                    const allowedEdit = canEditUserRole(user.role);
+                    const allowedDelete = canDeleteUserRole(user.role);
+
+                    return (
+                      <tr 
+                        key={user.id} 
+                        className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-context-menu"
+                        onContextMenu={(e) => handleUserContextMenu(e, user)}
+                      >
+                        <td className="px-8 py-4">
+                          <div className="font-bold text-slate-900 dark:text-white">{user.name}</div>
+                          <div className="text-xs text-slate-500 dark:text-slate-400">{user.email}</div>
+                        </td>
+                        <td className="px-8 py-4">
+                          <span className={cn(
+                            "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                            user.role === 'superadmin' ? "bg-purple-100 dark:bg-purple-900/30 text-purple-600" :
+                            user.role === 'admin' ? "bg-blue-100 dark:bg-blue-900/30 text-blue-600" :
+                            "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600"
+                          )}>
+                            {user.role}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4">
+                          <div className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                            <MapPin className="w-3 h-3 opacity-40" /> {branches.find(b => b.id === user.defaultBranchId)?.name || 'Todas'}
+                          </div>
+                        </td>
+                        <td className="px-8 py-4">
+                          <span className={cn(
+                            "inline-flex items-center gap-1.5 text-xs font-bold",
+                            user.status === 'Activo' ? "text-emerald-600" : "text-slate-400"
+                          )}>
+                            <span className={cn("w-1.5 h-1.5 rounded-full", user.status === 'Activo' ? "bg-emerald-600" : "bg-slate-400")} />
+                            {user.status}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {allowedEdit ? (
+                              <>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setIsUserModalOpen(true);
+                                  }}
+                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-blue-600 transition-colors"
+                                  title="Editar Usuario"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    setSelectedUser(user);
+                                    setIsPasswordModalOpen(true);
+                                  }}
+                                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-emerald-600 transition-colors"
+                                  title="Cambiar / Resetear Contraseña"
+                                >
+                                  <KeyRound className="w-4 h-4" />
+                                </button>
+                              </>
+                            ) : (
+                              <span title="Solo un Superadmin puede editar usuarios con rol Superadmin" className="p-2 text-slate-300 dark:text-slate-700 cursor-not-allowed">
+                                <Lock className="w-4 h-4" />
+                              </span>
+                            )}
+                            {allowedDelete && (
+                              <button 
+                                onClick={() => {
+                                  if(confirm(`¿Estás seguro de eliminar a ${user.name}?`)) {
+                                    deleteUser(user.id);
+                                  }
+                                }}
+                                className="p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg text-red-500 transition-colors"
+                                title="Eliminar Usuario"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -1379,228 +1529,399 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
               <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 <Receipt className="w-6 h-6 text-blue-600" /> Configuración de Facturación
               </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Define parámetros fiscales y plantillas de comprobantes.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Administrá la configuración fiscal, puntos de venta y credenciales de ARCA por sucursal.
+              </p>
             </div>
             
             <div className="p-6 sm:p-8 space-y-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Condición Frente al IVA</label>
-                  <select className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none text-sm font-medium">
-                    <option>Responsable Inscripto</option>
-                    <option>Monotributista</option>
-                    <option>Exento</option>
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Ingresos Brutos (IIBB)</label>
-                  <input className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none placeholder:text-slate-400" placeholder="Ej: 902-123456-7" />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Punto de Venta por Defecto</label>
-                  <select 
-                    value={selectedPV}
-                    onChange={e => {
-                      setSelectedPV(e.target.value);
-                      localStorage.setItem('optica_default_pv', e.target.value);
-                    }}
-                    className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none text-sm font-medium text-slate-900 dark:text-white"
-                  >
-                    {puntosVenta.map(pv => (
-                      <option key={pv} value={pv}>{pv}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Próximo Nro. de Factura</label>
-                  <input className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none" defaultValue="00021458" />
-                </div>
-
-                {/* Punto de Venta por Sucursal */}
-                <div className="flex flex-col gap-3 mt-4 border-t border-slate-100 dark:border-slate-800 pt-6 md:col-span-2">
-                  <h4 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
-                    <Building2 className="w-4.5 h-4.5 text-blue-600" /> Puntos de Venta Asignados por Sucursal
-                  </h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Define qué Punto de Venta facturará automáticamente cada sucursal.</p>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-                    {branches.map(branch => (
-                      <div key={branch.id} className="flex flex-col gap-1.5 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40">
-                        <label className="text-xs font-bold text-slate-700 dark:text-slate-300">{branch.name}</label>
-                        <select
-                          value={branch.afipPtoVenta || branchPVs[branch.id] || ""}
-                          onChange={async e => {
-                            const pto = e.target.value;
-                            const updatedPVs = { ...branchPVs, [branch.id]: pto };
-                            setBranchPVs(updatedPVs);
-                            localStorage.setItem('optica_branch_pvs', JSON.stringify(updatedPVs));
-                            await updateBranch({ ...branch, afipPtoVenta: pto });
-                          }}
-                          className="h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none text-xs font-semibold text-slate-900 dark:text-white"
-                        >
-                          <option value="">Seleccionar Punto de Venta...</option>
-                          {puntosVenta.map(pv => (
-                            <option key={pv} value={pv}>{pv}</option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              
               <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-6">
-                <h4 className="font-black text-slate-900 dark:text-white flex items-center gap-2 text-sm">
-                  <ScrollText className="w-5 h-5 text-blue-600" /> Credenciales y Certificados de AFIP / ARCA
-                </h4>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Carga los archivos de certificado de homologación o producción y asocia el CUIT para operar con factura electrónica.
-                </p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">CUIT Vinculado</label>
-                    <input 
-                      type="text" 
-                      value={afipCuit}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setAfipCuit(val);
-                        localStorage.setItem('optica_afip_cuit', val);
-                        supabase.from('system_settings').upsert([{ key: 'optica_afip_cuit', value: val }]).catch(console.error);
-                      }}
-                      className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono" 
-                      placeholder="Ej: 30-71234567-8"
-                    />
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-black text-slate-900 dark:text-white flex items-center gap-2 text-sm">
+                      <ScrollText className="w-5 h-5 text-blue-600" /> Credenciales y Configuración de AFIP / ARCA por Sucursal / PV
+                    </h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                      Administrá Puntos de Venta, CUIT, condición IVA, IIBB, próximo nro. de factura, certificados y clave privada de ARCA para cada sucursal.
+                    </p>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Entorno del Servidor</label>
-                    <select 
-                      value={afipEnv}
-                      onChange={e => {
-                        const val = e.target.value;
-                        setAfipEnv(val);
-                        localStorage.setItem('optica_afip_env', val);
-                        supabase.from('system_settings').upsert([{ key: 'optica_afip_env', value: val }]).catch(console.error);
+
+                  {branches.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (confirm(`¿Deseas copiar esta configuración de ARCA (CUIT ${afipCuit}, entorno ${afipEnv}) a TODAS las sucursales?`)) {
+                          for (const b of branches) {
+                            await updateBranch({
+                              ...b,
+                              afipCuit: afipCuit,
+                              afipEnv: afipEnv as any,
+                              afipCertName: afipCertName,
+                              afipKeyName: afipKeyName,
+                              afipIvaCondicion: activeBranch?.afipIvaCondicion || "Responsable Inscripto",
+                              afipIibb: activeBranch?.afipIibb || iibb,
+                              afipNextNumber: activeBranch?.afipNextNumber || "00021458"
+                            });
+                          }
+                          alert("Configuración de ARCA copiada exitosamente a todas las sucursales.");
+                        }
                       }}
-                      className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-semibold"
+                      className="px-3 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-300 hover:bg-indigo-100 rounded-lg text-xs font-bold transition-all border border-indigo-200 dark:border-indigo-800 shrink-0"
                     >
-                      <option value="homologacion">Homologación (Testing / Pruebas)</option>
-                      <option value="produccion">Producción (Real / Fiscal)</option>
-                    </select>
+                      Copiar a Todas las Sucursales
+                    </button>
+                  )}
+                </div>
+
+                {/* Puntos de Venta Habilitados Manager */}
+                <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                      <h5 className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                        <Building2 className="w-4 h-4 text-blue-600" /> Puntos de Venta Habilitados (ARCA)
+                      </h5>
+                      <p className="text-[11px] text-slate-500">Agregá o editá los Puntos de Venta autorizados ante AFIP/ARCA.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewPvNumber('');
+                        setNewPvDescription('');
+                        setEditingPvIndex(null);
+                        setIsPvModalOpen(true);
+                      }}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 shadow-sm shrink-0"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Agregar Punto de Venta
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+                    {puntosVenta.map((pv, idx) => (
+                      <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs hover:border-blue-300 dark:hover:border-blue-800 transition-all">
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-mono font-bold rounded text-[11px]">
+                            {pv.split(' - ')[0]}
+                          </span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                            {pv.split(' - ')[1] || pv}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0 ml-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const parts = pv.split(' - ');
+                              setNewPvNumber(parts[0] || '');
+                              setNewPvDescription(parts[1] || '');
+                              setEditingPvIndex(idx);
+                              setIsPvModalOpen(true);
+                            }}
+                            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-300 transition-colors"
+                            title="Editar Punto de Venta"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeletePv(idx)}
+                            className="p-1 hover:bg-rose-100 dark:hover:bg-rose-950/30 rounded text-rose-600 transition-colors"
+                            title="Eliminar Punto de Venta"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                  {/* Certificate Upload Slot */}
-                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col gap-3">
-                    <div>
-                      <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">Certificado Digital (.crt / .pem)</h5>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Firmado y descargado desde la web de AFIP.</p>
-                    </div>
-                    {afipCertName ? (
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
-                        <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-400 font-bold truncate max-w-[180px]">{afipCertName}</span>
-                        <button 
-                          onClick={async () => {
-                            setAfipCertName("");
-                            localStorage.removeItem('optica_afip_cert');
-                            if (currentBranch) {
-                              await updateBranch({ ...currentBranch, afipCertName: "", afipCertContent: "" });
-                            }
-                          }}
-                          className="text-xs text-red-500 hover:underline font-bold shrink-0 ml-2"
-                        >
-                          Quitar
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="h-10 flex items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-all text-xs font-bold text-slate-500 dark:text-slate-400">
-                        Subir certificado_firmado.crt
-                        <input 
-                          type="file" 
-                          accept=".crt,.pem" 
-                          className="hidden" 
-                          onChange={e => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            const name = file.name;
-                            const reader = new FileReader();
-                            reader.onload = async (event) => {
-                              const content = event.target?.result as string || "";
-                              setAfipCertName(name);
-                              localStorage.setItem('optica_afip_cert', name);
-                              if (currentBranch) {
-                                await updateBranch({
-                                  ...currentBranch,
-                                  afipCertName: name,
-                                  afipCertContent: content,
-                                  afipCuit: afipCuit,
-                                  afipEnv: afipEnv as any
-                                });
-                              }
-                            };
-                            reader.readAsText(file);
-                          }}
-                        />
-                      </label>
-                    )}
-                  </div>
-
-                  {/* Private Key Upload Slot */}
-                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col gap-3">
-                    <div>
-                      <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">Clave Privada (.key)</h5>
-                      <p className="text-[10px] text-slate-400 mt-0.5">Clave RSA generada junto con el archivo CSR.</p>
-                    </div>
-                    {afipKeyName ? (
-                      <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
-                        <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-400 font-bold truncate max-w-[180px]">{afipKeyName}</span>
-                        <button 
-                          onClick={async () => {
-                            setAfipKeyName("");
-                            localStorage.removeItem('optica_afip_key');
-                            if (currentBranch) {
-                              await updateBranch({ ...currentBranch, afipKeyName: "", afipKeyContent: "" });
-                            }
-                          }}
-                          className="text-xs text-red-500 hover:underline font-bold shrink-0 ml-2"
-                        >
-                          Quitar
-                        </button>
-                      </div>
-                    ) : (
-                      <label className="h-10 flex items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-all text-xs font-bold text-slate-500 dark:text-slate-400">
-                        Subir clave_privada.key
-                        <input 
-                          type="file" 
-                          accept=".key" 
-                          className="hidden" 
-                          onChange={e => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
-                            const name = file.name;
-                            const reader = new FileReader();
-                            reader.onload = async (event) => {
-                              const content = event.target?.result as string || "";
-                              setAfipKeyName(name);
-                              localStorage.setItem('optica_afip_key', name);
-                              if (currentBranch) {
-                                await updateBranch({
-                                  ...currentBranch,
-                                  afipKeyName: name,
-                                  afipKeyContent: content,
-                                  afipCuit: afipCuit,
-                                  afipEnv: afipEnv as any
-                                });
-                              }
-                            };
-                            reader.readAsText(file);
-                          }}
-                        />
-                      </label>
-                    )}
-                  </div>
+                {/* Branch Selection Tabs */}
+                <div className="flex gap-2 overflow-x-auto pb-1 border-b border-slate-200 dark:border-slate-800 custom-scrollbar">
+                  {branches.map(branch => {
+                    const activeId = selectedArcaBranchId || branches[0]?.id || '1';
+                    const isSelected = activeId === branch.id;
+                    return (
+                      <button
+                        key={branch.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedArcaBranchId(branch.id);
+                          if (branch.afipCuit) setAfipCuit(branch.afipCuit);
+                          if (branch.afipEnv) setAfipEnv(branch.afipEnv);
+                          if (branch.afipCertName) setAfipCertName(branch.afipCertName);
+                          if (branch.afipKeyName) setAfipKeyName(branch.afipKeyName);
+                        }}
+                        className={cn(
+                          "px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap border",
+                          isSelected
+                            ? "bg-indigo-600 text-white border-indigo-600 shadow-md shadow-indigo-500/20"
+                            : "bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-100"
+                        )}
+                      >
+                        <Building2 className="w-3.5 h-3.5" />
+                        <span>{branch.name}</span>
+                        <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] opacity-90 font-mono">
+                          PV: {branch.afipPtoVenta || 'Sin PV'}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {/* Active Branch Config Card */}
+                {(() => {
+                  const activeBranch = branches.find(b => b.id === (selectedArcaBranchId || branches[0]?.id || '1')) || branches[0];
+                  return (
+                    <div className="space-y-4 pt-2">
+                      <div className="flex items-center justify-between p-3 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-xl border border-indigo-100 dark:border-indigo-900/30">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                          <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+                            Configurando Sucursal / PV: <strong>{activeBranch?.name}</strong>
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400 font-bold">
+                          ID: {activeBranch?.id}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Punto de Venta ARCA</label>
+                          <select
+                            value={activeBranch?.afipPtoVenta || branchPVs[activeBranch?.id || ''] || ""}
+                            onChange={async e => {
+                              const pto = e.target.value;
+                              const updatedPVs = { ...branchPVs, [activeBranch.id]: pto };
+                              setBranchPVs(updatedPVs);
+                              localStorage.setItem('optica_branch_pvs', JSON.stringify(updatedPVs));
+                              await updateBranch({ ...activeBranch, afipPtoVenta: pto });
+                            }}
+                            className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none text-xs font-semibold text-slate-900 dark:text-white"
+                          >
+                            <option value="">Seleccionar Punto de Venta...</option>
+                            {puntosVenta.map(pv => (
+                              <option key={pv} value={pv}>{pv}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Próximo Nro. de Factura (PV)</label>
+                          <input 
+                            type="text" 
+                            value={activeBranch?.afipNextNumber || "00021458"}
+                            onChange={async e => {
+                              const val = e.target.value;
+                              if (activeBranch) {
+                                await updateBranch({ ...activeBranch, afipNextNumber: val });
+                              }
+                            }}
+                            className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono" 
+                            placeholder="00021458"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Condición Frente al IVA</label>
+                          <select 
+                            value={activeBranch?.afipIvaCondicion || "Responsable Inscripto"}
+                            onChange={async e => {
+                              const val = e.target.value;
+                              if (activeBranch) {
+                                await updateBranch({ ...activeBranch, afipIvaCondicion: val });
+                              }
+                            }}
+                            className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none text-xs font-semibold text-slate-900 dark:text-white"
+                          >
+                            <option value="Responsable Inscripto">Responsable Inscripto</option>
+                            <option value="Monotributista">Monotributista</option>
+                            <option value="Exento">Exento</option>
+                            <option value="Consumidor Final">Consumidor Final</option>
+                          </select>
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Ingresos Brutos (IIBB)</label>
+                          <input 
+                            type="text" 
+                            value={activeBranch?.afipIibb || iibb}
+                            onChange={async e => {
+                              const val = e.target.value;
+                              setIibb(val);
+                              localStorage.setItem('optica_iibb', val);
+                              if (activeBranch) {
+                                await updateBranch({ ...activeBranch, afipIibb: val });
+                              }
+                            }}
+                            className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono" 
+                            placeholder="Ej: 902-123456-7"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">CUIT Vinculado</label>
+                          <input 
+                            type="text" 
+                            value={afipCuit}
+                            onChange={async e => {
+                              const val = e.target.value;
+                              setAfipCuit(val);
+                              localStorage.setItem('optica_afip_cuit', val);
+                              if (activeBranch) {
+                                await updateBranch({ ...activeBranch, afipCuit: val });
+                              }
+                              try {
+                                await supabase.from('system_settings').upsert([{ key: 'optica_afip_cuit', value: val }]);
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono" 
+                            placeholder="Ej: 30-71234567-8"
+                          />
+                        </div>
+
+                        <div className="flex flex-col gap-1.5">
+                          <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Entorno del Servidor</label>
+                          <select 
+                            value={afipEnv}
+                            onChange={async e => {
+                              const val = e.target.value;
+                              setAfipEnv(val);
+                              localStorage.setItem('optica_afip_env', val);
+                              if (activeBranch) {
+                                await updateBranch({ ...activeBranch, afipEnv: val as any });
+                              }
+                              try {
+                                await supabase.from('system_settings').upsert([{ key: 'optica_afip_env', value: val }]);
+                              } catch (err) {
+                                console.error(err);
+                              }
+                            }}
+                            className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-semibold"
+                          >
+                            <option value="homologacion">Homologación (Testing / Pruebas)</option>
+                            <option value="produccion">Producción (Real / Fiscal)</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                        {/* Certificate Upload Slot */}
+                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col gap-3">
+                          <div>
+                            <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">Certificado Digital (.crt / .pem) - {activeBranch?.name}</h5>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Firmado y descargado desde la web de AFIP.</p>
+                          </div>
+                          {afipCertName ? (
+                            <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                              <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-400 font-bold truncate max-w-[180px]">{afipCertName}</span>
+                              <button 
+                                onClick={async () => {
+                                  setAfipCertName("");
+                                  localStorage.removeItem('optica_afip_cert');
+                                  if (activeBranch) {
+                                    await updateBranch({ ...activeBranch, afipCertName: "", afipCertContent: "" });
+                                  }
+                                }}
+                                className="text-xs text-red-500 hover:underline font-bold shrink-0 ml-2"
+                              >
+                                Quitar
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="h-10 flex items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-all text-xs font-bold text-slate-500 dark:text-slate-400">
+                              Subir certificado_firmado.crt
+                              <input 
+                                type="file" 
+                                accept=".crt,.pem" 
+                                className="hidden" 
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const name = file.name;
+                                  const reader = new FileReader();
+                                  reader.onload = async (event) => {
+                                    const content = event.target?.result as string || "";
+                                    setAfipCertName(name);
+                                    localStorage.setItem('optica_afip_cert', name);
+                                    if (activeBranch) {
+                                      await updateBranch({
+                                        ...activeBranch,
+                                        afipCertName: name,
+                                        afipCertContent: content,
+                                        afipCuit: afipCuit,
+                                        afipEnv: afipEnv as any
+                                      });
+                                    }
+                                  };
+                                  reader.readAsText(file);
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+
+                        {/* Private Key Upload Slot */}
+                        <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col gap-3">
+                          <div>
+                            <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">Clave Privada (.key) - {activeBranch?.name}</h5>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Clave RSA generada junto con el archivo CSR.</p>
+                          </div>
+                          {afipKeyName ? (
+                            <div className="flex items-center justify-between p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30">
+                              <span className="text-[10px] font-mono text-emerald-800 dark:text-emerald-400 font-bold truncate max-w-[180px]">{afipKeyName}</span>
+                              <button 
+                                onClick={async () => {
+                                  setAfipKeyName("");
+                                  localStorage.removeItem('optica_afip_key');
+                                  if (activeBranch) {
+                                    await updateBranch({ ...activeBranch, afipKeyName: "", afipKeyContent: "" });
+                                  }
+                                }}
+                                className="text-xs text-red-500 hover:underline font-bold shrink-0 ml-2"
+                              >
+                                Quitar
+                              </button>
+                            </div>
+                          ) : (
+                            <label className="h-10 flex items-center justify-center rounded-lg border border-dashed border-slate-300 dark:border-slate-700 hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 cursor-pointer transition-all text-xs font-bold text-slate-500 dark:text-slate-400">
+                              Subir clave_privada.key
+                              <input 
+                                type="file" 
+                                accept=".key" 
+                                className="hidden" 
+                                onChange={e => {
+                                  const file = e.target.files?.[0];
+                                  if (!file) return;
+                                  const name = file.name;
+                                  const reader = new FileReader();
+                                  reader.onload = async (event) => {
+                                    const content = event.target?.result as string || "";
+                                    setAfipKeyName(name);
+                                    localStorage.setItem('optica_afip_key', name);
+                                    if (activeBranch) {
+                                      await updateBranch({
+                                        ...activeBranch,
+                                        afipKeyName: name,
+                                        afipKeyContent: content,
+                                        afipCuit: afipCuit,
+                                        afipEnv: afipEnv as any
+                                      });
+                                    }
+                                  };
+                                  reader.readAsText(file);
+                                }}
+                              />
+                            </label>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pt-4 border-t border-slate-100 dark:border-slate-800 gap-2">
                   <span className="text-[10px] text-slate-500 dark:text-slate-400">¿No tienes una clave privada ni un archivo de pedido de firma?</span>
@@ -3704,36 +4025,86 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
           </div>
         )}
 
-        {/* Modal Nueva Sucursal */}
+        {/* Modal Nueva / Editar Sucursal */}
         {isBranchModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
                 <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
-                  <MapPin className="w-6 h-6 text-blue-600" /> Registrar Nueva Sucursal
+                  <MapPin className="w-6 h-6 text-blue-600" /> {editingBranch ? 'Editar Sucursal' : 'Registrar Nueva Sucursal'}
                 </h3>
                 <button onClick={() => setIsBranchModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); setIsBranchModalOpen(false); }}>
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                if (!branchForm.name.trim()) return alert("Ingresá el nombre de la sucursal.");
+                
+                if (editingBranch) {
+                  await updateBranch({
+                    ...editingBranch,
+                    name: branchForm.name.trim(),
+                    address: branchForm.address.trim(),
+                    phone: branchForm.phone.trim(),
+                    afipPtoVenta: branchForm.afipPtoVenta
+                  });
+                } else {
+                  await addBranch({
+                    id: Date.now().toString(),
+                    name: branchForm.name.trim(),
+                    address: branchForm.address.trim(),
+                    phone: branchForm.phone.trim(),
+                    afipPtoVenta: branchForm.afipPtoVenta
+                  });
+                }
+                setIsBranchModalOpen(false);
+              }}>
                 <div className="p-6 space-y-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nombre de la Sucursal</label>
-                    <input type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: Sucursal Centro" required />
+                    <input 
+                      type="text" 
+                      value={branchForm.name}
+                      onChange={e => setBranchForm({ ...branchForm, name: e.target.value })}
+                      className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" 
+                      placeholder="Ej: Sucursal Centro" 
+                      required 
+                    />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Dirección</label>
-                    <input type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: Calle 45 nro 123" required />
+                    <input 
+                      type="text" 
+                      value={branchForm.address}
+                      onChange={e => setBranchForm({ ...branchForm, address: e.target.value })}
+                      className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" 
+                      placeholder="Ej: Av. Principal 123" 
+                    />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
                       <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Teléfono</label>
-                      <input type="tel" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="+54 11 ..." />
+                      <input 
+                        type="tel" 
+                        value={branchForm.phone}
+                        onChange={e => setBranchForm({ ...branchForm, phone: e.target.value })}
+                        className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" 
+                        placeholder="Ej: 0343-4200000" 
+                      />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Horario</label>
-                      <input type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: 09:00 - 18:00" />
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Punto de Venta ARCA</label>
+                      <select
+                        value={branchForm.afipPtoVenta}
+                        onChange={e => setBranchForm({ ...branchForm, afipPtoVenta: e.target.value })}
+                        className="h-10 px-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-semibold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none"
+                      >
+                        <option value="">Seleccionar PV...</option>
+                        {puntosVenta.map(pv => (
+                          <option key={pv} value={pv}>{pv}</option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
@@ -3747,9 +4118,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                   </button>
                   <button 
                     type="submit"
-                    className="px-8 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-all text-sm"
+                    className="px-8 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-all text-sm flex items-center gap-1.5"
                   >
-                    Registrar
+                    <Save className="w-4 h-4" /> {editingBranch ? 'Guardar Cambios' : 'Registrar'}
                   </button>
                 </div>
               </form>
@@ -3757,15 +4128,16 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
           </div>
         )}
 
-        {/* Modal Nuevo Usuario */}
+        {/* Modal Crear / Editar Usuario */}
         {isUserModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
             <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
                 <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
-                  <Users className="w-6 h-6 text-blue-600" /> Registrar Nuevo Usuario
+                  <Users className="w-6 h-6 text-blue-600" />
+                  {selectedUser ? `Editar Usuario: ${selectedUser.name}` : 'Registrar Nuevo Usuario'}
                 </h3>
-                <button onClick={() => setIsUserModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
+                <button onClick={() => { setIsUserModalOpen(false); setSelectedUser(null); }} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -3773,54 +4145,84 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                 e.preventDefault(); 
                 const target = e.target as any;
                 const emailVal = target.elements.email.value;
-                const passVal = target.elements.password.value;
+                const passVal = target.elements.password?.value;
                 const nameVal = target.elements.name.value;
                 const roleVal = target.elements.role.value;
                 const branchVal = target.elements.branch.value;
+                const statusVal = target.elements.status?.value || 'Activo';
 
-                const res = await addUser({
-                  id: Date.now().toString(),
-                  name: nameVal,
-                  email: emailVal,
-                  username: emailVal.split('@')[0],
-                  password: passVal,
-                  role: roleVal,
-                  defaultBranchId: branchVal,
-                  status: 'Activo'
-                });
+                if (selectedUser) {
+                  await updateUser({
+                    ...selectedUser,
+                    name: nameVal,
+                    email: emailVal,
+                    role: roleVal,
+                    defaultBranchId: branchVal,
+                    status: statusVal
+                  });
 
-                if (res.success) {
-                  alert("¡Usuario creado con éxito en Supabase Auth!");
-                  setIsUserModalOpen(false); 
+                  if (passVal && passVal.trim().length >= 6) {
+                    try {
+                      await supabase.rpc('reset_user_password', { target_user_id: selectedUser.id, new_plain_password: passVal.trim() });
+                    } catch (err) {
+                      console.error("Error updating password in Supabase Auth:", err);
+                    }
+                  }
+
+                  alert("¡Usuario actualizado exitosamente!");
+                  setIsUserModalOpen(false);
+                  setSelectedUser(null);
                 } else {
-                  alert("Error al crear usuario en Supabase: " + (res.error || "Intenta nuevamente."));
+                  const res = await addUser({
+                    id: Date.now().toString(),
+                    name: nameVal,
+                    email: emailVal,
+                    username: emailVal.split('@')[0],
+                    password: passVal,
+                    role: roleVal,
+                    defaultBranchId: branchVal,
+                    status: 'Activo'
+                  });
+
+                  if (res.success) {
+                    alert("¡Usuario creado con éxito en Supabase Auth!");
+                    setIsUserModalOpen(false); 
+                    setSelectedUser(null);
+                  } else {
+                    alert("Error al crear usuario en Supabase: " + (res.error || "Intenta nuevamente."));
+                  }
                 }
               }}>
                 <div className="p-6 space-y-4">
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Nombre Completo</label>
-                    <input name="name" type="text" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: Juan Pérez" required />
+                    <input name="name" type="text" defaultValue={selectedUser?.name || ''} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Ej: Juan Pérez" required />
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Correo Electrónico</label>
-                    <input name="email" type="email" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="ejemplo@visionclara.com" required />
+                    <input name="email" type="email" defaultValue={selectedUser?.email || ''} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="ejemplo@visionclara.com" required />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Contraseña de Acceso</label>
-                    <input name="password" type="password" minLength={6} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder="Mínimo 6 caracteres" required />
+                    <label className="text-sm font-bold text-slate-700 dark:text-slate-300">
+                      {selectedUser ? 'Cambiar Contraseña (Opcional)' : 'Contraseña de Acceso *'}
+                    </label>
+                    <input name="password" type="password" minLength={selectedUser ? 0 : 6} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" placeholder={selectedUser ? "Dejar en blanco para no modificar" : "Mínimo 6 caracteres"} required={!selectedUser} />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1.5">
                       <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Rol de Acceso</label>
-                      <select name="role" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
+                      <select name="role" defaultValue={selectedUser?.role || 'standard'} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
                         <option value="standard">Estándar (Vendedor)</option>
                         <option value="admin">Administrador</option>
-                        <option value="superadmin">Superadmin</option>
+                        <option value="Laboratorio">Laboratorio</option>
+                        {loggedInUserRole === 'superadmin' && (
+                          <option value="superadmin">Superadmin</option>
+                        )}
                       </select>
                     </div>
                     <div className="flex flex-col gap-1.5">
                       <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Sucursal Asignada</label>
-                      <select name="branch" className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
+                      <select name="branch" defaultValue={selectedUser?.defaultBranchId || '1'} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm" required>
                         <option value="1">Casa Central</option>
                         {branches.map(b => (
                           <option key={b.id} value={b.id}>{b.name}</option>
@@ -3828,11 +4230,20 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       </select>
                     </div>
                   </div>
+                  {selectedUser && (
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Estado de la Cuenta</label>
+                      <select name="status" defaultValue={selectedUser.status || 'Activo'} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm">
+                        <option value="Activo">Activo</option>
+                        <option value="Inactivo">Inactivo / Suspendido</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
                 <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900/50">
                   <button 
                     type="button"
-                    onClick={() => setIsUserModalOpen(false)}
+                    onClick={() => { setIsUserModalOpen(false); setSelectedUser(null); }}
                     className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-sm"
                   >
                     Cancelar
@@ -3841,7 +4252,7 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                     type="submit"
                     className="px-8 py-2.5 bg-blue-600 text-white rounded-lg font-bold shadow-sm hover:bg-blue-700 transition-all text-sm"
                   >
-                    Crear Usuario
+                    {selectedUser ? 'Guardar Cambios' : 'Crear Usuario'}
                   </button>
                 </div>
               </form>
@@ -3870,10 +4281,22 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                 </button>
               </div>
               
-              <form onSubmit={(e) => {
+              <form onSubmit={async (e) => {
                 e.preventDefault();
-                if (passwordForm.new !== passwordForm.confirm) return;
-                alert(selectedUser ? `Contraseña reseteada para ${selectedUser.name}` : "Tu contraseña ha sido actualizada");
+                if (passwordForm.new !== passwordForm.confirm) {
+                  alert("Las contraseñas ingresadas no coinciden.");
+                  return;
+                }
+                if (selectedUser) {
+                  try {
+                    await supabase.rpc('reset_user_password', { target_user_id: selectedUser.id, new_plain_password: passwordForm.new });
+                    alert(`Contraseña de ${selectedUser.name} actualizada correctamente en Supabase Auth.`);
+                  } catch (err: any) {
+                    alert(`Error al resetear contraseña: ${err.message}`);
+                  }
+                } else {
+                  alert("Tu contraseña ha sido actualizada.");
+                }
                 setIsPasswordModalOpen(false);
                 setSelectedUser(null);
                 setPasswordForm({ current: "", new: "", confirm: "" });
@@ -4377,6 +4800,68 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                 className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 active:scale-95 transition-all shadow-md shadow-blue-500/10"
               >
                 Generar y Descargar Archivos
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AGREGAR / EDITAR PUNTO DE VENTA (ARCA / AFIP) */}
+      {isPvModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/40">
+              <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Building2 className="w-4.5 h-4.5 text-blue-600" />
+                {editingPvIndex !== null ? "Editar Punto de Venta" : "Nuevo Punto de Venta (ARCA)"}
+              </h4>
+              <button 
+                onClick={() => setIsPvModalOpen(false)} 
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Número de Punto de Venta (AFIP / ARCA)</label>
+                <input
+                  type="text"
+                  value={newPvNumber}
+                  onChange={e => setNewPvNumber(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  placeholder="Ej: 0004"
+                  className="h-10 px-3 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 font-mono text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none"
+                />
+                <p className="text-[10px] text-slate-400">4 dígitos numéricos según constancia de inscripción AFIP (Ej: 0001, 0004).</p>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 dark:text-slate-300">Nombre / Descripción del Punto de Venta</label>
+                <input
+                  type="text"
+                  value={newPvDescription}
+                  onChange={e => setNewPvDescription(e.target.value)}
+                  placeholder="Ej: P.V. Sucursal Peatonal / P.V. Web Online"
+                  className="h-10 px-3 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-medium text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none"
+                />
+              </div>
+            </div>
+
+            <div className="p-5 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsPvModalOpen(false)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePv}
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-500/20 transition-colors"
+              >
+                Guardar Punto de Venta
               </button>
             </div>
           </div>

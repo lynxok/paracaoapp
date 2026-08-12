@@ -56,6 +56,7 @@ interface CartContextType {
   setIsCartOpen: (open: boolean) => void;
   billingDrafts: BillingDraft[];
   markDraftsAsBilled: (draftIds: string[], billingData: { isConsumidorFinal: boolean; identificador?: string; direccion?: string; billingDate: string }) => void;
+  updateDraftBranch: (draftId: string, branchId: string, branchName: string) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -70,7 +71,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedClient, setSelectedClient] = useState<any | null>(null);
   const [paymentMethodId, setPaymentMethodId] = useState<string>("");
-  const [isCartOpen, setIsCartOpen] = useState<boolean>(true);
+  const [isCartOpen, setIsCartOpen] = useState<boolean>(false);
 
   const [billingDrafts, setBillingDrafts] = useState<BillingDraft[]>([]);
 
@@ -88,6 +89,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             amount: Number(d.amount),
             paymentMethod: d.payment_method,
             billed: d.billed,
+            branchId: d.branch_id || currentBranch?.id || '1',
+            branchName: d.branch_name || currentBranch?.name || 'Casa Central',
             billingData: d.billing_data,
             items: d.items
           })));
@@ -97,20 +100,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
     }
     loadDrafts();
-  }, []);
+  }, [currentBranch]);
 
   useEffect(() => {
     localStorage.setItem('optica_billing_drafts', JSON.stringify(billingDrafts));
   }, [billingDrafts]);
 
+  const updateDraftBranch = (draftId: string, branchId: string, branchName: string) => {
+    setBillingDrafts(prev => prev.map(draft => {
+      if (draft.id === draftId) {
+        return {
+          ...draft,
+          branchId,
+          branchName
+        };
+      }
+      return draft;
+    }));
+
+    try {
+      supabase.from('billing_drafts')
+        .update({ branch_id: branchId, branch_name: branchName })
+        .eq('id', draftId)
+        .then(({ error }) => {
+          if (error) console.error('Error updating draft branch in Supabase:', error);
+        });
+    } catch (e) {
+      console.error("Error updating draft branch:", e);
+    }
+  };
+
   const markDraftsAsBilled = async (draftIds: string[], billingData: { isConsumidorFinal: boolean; identificador?: string; direccion?: string; billingDate: string }) => {
     setBillingDrafts(prev => prev.map(draft => {
       if (draftIds.includes(draft.id)) {
-        supabase.from('billing_drafts').update({
-          billed: true,
-          billing_data: billingData
-        }).eq('id', draft.id).catch(console.error);
-
         return {
           ...draft,
           billed: true,
@@ -119,6 +141,19 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       return draft;
     }));
+
+    try {
+      await Promise.all(
+        draftIds.map(id =>
+          supabase.from('billing_drafts').update({
+            billed: true,
+            billing_data: billingData
+          }).eq('id', id)
+        )
+      );
+    } catch (e) {
+      console.error("Supabase markDraftsAsBilled error:", e);
+    }
   };
 
   useEffect(() => {
@@ -129,6 +164,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, [boxes, paymentMethodId]);
 
   const addToCart = (item: CartItem) => {
+    setIsCartOpen(true);
     setCart(prev => {
       // For products, merge same ID. For prescriptions, always add as separate line items
       if (item.type === 'product') {
@@ -164,6 +200,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clearCart = () => {
     setCart([]);
     setSelectedClient(null);
+    setIsCartOpen(false);
   };
 
   const checkout = () => {
@@ -174,16 +211,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     const totalAmount = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
 
+    const targetClient = selectedClient || cart.find(c => c.details?.client)?.details?.client;
+    const targetClientId = targetClient?.id || 'cliente-mostrador';
+    const targetClientName = targetClient?.name || 'Cliente Mostrador';
+
     // Process each item in the cart
     cart.forEach(item => {
       if (item.type === 'prescription' && item.details) {
         const details = item.details;
-        const clientObj = details.client || selectedClient;
+        
+        // Asignar prioritariamente al cliente titular de la receta médica (details.client)
+        const rxClient = details.client || targetClient;
+        const rxClientId = rxClient?.id || targetClientId;
+        const rxClientName = rxClient?.name || targetClientName;
+        const rxClientDni = rxClient?.dni || targetClient?.dni || '';
 
-        // 1. Add order to client orders list
+        // 1. Add order to client orders list (del titular de la receta)
         addOrder({
-          clientId: clientObj?.id || '0',
-          clientName: clientObj?.name || 'Cliente Mostrador',
+          clientId: rxClientId,
+          clientName: rxClientName,
           date: new Date().toISOString().split('T')[0],
           type: details.prescriptionType || 'monofocal',
           service: item.name,
@@ -202,18 +248,18 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           deductStock(details.selectedCrystal.sku, 1, 1);
         }
 
-        // 3. Add external lab job if applicable
+        // 3. Add external lab job if applicable (titular de la receta)
         if (details.assignedLab) {
           addJob({
             labId: details.assignedLab.id,
             date: new Date().toISOString().split('T')[0],
-            orderId: `ORD-${Math.floor(1000 + Math.random() * 9000)}`,
-            concept: `${item.name} - ${clientObj?.name || 'Cliente'}`,
+            orderId: `ORD-${Date.now().toString().slice(-6)}`,
+            concept: `${item.name} - ${rxClientName}`,
             cost: details.labCost || 0,
             status: 'Pendiente',
             labName: details.assignedLab.name,
-            clientName: clientObj?.name || 'Cliente Mostrador',
-            clientDni: clientObj?.dni || '',
+            clientName: rxClientName,
+            clientDni: rxClientDni,
             prescription: {
               type: details.prescriptionType || 'monofocal',
               lejosOD: details.lejosOD,
@@ -257,10 +303,49 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             treatments: details.selectedTreatments || [],
             observaciones: details.observaciones || item.observaciones || '',
             branchName: currentBranch?.name || 'Sucursal Única',
-            sellerName: localStorage.getItem('optica_user_name') || 'Vendedor'
+            sellerName: localStorage.getItem('optica_user_name') || 'Vendedor',
+            estimatedLabDeliveryDate: ''
           } as any);
         }
+
+        // 4. Register Insurance Claim if reimbursements are present (titular de la receta)
+        if (details.insuranceId && (details.frameCoverage > 0 || details.crystalCoverage > 0)) {
+          const claimId = `claim-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
+          const claimData = {
+            id: claimId,
+            order_id: `ORD-${Date.now().toString().slice(-6)}`,
+            client_id: rxClientId,
+            client_name: rxClientName,
+            client_dni: rxClientDni,
+            affiliate_number: rxClient?.affiliateNumber || '',
+            insurance_id: details.insuranceId,
+            insurance_name: details.insuranceName || 'Obra Social',
+            item_type: (details.frameCoverage > 0 && details.crystalCoverage > 0) ? 'ambos' : details.frameCoverage > 0 ? 'armazon' : 'cristal',
+            frame_coverage: details.frameCoverage || 0,
+            crystal_coverage: details.crystalCoverage || 0,
+            total_amount: (details.frameCoverage || 0) + (details.crystalCoverage || 0),
+            status: 'Pendiente',
+            date: new Date().toISOString().split('T')[0]
+          };
+
+          supabase.from('insurance_claims').upsert([claimData]).then(({ error }) => {
+            if (error) console.error("Error al registrar reintegro de obra social en Supabase:", error);
+          });
+        }
       } else if (item.type === 'product') {
+        // Record product sale in client purchase history
+        addOrder({
+          clientId: targetClientId,
+          clientName: targetClientName,
+          date: new Date().toISOString().split('T')[0],
+          type: 'producto',
+          service: `${item.quantity}x ${item.name}`,
+          status: 'Entregado',
+          amount: item.price * item.quantity,
+          paid: item.price * item.quantity,
+          branchId: currentBranch?.id || undefined,
+        });
+
         // Simple product stock deduction (optional, if catalog SKUs match inventory)
         if (item.sku) {
           deductStock(item.sku, item.quantity, 1);
@@ -283,7 +368,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       type: 'income',
       category: 'ventas',
       boxId: paymentMethodId,
-      clientName: selectedClient?.name || cart.find(c => c.details?.client)?.details?.client?.name || 'Cliente Mostrador'
+      clientId: targetClientId,
+      clientName: targetClientName
     });
 
     // Registrar en Borradores de Facturación
@@ -295,6 +381,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       amount: totalAmount,
       paymentMethod: boxName,
       billed: false,
+      branchId: currentBranch?.id || '1',
+      branchName: currentBranch?.name || 'Casa Central',
       items: cart.map(i => ({
         name: i.name,
         quantity: i.quantity,
@@ -311,6 +399,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       amount: newDraft.amount,
       payment_method: newDraft.paymentMethod,
       billed: newDraft.billed,
+      branch_id: newDraft.branchId,
+      branch_name: newDraft.branchName,
       items: newDraft.items
     }]).then(({ error }) => {
       if (error) console.error('Error saving billing draft:', error);
@@ -349,7 +439,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       isCartOpen,
       setIsCartOpen,
       billingDrafts,
-      markDraftsAsBilled
+      markDraftsAsBilled,
+      updateDraftBranch
     }}>
       {children}
     </CartContext.Provider>
