@@ -12,4 +12,5 @@ test_*.png
 .agents/
 skills-lock.json
 Versiones anteriores/
+*.zip
 
