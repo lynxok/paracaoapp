@@ -18,11 +18,18 @@ import {
   Filter,
   ArrowUpCircle,
   ArrowDownCircle,
-  LayoutGrid
+  LayoutGrid,
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  Shield,
+  FileText,
+  X,
+  ChevronDown
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
-import { CashBox, Transaction, Denomination, FinanceCategory } from "../types";
+import { CashBox, Transaction, Denomination, FinanceCategory, Cheque } from "../types";
 import { BoxForm } from "../components/finance/BoxForm";
 import { TransactionForm } from "../components/finance/TransactionForm";
 import { BankReconciliation } from "../components/finance/BankReconciliation";
@@ -59,13 +66,14 @@ const FINANCE_CATEGORIES: FinanceCategory[] = [
   { id: 'transferencia', name: 'Transferencia Int.', type: 'expense' },
 ];
 
-type FinanceTab = 'cajas' | 'ingresos' | 'egresos' | 'transferencias' | 'conciliacion';
+type FinanceTab = 'cajas' | 'ingresos' | 'egresos' | 'transferencias' | 'conciliacion' | 'cheques';
 
 export function Finance() {
   const { 
     boxes, 
     transactions, 
     suppliers, 
+    cheques = [],
     addTransaction, 
     addBox, 
     transferFunds, 
@@ -73,9 +81,44 @@ export function Finance() {
     linkPaymentToInvoices,
     toggleTransactionReconciliation,
     updateBoxClosingBalance,
-    voidTransaction
+    voidTransaction,
+    updateChequeStatus
   } = useFinance();
   const [activeTab, setActiveTab] = useState<FinanceTab>('cajas');
+
+  // Cheques specific states
+  const [chequeStatusFilter, setChequeStatusFilter] = useState('Pendiente');
+  const [chequeSearch, setChequeSearch] = useState('');
+  const [accreditingCheque, setAccreditingCheque] = useState<Cheque | null>(null);
+  const [accreditBoxId, setAccreditBoxId] = useState('');
+  const [isAccreditModalOpen, setIsAccreditModalOpen] = useState(false);
+
+  const chequesAlerts = useMemo(() => {
+    const todayVal = new Date();
+    todayVal.setHours(0,0,0,0);
+    const next7Days = new Date(todayVal);
+    next7Days.setDate(todayVal.getDate() + 7);
+
+    let expiredCount = 0;
+    let upcomingCount = 0;
+
+    (cheques || []).forEach(c => {
+      if (c.status === 'Pendiente') {
+        const dueDate = new Date(c.dueDate + 'T12:00:00');
+        if (dueDate < todayVal) {
+          expiredCount++;
+        } else if (dueDate <= next7Days) {
+          upcomingCount++;
+        }
+      }
+    });
+
+    return {
+      expiredCount,
+      upcomingCount,
+      totalAlerts: expiredCount + upcomingCount
+    };
+  }, [cheques]);
   const [selectedBoxId, setSelectedBoxId] = useState<string>('consolidated');
   const [denominations, setDenominations] = useState<Denomination[]>(INITIAL_DENOMINATIONS);
   const [showAddBox, setShowAddBox] = useState(false);
@@ -255,6 +298,26 @@ export function Finance() {
         </div>
       )}
 
+      {chequesAlerts.totalAlerts > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-4 flex items-center justify-between gap-3 text-amber-800 dark:text-amber-300 shadow-sm animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 animate-bounce" />
+            <div>
+              <p className="text-sm font-bold">Cheques Pendientes de Atención</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                Hay {chequesAlerts.expiredCount} cheques vencidos y {chequesAlerts.upcomingCount} cheques próximos a vencer (dentro de los próximos 7 días).
+              </p>
+            </div>
+          </div>
+          <button 
+            onClick={() => setActiveTab('cheques')} 
+            className="px-4 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-all shrink-0 shadow-sm"
+          >
+            Gestionar Cheques
+          </button>
+        </div>
+      )}
+
       {/* Module Navigation */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white dark:bg-slate-900 p-2 sm:p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
         <div className="flex gap-1.5 overflow-x-auto custom-scrollbar pb-1 sm:pb-0 w-full sm:w-auto shrink-0">
@@ -293,6 +356,15 @@ export function Finance() {
             )}
           >
             <ArrowLeftRight className="w-4 h-4" /> Transferencias
+          </button>
+          <button 
+            onClick={() => setActiveTab('cheques')}
+            className={cn(
+              "shrink-0 flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all",
+              activeTab === 'cheques' ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+            )}
+          >
+            <FileText className="w-4 h-4" /> Cheques
           </button>
           <button 
             onClick={() => setActiveTab('conciliacion')}
@@ -754,6 +826,286 @@ export function Finance() {
           onToggleReconciliation={toggleTransactionReconciliation} 
           onUpdateClosing={updateBoxClosingBalance} 
         />
+      ) : activeTab === 'cheques' ? (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          {/* KPI Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Cheques Pendientes</p>
+              <p className="text-2xl font-black text-slate-900 dark:text-white">
+                {cheques.filter(c => c.status === 'Pendiente').length}{' '}
+                <span className="text-xs font-normal text-slate-500">
+                  (${cheques.filter(c => c.status === 'Pendiente').reduce((sum, c) => sum + c.amount, 0).toLocaleString()})
+                </span>
+              </p>
+            </div>
+            <div className="p-5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 rounded-2xl shadow-sm text-amber-800 dark:text-amber-300">
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1">Próximos a Vencer</p>
+              <p className="text-2xl font-black">
+                {chequesAlerts.upcomingCount}{' '}
+                <span className="text-xs font-normal">
+                  (${cheques.filter(c => {
+                    const todayVal = new Date();
+                    todayVal.setHours(0,0,0,0);
+                    const next7Days = new Date(todayVal);
+                    next7Days.setDate(todayVal.getDate() + 7);
+                    const dueDate = new Date(c.dueDate + 'T12:00:00');
+                    return c.status === 'Pendiente' && dueDate >= todayVal && dueDate <= next7Days;
+                  }).reduce((sum, c) => sum + c.amount, 0).toLocaleString()})
+                </span>
+              </p>
+            </div>
+            <div className="p-5 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/60 rounded-2xl shadow-sm text-red-800 dark:text-red-300">
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1">Cheques Vencidos</p>
+              <p className="text-2xl font-black">
+                {chequesAlerts.expiredCount}{' '}
+                <span className="text-xs font-normal">
+                  (${cheques.filter(c => {
+                    const todayVal = new Date();
+                    todayVal.setHours(0,0,0,0);
+                    return c.status === 'Pendiente' && new Date(c.dueDate + 'T12:00:00') < todayVal;
+                  }).reduce((sum, c) => sum + c.amount, 0).toLocaleString()})
+                </span>
+              </p>
+            </div>
+            <div className="p-5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/60 rounded-2xl shadow-sm text-emerald-800 dark:text-emerald-300">
+              <p className="text-[10px] font-black uppercase tracking-widest mb-1">Cheques Cobrados</p>
+              <p className="text-2xl font-black">
+                {cheques.filter(c => c.status === 'Cobrado').length}{' '}
+                <span className="text-xs font-normal">
+                  (${cheques.filter(c => c.status === 'Cobrado').reduce((sum, c) => sum + c.amount, 0).toLocaleString()})
+                </span>
+              </p>
+            </div>
+          </div>
+
+          {/* Filters & Search */}
+          <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row gap-3 items-center justify-between">
+            <div className="relative w-full md:w-80">
+              <input 
+                type="text"
+                value={chequeSearch}
+                onChange={e => setChequeSearch(e.target.value)}
+                placeholder="Buscar por Nº, Banco o Titular..."
+                className="w-full pl-9 pr-4 h-10 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600"
+              />
+              <Filter className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+            </div>
+
+            <div className="flex gap-1.5 overflow-x-auto w-full md:w-auto custom-scrollbar pb-1 md:pb-0">
+              {['Pendiente', 'Proximos', 'Vencidos', 'Cobrado', 'Anulado', 'Rechazado', 'Todos'].map(f => (
+                <button
+                  key={f}
+                  onClick={() => setChequeStatusFilter(f)}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all shrink-0",
+                    chequeStatusFilter === f 
+                      ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
+                      : "bg-slate-50 dark:bg-slate-950 text-slate-500 hover:bg-slate-100"
+                  )}
+                >
+                  {f === 'Proximos' ? 'A Vencer' : f === 'Todos' ? 'Todos' : f}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Cheques Table */}
+          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 dark:bg-slate-950 text-slate-500 font-bold border-b border-slate-150 dark:border-slate-850">
+                    <th className="p-4">Nº Cheque</th>
+                    <th className="p-4">Banco</th>
+                    <th className="p-4">Importe</th>
+                    <th className="p-4">Vencimiento</th>
+                    <th className="p-4">Plazo</th>
+                    <th className="p-4">Tipo</th>
+                    <th className="p-4">Cliente / Proveedor</th>
+                    <th className="p-4">Estado</th>
+                    <th className="p-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredCheques.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="text-center p-12 text-slate-400 font-medium">
+                        No se encontraron cheques con los filtros aplicados.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCheques.map(c => {
+                      const todayVal = new Date();
+                      todayVal.setHours(0,0,0,0);
+                      const next7Days = new Date(todayVal);
+                      next7Days.setDate(todayVal.getDate() + 7);
+                      const dueDate = new Date(c.dueDate + 'T12:00:00');
+                      
+                      let statusBadge = (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                          {c.status}
+                        </span>
+                      );
+
+                      if (c.status === 'Cobrado') {
+                        statusBadge = (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-455 uppercase tracking-wider">
+                            Cobrado
+                          </span>
+                        );
+                      } else if (c.status === 'Anulado' || c.status === 'Rechazado') {
+                        statusBadge = (
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-650 dark:text-red-450 uppercase tracking-wider">
+                            {c.status}
+                          </span>
+                        );
+                      } else if (c.status === 'Pendiente') {
+                        if (dueDate < todayVal) {
+                          statusBadge = (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-100 dark:bg-red-900/30 text-red-650 dark:text-red-450 uppercase tracking-wider animate-pulse">
+                              Vencido
+                            </span>
+                          );
+                        } else if (dueDate <= next7Days) {
+                          statusBadge = (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-455 uppercase tracking-wider">
+                              A Vencer
+                            </span>
+                          );
+                        } else {
+                          statusBadge = (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-455 uppercase tracking-wider">
+                              Pendiente
+                            </span>
+                          );
+                        }
+                      }
+
+                      return (
+                        <tr key={c.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition-colors">
+                          <td className="p-4 font-bold text-slate-900 dark:text-white">{c.number}</td>
+                          <td className="p-4 text-slate-555 dark:text-slate-400">{c.bank}</td>
+                          <td className="p-4 font-black text-slate-900 dark:text-white">${c.amount.toLocaleString()}</td>
+                          <td className="p-4 font-medium">{new Date(c.dueDate + 'T12:00:00').toLocaleDateString()}</td>
+                          <td className="p-4 text-slate-500">{c.terms}</td>
+                          <td className="p-4">
+                            <span className={cn(
+                              "px-2 py-0.5 rounded-lg text-[9px] font-bold uppercase",
+                              c.type === 'Emitido' ? "bg-rose-50 text-rose-600 dark:bg-rose-900/25" : "bg-blue-50 text-blue-600 dark:bg-blue-900/25"
+                            )}>
+                              {c.type}
+                            </span>
+                          </td>
+                          <td className="p-4">
+                            {c.type === 'Emitido' ? (
+                              <span className="font-bold text-slate-700 dark:text-slate-300">{c.supplierName || 'Proveedor'}</span>
+                            ) : (
+                              <span className="font-bold text-slate-700 dark:text-slate-300">{c.clientName || 'Cliente'}</span>
+                            )}
+                            {c.observation && <p className="text-[10px] text-slate-450 italic mt-0.5 font-medium">{c.observation}</p>}
+                          </td>
+                          <td className="p-4">{statusBadge}</td>
+                          <td className="p-4 text-right">
+                            {c.status === 'Pendiente' && (
+                              <div className="flex justify-end gap-1.5">
+                                <button 
+                                  onClick={() => {
+                                    setAccreditingCheque(c);
+                                    setAccreditBoxId(boxes[0]?.id || '');
+                                    setIsAccreditModalOpen(true);
+                                  }}
+                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-bold text-[10px] transition-all"
+                                  title="Acreditar / Cobrar Cheque"
+                                >
+                                  Acreditar
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    if(window.confirm("¿Seguro que deseas marcar este cheque como RECHAZADO?")) {
+                                      updateChequeStatus(c.id, 'Rechazado');
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-red-650 hover:bg-red-750 text-white rounded font-bold text-[10px] transition-all"
+                                  title="Marcar como Rechazado"
+                                >
+                                  Rechazar
+                                </button>
+                                <button 
+                                  onClick={() => {
+                                    if(window.confirm("¿Seguro que deseas marcar este cheque como ANULADO?")) {
+                                      updateChequeStatus(c.id, 'Anulado');
+                                    }
+                                  }}
+                                  className="px-2 py-1 bg-slate-350 hover:bg-slate-450 text-slate-750 dark:text-slate-300 rounded font-bold text-[10px] transition-all"
+                                  title="Marcar como Anulado"
+                                >
+                                  Anular
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Accreditation Modal */}
+          {isAccreditModalOpen && accreditingCheque && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-900/50">
+                  <h3 className="font-black text-slate-900 dark:text-white text-sm">Acreditar / Cobrar Cheque</h3>
+                  <button onClick={() => { setIsAccreditModalOpen(false); setAccreditingCheque(null); }} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-4.5 h-4.5" />
+                  </button>
+                </div>
+                <div className="p-6 space-y-4">
+                  <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl space-y-1.5 border border-slate-250/20">
+                    <p className="text-xs text-slate-500 font-medium">Cheque Nº: <span className="font-bold text-slate-800 dark:text-slate-200">{accreditingCheque.number}</span></p>
+                    <p className="text-xs text-slate-500 font-medium">Banco: <span className="font-bold text-slate-800 dark:text-slate-200">{accreditingCheque.bank}</span></p>
+                    <p className="text-xs text-slate-500 font-medium">Monto: <span className="font-black text-emerald-600 dark:text-emerald-450">${accreditingCheque.amount.toLocaleString()}</span></p>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase">Caja / Banco de Destino</label>
+                    <select
+                      value={accreditBoxId}
+                      onChange={e => setAccreditBoxId(e.target.value)}
+                      className="w-full h-11 px-3 mt-1 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600 text-xs font-bold"
+                    >
+                      {boxes.map(box => (
+                        <option key={box.id} value={box.id}>{box.name} ({box.type === 'cash' ? 'Efectivo' : 'Banco'})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+                  <button 
+                    onClick={() => { setIsAccreditModalOpen(false); setAccreditingCheque(null); }}
+                    className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-100 transition-all text-xs font-bold"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => {
+                      updateChequeStatus(accreditingCheque.id, 'Cobrado', accreditBoxId);
+                      setIsAccreditModalOpen(false);
+                      setAccreditingCheque(null);
+                    }}
+                    className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition-all text-xs shadow-lg shadow-emerald-500/20 active:scale-95"
+                  >
+                    Confirmar Cobro
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       ) : activeTab === 'transferencias' ? (
         <div className="max-w-4xl mx-auto animate-in fade-in zoom-in duration-300">
           <TransferForm 

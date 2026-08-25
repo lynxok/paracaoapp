@@ -57,6 +57,7 @@ const menuItems = [
   { path: "/suppliers", icon: Truck, label: "Proveedores" },
   { path: "/lab-management", icon: FlaskConical, label: "Laboratorios" },
   { path: "/finance", icon: Wallet, label: "Caja/Finanzas" },
+  { path: "/insurance-claims", icon: Shield, label: "Reintegros" },
   { path: "/billing-drafts", icon: FileText, label: "Borradores Facturación" },
   { path: "/reports", icon: BarChart3, label: "Reportes" },
   { path: "/marketing", icon: Sparkles, label: "CRM & Marketing" },

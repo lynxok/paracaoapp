@@ -5,7 +5,7 @@ import { Supplier, SupplierTransaction } from "../types";
 import { cn } from "../lib/utils";
 
 export function Suppliers() {
-  const { suppliers, addSupplierTransaction, updateSupplier, addSupplier } = useFinance();
+  const { suppliers, addSupplierTransaction, updateSupplier, addSupplier, addCheques, boxes, addTransaction } = useFinance();
   const [activeTab, setActiveTab] = useState<'list' | 'purchases' | 'pending'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
@@ -19,6 +19,25 @@ export function Suppliers() {
   const [menuPosition, setMenuPosition] = useState<{ x: number, y: number } | null>(null);
   const [contextItem, setContextItem] = useState<Supplier | null>(null);
 
+  // Mixed Payment States
+  const [payCash, setPayCash] = useState<number>(0);
+  const [payBank, setPayBank] = useState<number>(0);
+  const [payCard, setPayCard] = useState<number>(0);
+  const [payCurrentAccount, setPayCurrentAccount] = useState<number>(0);
+  const [addedCheques, setAddedCheques] = useState<any[]>([]);
+  const [showChequeForm, setShowChequeForm] = useState(false);
+  const [newCheque, setNewCheque] = useState({
+    number: '',
+    bank: '',
+    amount: 0,
+    dueDate: new Date().toISOString().split('T')[0],
+    terms: '30 días',
+    observation: ''
+  });
+  const [cashBoxId, setCashBoxId] = useState('');
+  const [bankBoxId, setBankBoxId] = useState('');
+  const [cardBoxId, setCardBoxId] = useState('');
+
   // Voucher Form State
   const [voucherData, setVoucherData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -30,6 +49,27 @@ export function Suppliers() {
     supplierId: '',
     paymentTerms: ''
   });
+
+  // Reset payment states when modal is opened/closed
+  useEffect(() => {
+    if (isVoucherModalOpen) {
+      setPayCash(0);
+      setPayBank(0);
+      setPayCard(0);
+      setPayCurrentAccount(0);
+      setAddedCheques([]);
+      setShowChequeForm(false);
+      
+      // Default box IDs
+      const cashBox = boxes.find(b => b.type === 'cash');
+      const bankBox = boxes.find(b => b.type === 'bank' || b.type === 'digital');
+      const cardBox = boxes.find(b => b.type === 'credit_card');
+      
+      setCashBoxId(cashBox?.id || '');
+      setBankBoxId(bankBox?.id || '');
+      setCardBoxId(cardBox?.id || '');
+    }
+  }, [isVoucherModalOpen, boxes]);
 
   const filteredSuppliers = suppliers.filter(s => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -311,196 +351,561 @@ export function Suppliers() {
       )}
 
       {/* Voucher Loading Modal */}
-      {isVoucherModalOpen && (selectedSupplier || activeTab === 'purchases') && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
-            <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
-              <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
-                <FileText className="w-6 h-6 text-indigo-600" />
-                Cargar Comprobante
-              </h3>
-              <button 
-                onClick={() => setIsVoucherModalOpen(false)} 
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"
+      {isVoucherModalOpen && (selectedSupplier || activeTab === 'purchases') && (() => {
+        const totalInvoiced = parseFloat(voucherData.amount) || 0;
+        const totalChequesAmount = addedCheques.reduce((sum, c) => sum + c.amount, 0);
+        const totalImputed = payCash + payBank + payCard + totalChequesAmount + (voucherData.type === 'invoice' ? payCurrentAccount : 0);
+        const difference = totalInvoiced - totalImputed;
+
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+            <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800 max-h-[90vh] flex flex-col">
+              <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
+                <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
+                  <FileText className="w-6 h-6 text-indigo-600" />
+                  Cargar Comprobante
+                </h3>
+                <button 
+                  onClick={() => setIsVoucherModalOpen(false)} 
+                  className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <form 
+                className="flex-1 flex flex-col overflow-hidden"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const targetId = voucherData.supplierId || selectedSupplier?.id;
+                  if (!targetId) return;
+
+                  const supObj = suppliers.find(s => s.id === targetId);
+                  const supplierName = supObj?.name || 'Proveedor';
+
+                  // 1. Serialize payment details in description
+                  const paymentDetails = {
+                    efectivo: { amount: payCash, boxId: cashBoxId },
+                    transferencia: { amount: payBank, boxId: bankBoxId },
+                    tarjeta: { amount: payCard, boxId: cardBoxId },
+                    cheques: addedCheques,
+                    cuentaCorriente: payCurrentAccount
+                  };
+                  const desc = `${voucherData.description.trim() ? voucherData.description.trim() + ' | ' : ''}Detalles de Pago: ${JSON.stringify(paymentDetails)}`;
+
+                  // 2. Add Supplier Transaction
+                  addSupplierTransaction(targetId, {
+                    date: voucherData.date,
+                    dueDate: voucherData.dueDate,
+                    paymentTerms: voucherData.paymentTerms,
+                    voucherNumber: voucherData.number,
+                    amount: parseFloat(voucherData.amount),
+                    type: voucherData.type,
+                    status: 'pending',
+                    description: desc
+                  });
+
+                  // 3. Register cash outflows (Egresos) in Finance
+                  const dateStr = voucherData.date;
+                  const now = new Date();
+                  const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+
+                  if (payCash > 0 && cashBoxId) {
+                    const cashBox = boxes.find(b => b.id === cashBoxId);
+                    addTransaction({
+                      id: `tx-sup-cash-${Date.now()}`,
+                      date: dateStr,
+                      time: timeStr,
+                      concept: `Pago en Efectivo (Factura Nº ${voucherData.number}) - Proveedor: ${supplierName}`,
+                      method: cashBox?.name || 'Efectivo',
+                      amount: payCash,
+                      type: 'expense',
+                      category: 'Gastos Administrativos',
+                      boxId: cashBoxId
+                    });
+                  }
+
+                  if (payBank > 0 && bankBoxId) {
+                    const bankBox = boxes.find(b => b.id === bankBoxId);
+                    addTransaction({
+                      id: `tx-sup-bank-${Date.now()}`,
+                      date: dateStr,
+                      time: timeStr,
+                      concept: `Pago por Transferencia (Factura Nº ${voucherData.number}) - Proveedor: ${supplierName}`,
+                      method: bankBox?.name || 'Transferencia',
+                      amount: payBank,
+                      type: 'expense',
+                      category: 'Gastos Administrativos',
+                      boxId: bankBoxId
+                    });
+                  }
+
+                  if (payCard > 0 && cardBoxId) {
+                    const cardBox = boxes.find(b => b.id === cardBoxId);
+                    addTransaction({
+                      id: `tx-sup-card-${Date.now()}`,
+                      date: dateStr,
+                      time: timeStr,
+                      concept: `Pago con Tarjeta (Factura Nº ${voucherData.number}) - Proveedor: ${supplierName}`,
+                      method: cardBox?.name || 'Tarjeta de Credito',
+                      amount: payCard,
+                      type: 'expense',
+                      category: 'Gastos Administrativos',
+                      boxId: cardBoxId
+                    });
+                  }
+
+                  // 4. Register cheques in Finance
+                  if (addedCheques.length > 0) {
+                    addCheques(addedCheques.map((c, i) => ({
+                      id: `cheque-emit-${Date.now()}-${i}`,
+                      number: c.number,
+                      bank: c.bank,
+                      amount: c.amount,
+                      dueDate: c.dueDate,
+                      terms: c.terms,
+                      status: 'Pendiente',
+                      type: 'Emitido',
+                      supplierId: targetId,
+                      supplierName: supplierName,
+                      voucherId: voucherData.number,
+                      observation: c.observation
+                    })));
+                  }
+
+                  setIsVoucherModalOpen(false);
+                  setVoucherData({
+                    date: new Date().toISOString().split('T')[0],
+                    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                    number: '',
+                    amount: '',
+                    type: 'invoice' as 'invoice' | 'payment',
+                    description: '',
+                    supplierId: '',
+                    paymentTerms: ''
+                  });
+                }}
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={(e) => {
-              e.preventDefault();
-              const targetId = voucherData.supplierId || selectedSupplier?.id;
-              if (!targetId) return;
-
-              addSupplierTransaction(targetId, {
-                date: voucherData.date,
-                dueDate: voucherData.dueDate,
-                paymentTerms: voucherData.paymentTerms,
-                voucherNumber: voucherData.number,
-                amount: parseFloat(voucherData.amount),
-                type: voucherData.type,
-                status: 'pending',
-                description: voucherData.description
-              });
-              setIsVoucherModalOpen(false);
-              setVoucherData({
-                date: new Date().toISOString().split('T')[0],
-                dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-                number: '',
-                amount: '',
-                type: 'invoice' as 'invoice' | 'payment',
-                description: '',
-                supplierId: '',
-                paymentTerms: ''
-              });
-            }}>
-              <div className="p-6 space-y-4">
-                {activeTab === 'purchases' && !selectedSupplier ? (
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Seleccionar Proveedor</label>
-                    <select 
-                      required
-                      className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-600 font-bold"
-                      value={voucherData.supplierId}
-                      onChange={(e) => setVoucherData({...voucherData, supplierId: e.target.value})}
-                    >
-                      <option value="">Elegir proveedor...</option>
-                      {suppliers.map(s => (
-                        <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
-                      ))}
-                    </select>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Impactando en:</p>
-                    <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedSupplier?.name}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Tipo</label>
-                    <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
-                      <button 
-                        type="button"
-                        onClick={() => setVoucherData({...voucherData, type: 'invoice'})}
-                        className={cn(
-                          "flex-1 py-2 text-xs font-bold rounded-md transition-all",
-                          voucherData.type === 'invoice' 
-                            ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" 
-                            : "text-slate-500 hover:text-slate-700"
-                        )}
-                      >
-                        Factura / Debito
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => setVoucherData({...voucherData, type: 'payment'})}
-                        className={cn(
-                          "flex-1 py-2 text-xs font-bold rounded-md transition-all",
-                          voucherData.type === 'payment' 
-                            ? "bg-white dark:bg-slate-700 text-emerald-600 shadow-sm" 
-                            : "text-slate-500 hover:text-slate-700"
-                        )}
-                      >
-                        Pago / Crédito
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Fecha</label>
-                    <input 
-                      type="date"
-                      required
-                      value={voucherData.date}
-                      onChange={(e) => setVoucherData({...voucherData, date: e.target.value})}
-                      className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Nº Comprobante</label>
-                    <input 
-                      type="text"
-                      required
-                      placeholder="FC-A-0001-..."
-                      value={voucherData.number}
-                      onChange={(e) => setVoucherData({...voucherData, number: e.target.value})}
-                      className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white uppercase"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Monto</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
-                      <input 
-                        type="number"
-                        step="0.01"
+                <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+                  {activeTab === 'purchases' && !selectedSupplier ? (
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Seleccionar Proveedor</label>
+                      <select 
                         required
-                        placeholder="0.00"
-                        value={voucherData.amount}
-                        onChange={(e) => setVoucherData({...voucherData, amount: e.target.value})}
-                        className="w-full h-10 pl-7 pr-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white"
+                        className="w-full h-12 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-600 font-bold"
+                        value={voucherData.supplierId}
+                        onChange={(e) => setVoucherData({...voucherData, supplierId: e.target.value})}
+                      >
+                        <option value="">Elegir proveedor...</option>
+                        {suppliers.map(s => (
+                          <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Impactando en:</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{selectedSupplier?.name}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Tipo</label>
+                      <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+                        <button 
+                          type="button"
+                          onClick={() => setVoucherData({...voucherData, type: 'invoice'})}
+                          className={cn(
+                            "flex-1 py-2 text-xs font-bold rounded-md transition-all",
+                            voucherData.type === 'invoice' 
+                              ? "bg-white dark:bg-slate-700 text-indigo-600 shadow-sm" 
+                              : "text-slate-500 hover:text-slate-700"
+                          )}
+                        >
+                          Factura / Debito
+                        </button>
+                        <button 
+                          type="button"
+                          onClick={() => setVoucherData({...voucherData, type: 'payment'})}
+                          className={cn(
+                            "flex-1 py-2 text-xs font-bold rounded-md transition-all",
+                            voucherData.type === 'payment' 
+                              ? "bg-white dark:bg-slate-700 text-emerald-600 shadow-sm" 
+                              : "text-slate-500 hover:text-slate-700"
+                          )}
+                        >
+                          Pago / Crédito
+                        </button>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Fecha</label>
+                      <input 
+                        type="date"
+                        required
+                        value={voucherData.date}
+                        onChange={(e) => setVoucherData({...voucherData, date: e.target.value})}
+                        className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white"
                       />
                     </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Nº Comprobante</label>
+                      <input 
+                        type="text"
+                        required
+                        placeholder="FC-A-0001-..."
+                        value={voucherData.number}
+                        onChange={(e) => setVoucherData({...voucherData, number: e.target.value})}
+                        className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white uppercase"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Monto Factura</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</span>
+                        <input 
+                          type="number"
+                          step="0.01"
+                          required
+                          placeholder="0.00"
+                          value={voucherData.amount}
+                          onChange={(e) => setVoucherData({...voucherData, amount: e.target.value})}
+                          className="w-full h-10 pl-7 pr-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm font-bold focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Condición de Pago</label>
+                      <input 
+                        type="text"
+                        placeholder="Ej: 30 días"
+                        value={voucherData.paymentTerms}
+                        onChange={(e) => setVoucherData({...voucherData, paymentTerms: e.target.value})}
+                        className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Vencimiento</label>
+                      <input 
+                        type="date"
+                        value={voucherData.dueDate}
+                        onChange={(e) => setVoucherData({...voucherData, dueDate: e.target.value})}
+                        className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Condición de Pago</label>
-                    <input 
-                      type="text"
-                      placeholder="Ej: 30 días"
-                      value={voucherData.paymentTerms}
-                      onChange={(e) => setVoucherData({...voucherData, paymentTerms: e.target.value})}
-                      className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white"
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Descripción / Concepto</label>
+                    <textarea 
+                      rows={2}
+                      value={voucherData.description}
+                      onChange={(e) => setVoucherData({...voucherData, description: e.target.value})}
+                      placeholder="Detalles adicionales..."
+                      className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white resize-none"
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Vencimiento</label>
-                    <input 
-                      type="date"
-                      value={voucherData.dueDate}
-                      onChange={(e) => setVoucherData({...voucherData, dueDate: e.target.value})}
-                      className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white"
-                    />
+
+                  {/* 5. MEDIOS DE PAGO MIXTOS */}
+                  <div className="space-y-3 pt-3 border-t border-slate-150 dark:border-slate-800">
+                    <h4 className="text-[10px] font-black text-slate-550 uppercase tracking-widest">Distribución de Pago</h4>
+                    
+                    {/* Efectivo */}
+                    <div className="grid grid-cols-2 gap-3 items-end bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/40">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-700 dark:text-slate-300 block">Efectivo ($)</label>
+                        <input 
+                          type="number"
+                          min="0"
+                          value={payCash || ''}
+                          onChange={e => setPayCash(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full h-8 px-2 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-200"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 block">Caja Efectivo</label>
+                        <select
+                          value={cashBoxId}
+                          onChange={e => setCashBoxId(e.target.value)}
+                          className="w-full h-8 px-1.5 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-800 dark:text-slate-200"
+                        >
+                          {boxes.filter(b => b.type === 'cash').map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Transferencia */}
+                    <div className="grid grid-cols-2 gap-3 items-end bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/40">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-700 dark:text-slate-300 block">Transferencia ($)</label>
+                        <input 
+                          type="number"
+                          min="0"
+                          value={payBank || ''}
+                          onChange={e => setPayBank(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full h-8 px-2 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-200"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 block">Banco Destino</label>
+                        <select
+                          value={bankBoxId}
+                          onChange={e => setBankBoxId(e.target.value)}
+                          className="w-full h-8 px-1.5 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-800 dark:text-slate-200"
+                        >
+                          {boxes.filter(b => b.type === 'bank' || b.type === 'digital').map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Tarjeta */}
+                    <div className="grid grid-cols-2 gap-3 items-end bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/40">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-700 dark:text-slate-300 block">Tarjeta ($)</label>
+                        <input 
+                          type="number"
+                          min="0"
+                          value={payCard || ''}
+                          onChange={e => setPayCard(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full h-8 px-2 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-200"
+                          placeholder="0.00"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-slate-500 block">Caja Tarjeta</label>
+                        <select
+                          value={cardBoxId}
+                          onChange={e => setCardBoxId(e.target.value)}
+                          className="w-full h-8 px-1.5 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-[10px] font-bold text-slate-800 dark:text-slate-200"
+                        >
+                          {boxes.filter(b => b.type === 'credit_card').map(b => (
+                            <option key={b.id} value={b.id}>{b.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Cuenta Corriente / Deuda */}
+                    {voucherData.type === 'invoice' && (
+                      <div className="p-2.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/40">
+                        <label className="text-[10px] font-bold text-slate-700 dark:text-slate-350 block mb-1">Cuenta Corriente / Deuda ($)</label>
+                        <input 
+                          type="number"
+                          min="0"
+                          value={payCurrentAccount || ''}
+                          onChange={e => setPayCurrentAccount(Math.max(0, parseFloat(e.target.value) || 0))}
+                          className="w-full h-8 px-2 rounded border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-200"
+                          placeholder="0.00"
+                        />
+                        <p className="text-[9px] text-slate-400 mt-1 leading-none">Monto que quedará como saldo deudor con el proveedor.</p>
+                      </div>
+                    )}
+
+                    {/* Cheques */}
+                    <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/40 space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Cheques Emitidos</span>
+                        <button 
+                          type="button" 
+                          onClick={() => setShowChequeForm(!showChequeForm)}
+                          className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 rounded text-[9px] font-bold transition-all"
+                        >
+                          {showChequeForm ? 'Cerrar Alta' : '+ Agregar Cheque'}
+                        </button>
+                      </div>
+
+                      {showChequeForm && (
+                        <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 space-y-2 animate-in slide-in-from-top-1">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-400 uppercase">Nº Cheque</label>
+                              <input 
+                                type="text" 
+                                value={newCheque.number}
+                                onChange={e => setNewCheque({...newCheque, number: e.target.value})}
+                                className="w-full h-7 px-1.5 rounded border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 text-xs font-bold"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-400 uppercase">Banco</label>
+                              <input 
+                                type="text" 
+                                value={newCheque.bank}
+                                onChange={e => setNewCheque({...newCheque, bank: e.target.value})}
+                                className="w-full h-7 px-1.5 rounded border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 text-xs font-bold"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-400 uppercase">Importe</label>
+                              <input 
+                                type="number" 
+                                value={newCheque.amount || ''}
+                                onChange={e => setNewCheque({...newCheque, amount: Math.max(0, parseFloat(e.target.value) || 0)})}
+                                className="w-full h-7 px-1.5 rounded border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 text-xs font-bold"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-400 uppercase">Plazo</label>
+                              <select 
+                                value={newCheque.terms}
+                                onChange={e => setNewCheque({...newCheque, terms: e.target.value})}
+                                className="w-full h-7 px-1 rounded border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 text-[10px] font-bold text-slate-800 dark:text-slate-200"
+                              >
+                                <option value="30 días">30 días</option>
+                                <option value="60 días">60 días</option>
+                                <option value="90 días">90 días</option>
+                                <option value="120 días">120 días</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-[9px] font-bold text-slate-400 uppercase">Vencimiento</label>
+                              <input 
+                                type="date" 
+                                value={newCheque.dueDate}
+                                onChange={e => setNewCheque({...newCheque, dueDate: e.target.value})}
+                                className="w-full h-7 px-1 rounded border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 text-[9px] font-bold"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-400 uppercase">Observación</label>
+                            <input 
+                              type="text" 
+                              placeholder="Opcional..."
+                              value={newCheque.observation}
+                              onChange={e => setNewCheque({...newCheque, observation: e.target.value})}
+                              className="w-full h-7 px-1.5 rounded border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 text-xs font-medium"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={!newCheque.number || !newCheque.bank || newCheque.amount <= 0}
+                            onClick={() => {
+                              setAddedCheques([...addedCheques, { ...newCheque }]);
+                              setNewCheque({
+                                number: '',
+                                bank: '',
+                                amount: 0,
+                                dueDate: new Date().toISOString().split('T')[0],
+                                terms: '30 días',
+                                observation: ''
+                              });
+                              setShowChequeForm(false);
+                            }}
+                            className="w-full py-1.5 bg-indigo-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 text-white rounded text-xs font-bold hover:bg-indigo-700 transition-all shadow-sm"
+                          >
+                            Confirmar Agregar Cheque
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Added Cheques List */}
+                      {addedCheques.length > 0 && (
+                        <div className="space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar">
+                          {addedCheques.map((c, idx) => (
+                            <div key={idx} className="flex justify-between items-center p-2 rounded bg-white dark:bg-slate-900 border border-slate-200/50 text-[10px] font-bold shadow-sm">
+                              <div>
+                                <p className="text-slate-800 dark:text-slate-200">Nº {c.number} · {c.bank}</p>
+                                <p className="text-slate-400 font-medium">Vence: {new Date(c.dueDate + 'T12:00:00').toLocaleDateString()} ({c.terms})</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-extrabold text-emerald-650 dark:text-emerald-450">${c.amount.toLocaleString()}</span>
+                                <button 
+                                  type="button" 
+                                  onClick={() => setAddedCheques(addedCheques.filter((_, i) => i !== idx))}
+                                  className="p-1 hover:bg-red-50 text-red-500 rounded transition-colors"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 6. LIVE SUMS RESUMEN */}
+                  <div className="p-4 bg-slate-900 text-white rounded-xl space-y-1.5 text-xs font-bold shadow-inner">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Total Factura:</span>
+                      <span>${totalInvoiced.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-350 font-medium pl-2">
+                      <span>Efectivo:</span>
+                      <span>${payCash.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-350 font-medium pl-2">
+                      <span>Transferencia:</span>
+                      <span>${payBank.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-350 font-medium pl-2">
+                      <span>Tarjeta:</span>
+                      <span>${payCard.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between text-slate-350 font-medium pl-2">
+                      <span>Cheques:</span>
+                      <span>${totalChequesAmount.toLocaleString()}</span>
+                    </div>
+                    {voucherData.type === 'invoice' && (
+                      <div className="flex justify-between text-slate-350 font-medium pl-2">
+                        <span>Cuenta Corriente (Deuda):</span>
+                        <span>${payCurrentAccount.toLocaleString()}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-slate-700 my-1"></div>
+                    <div className="flex justify-between text-slate-200">
+                      <span>Total Imputado:</span>
+                      <span>${totalImputed.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-dashed border-slate-700 pt-1.5">
+                      <span className="text-indigo-400">Diferencia:</span>
+                      <span className={cn("font-black text-sm", difference === 0 ? "text-emerald-400" : "text-rose-400")}>
+                        ${difference.toLocaleString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Descripción / Concepto</label>
-                  <textarea 
-                    rows={2}
-                    value={voucherData.description}
-                    onChange={(e) => setVoucherData({...voucherData, description: e.target.value})}
-                    placeholder="Detalles adicionales..."
-                    className="w-full p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-sm focus:ring-2 focus:ring-indigo-600 outline-none text-slate-900 dark:text-white resize-none"
-                  />
+                <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900/50">
+                  <button 
+                    type="button"
+                    onClick={() => setIsVoucherModalOpen(false)}
+                    className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs"
+                  >
+                    Cerrar
+                  </button>
+                  <button 
+                    type="submit"
+                    disabled={difference !== 0}
+                    className="px-8 py-2.5 bg-indigo-600 disabled:bg-slate-200 dark:disabled:bg-slate-800 disabled:text-slate-400 text-white rounded-lg font-bold shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all text-xs"
+                  >
+                    Confirmar Impacto en C.C.
+                  </button>
                 </div>
-              </div>
-
-              <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900/50">
-                <button 
-                  type="button"
-                  onClick={() => setIsVoucherModalOpen(false)}
-                  className="px-6 py-2.5 rounded-lg font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs"
-                >
-                  Cerrar
-                </button>
-                <button 
-                  type="submit"
-                  className="px-8 py-2.5 bg-indigo-600 text-white rounded-lg font-bold shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all text-xs"
-                >
-                  Confirmar Impacto en C.C.
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* History / Cuenta Corriente Modal */}
       {isHistoryModalOpen && selectedSupplier && (

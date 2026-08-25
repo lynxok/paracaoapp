@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
-import { CashBox, Transaction, FinanceCategory, Supplier, SupplierTransaction } from '../types';
+import { CashBox, CashBoxType, Transaction, FinanceCategory, Supplier, SupplierTransaction, Cheque } from '../types';
 import { useNotifications } from './NotificationsContext';
 
 interface FinanceContextType {
   boxes: CashBox[];
   transactions: Transaction[];
   suppliers: Supplier[];
+  cheques: Cheque[];
   addTransaction: (tx: Transaction) => void;
   voidTransaction: (txId: string) => void;
   addBox: (box: CashBox) => void;
@@ -16,6 +17,8 @@ interface FinanceContextType {
   linkPaymentToInvoices: (supplierId: string, invoiceIds: string[]) => void;
   toggleTransactionReconciliation: (transactionId: string) => void;
   updateBoxClosingBalance: (boxId: string, balance: number) => void;
+  addCheques: (chequesList: Cheque[]) => void;
+  updateChequeStatus: (id: string, status: Cheque['status'], boxId?: string) => void;
 }
 
 const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
@@ -37,25 +40,77 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [boxes, setBoxes] = useState<CashBox[]>([DEFAULT_CASH_BOX]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [cheques, setCheques] = useState<Cheque[]>([]);
 
   // Load boxes, transactions, and suppliers directly from Supabase on mount
   useEffect(() => {
     async function loadFinanceData() {
       try {
-        // 1. Fetch Banks to dynamically construct Bank CashBoxes
-        const { data: dbBanks } = await supabase.from('banks').select('*');
-        const activeBanks: any[] = dbBanks || [];
+        // Helper mapping function for Cajas
+        const mapBankToCashBox = (b: any): CashBox => {
+          let type: CashBoxType = 'bank';
+          if (b.type === 'Caja Efectivo') type = 'cash';
+          else if (b.type === 'Tarjeta de Credito') type = 'credit_card';
+          else if (b.type === 'Transferencia') type = 'bank';
+          else {
+            const nameLower = b.name.toLowerCase();
+            if (nameLower.includes('efectivo') || nameLower.includes('caja')) {
+              type = 'cash';
+            } else if (nameLower.includes('tarjeta') || nameLower.includes('visa') || nameLower.includes('master')) {
+              type = 'credit_card';
+            } else if (nameLower.includes('pago') || nameLower.includes('digital')) {
+              type = 'digital';
+            } else {
+              type = 'bank';
+            }
+          }
 
-        const dynamicBankBoxes: CashBox[] = activeBanks.map((b: any) => ({
-          id: `bank-${b.id}`,
-          name: b.name,
-          type: b.name.toLowerCase().includes('pago') || b.name.toLowerCase().includes('digital') ? 'digital' : 'bank',
-          initialBalance: 0,
-          incomes: 0,
-          expenses: 0
-        }));
+          let associated: string[] = [];
+          if (b.associated_banks) {
+            try {
+              associated = JSON.parse(b.associated_banks);
+            } catch (e) {
+              if (typeof b.associated_banks === 'string' && b.associated_banks.length > 0) {
+                associated = b.associated_banks.split(',');
+              }
+            }
+          }
 
-        const initialBoxes = [DEFAULT_CASH_BOX, ...dynamicBankBoxes];
+          return {
+            id: `bank-${b.id}`,
+            name: b.name,
+            type,
+            initialBalance: 0,
+            incomes: 0,
+            expenses: 0,
+            expectedCash: 0,
+            physicalCount: {},
+            lastClosingBalance: 0,
+            associatedBanks: associated.map((id: string) => `bank-${id}`)
+          };
+        };
+
+        // 1. Fetch Banks to dynamically construct Bank CashBoxes (with local storage fallback)
+        let activeBanks: any[] = [];
+        try {
+          const { data: dbBanks } = await supabase.from('banks').select('*');
+          if (dbBanks && dbBanks.length > 0) {
+            activeBanks = dbBanks;
+          } else {
+            const saved = localStorage.getItem('optica_banks');
+            if (saved) activeBanks = JSON.parse(saved);
+          }
+        } catch (e) {
+          console.error("Error loading banks from Supabase, loading from localStorage:", e);
+          const saved = localStorage.getItem('optica_banks');
+          if (saved) activeBanks = JSON.parse(saved);
+        }
+
+        const dynamicBankBoxes: CashBox[] = activeBanks.map(mapBankToCashBox);
+
+        // Prepend DEFAULT_CASH_BOX only if no cash box exists in database/local
+        const hasCashBox = dynamicBankBoxes.some(box => box.type === 'cash');
+        const initialBoxes = hasCashBox ? dynamicBankBoxes : [DEFAULT_CASH_BOX, ...dynamicBankBoxes];
 
         // 2. Fetch Transactions
         const { data: dbTx } = await supabase.from('transactions').select('*');
@@ -126,7 +181,37 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
               transactions: txs
             };
           });
-          setSuppliers(mappedSuppliers);
+        }
+        
+        // 4. Fetch Cheques
+        try {
+          const { data: dbCheques } = await supabase.from('cheques').select('*');
+          if (dbCheques && dbCheques.length > 0) {
+            setCheques(dbCheques.map((c: any) => ({
+              id: c.id,
+              number: c.number,
+              bank: c.bank,
+              amount: Number(c.amount) || 0,
+              dueDate: c.due_date,
+              terms: c.terms || '',
+              status: c.status || 'Pendiente',
+              type: c.type || 'Emitido',
+              supplierId: c.supplier_id,
+              supplierName: c.supplier_name,
+              clientId: c.client_id,
+              clientName: c.client_name,
+              voucherId: c.voucher_id,
+              observation: c.observation,
+              createdAt: c.created_at
+            })));
+          } else {
+            const savedCheques = localStorage.getItem('optica_cheques');
+            if (savedCheques) setCheques(JSON.parse(savedCheques));
+          }
+        } catch (e) {
+          console.warn("Could not load cheques from Supabase, loading from localStorage:", e);
+          const savedCheques = localStorage.getItem('optica_cheques');
+          if (savedCheques) setCheques(JSON.parse(savedCheques));
         }
       } catch (e) {
         console.warn("Could not load finance data from Supabase:", e);
@@ -341,18 +426,47 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         { event: '*', schema: 'public', table: 'banks' },
         (payload: any) => {
           if (payload.new && payload.new.name) {
+            // Helper mapping function inline for realtime payload
             const b = payload.new;
+            let type: CashBoxType = 'bank';
+            if (b.type === 'Caja Efectivo') type = 'cash';
+            else if (b.type === 'Tarjeta de Credito') type = 'credit_card';
+            else if (b.type === 'Transferencia') type = 'bank';
+            else {
+              const nameLower = b.name.toLowerCase();
+              if (nameLower.includes('efectivo') || nameLower.includes('caja')) type = 'cash';
+              else if (nameLower.includes('tarjeta') || nameLower.includes('visa') || nameLower.includes('master')) type = 'credit_card';
+              else if (nameLower.includes('pago') || nameLower.includes('digital')) type = 'digital';
+            }
+
+            let associated: string[] = [];
+            if (b.associated_banks) {
+              try {
+                associated = JSON.parse(b.associated_banks);
+              } catch (e) {
+                if (typeof b.associated_banks === 'string' && b.associated_banks.length > 0) {
+                  associated = b.associated_banks.split(',');
+                }
+              }
+            }
+
             const newBox: CashBox = {
               id: `bank-${b.id}`,
               name: b.name,
-              type: b.name.toLowerCase().includes('pago') || b.name.toLowerCase().includes('digital') ? 'digital' : 'bank',
+              type,
               initialBalance: 0,
               incomes: 0,
-              expenses: 0
+              expenses: 0,
+              expectedCash: 0,
+              physicalCount: {},
+              lastClosingBalance: 0,
+              associatedBanks: associated.map((id: string) => `bank-${id}`)
             };
+
             setBoxes(prev => {
-              if (prev.some(existing => existing.id === newBox.id || existing.name.toLowerCase() === newBox.name.toLowerCase())) {
-                return prev;
+              const existsIdx = prev.findIndex(existing => existing.id === newBox.id);
+              if (existsIdx >= 0) {
+                return prev.map((item, idx) => idx === existsIdx ? { ...item, name: newBox.name, type: newBox.type, associatedBanks: newBox.associatedBanks } : item);
               }
               return [...prev, newBox];
             });
@@ -442,11 +556,103 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  // Sync cheques changes to local storage & Supabase
+  useEffect(() => {
+    localStorage.setItem('optica_cheques', JSON.stringify(cheques));
+    async function syncCheques() {
+      if (cheques.length > 0) {
+        try {
+          await supabase.from('cheques').upsert(cheques.map(c => ({
+            id: c.id,
+            number: c.number,
+            bank: c.bank,
+            amount: c.amount,
+            due_date: c.dueDate,
+            terms: c.terms || '',
+            status: c.status,
+            type: c.type,
+            supplier_id: c.supplierId || null,
+            supplier_name: c.supplierName || null,
+            client_id: c.clientId || null,
+            client_name: c.clientName || null,
+            voucher_id: c.voucherId || null,
+            observation: c.observation || null
+          })));
+        } catch (e) {
+          console.error("Error syncing cheques to Supabase:", e);
+        }
+      }
+    }
+    syncCheques();
+  }, [cheques]);
+
+  const addCheques = (chequesList: Cheque[]) => {
+    setCheques(prev => [...chequesList, ...prev]);
+  };
+
+  const updateChequeStatus = async (id: string, status: Cheque['status'], boxId?: string) => {
+    let affectedCheque: Cheque | null = null;
+    
+    setCheques(prev => prev.map(c => {
+      if (c.id === id) {
+        affectedCheque = { ...c, status };
+        return affectedCheque;
+      }
+      return c;
+    }));
+
+    // If marked as Cobrado, register transaction in Finance
+    if (status === 'Cobrado' && boxId) {
+      setTimeout(() => {
+        if (!affectedCheque) return;
+        const box = boxes.find(b => b.id === boxId);
+        const boxName = box?.name || 'Caja';
+        
+        if (affectedCheque.type === 'Emitido') {
+          // Cheque we gave to supplier -> debited from our account -> Expense
+          addTransaction({
+            id: `tx-cheque-deb-${Date.now()}`,
+            date: new Date().toISOString().split('T')[0],
+            time: new Date().toTimeString().slice(0, 5),
+            concept: `Débito Cheque Nº ${affectedCheque.number} - Banco: ${affectedCheque.bank} (Proveedor: ${affectedCheque.supplierName || 'Proveedor'})`,
+            method: boxName,
+            amount: affectedCheque.amount,
+            type: 'expense',
+            category: 'Gastos Administrativos',
+            boxId: boxId,
+            reconciled: true
+          });
+        } else {
+          // Cheque we received from client -> deposited/cashed -> Income
+          addTransaction({
+            id: `tx-cheque-dep-${Date.now()}`,
+            date: new Date().toISOString().split('T')[0],
+            time: new Date().toTimeString().slice(0, 5),
+            concept: `Depósito Cheque Nº ${affectedCheque.number} - Banco: ${affectedCheque.bank} (Cliente: ${affectedCheque.clientName || 'Cliente'})`,
+            method: boxName,
+            amount: affectedCheque.amount,
+            type: 'income',
+            category: 'Cobros',
+            boxId: boxId,
+            reconciled: true
+          });
+        }
+      }, 100);
+    }
+
+    try {
+      await supabase.from('cheques').update({ status }).eq('id', id);
+    } catch (e) {
+      console.error("Error updating cheque status in Supabase:", e);
+    }
+  };
+
   return (
     <FinanceContext.Provider value={{ 
       boxes, 
       transactions, 
       suppliers,
+      cheques,
       addTransaction, 
       voidTransaction,
       addBox, 
@@ -456,7 +662,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       addSupplier,
       linkPaymentToInvoices,
       toggleTransactionReconciliation,
-      updateBoxClosingBalance
+      updateBoxClosingBalance,
+      addCheques,
+      updateChequeStatus
     }}>
       {children}
     </FinanceContext.Provider>

@@ -2,15 +2,36 @@ import React, { useState } from "react";
 import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench } from "lucide-react";
 import { useLabs, LabJob } from "../context/LabContext";
 import { useSettings } from "../context/SettingsContext";
+import { useClients } from "../context/ClientContext";
 import { cn } from "../lib/utils";
 
 export function Labs() {
   const { labs, jobs, payments, addJob, updateJobStatus, updateJobEstimatedDelivery } = useLabs();
   const { lensTypes, materials, indices, brands, designs, colors, treatments } = useSettings();
+  const { orders } = useClients();
   
   const [selectedLabId, setSelectedLabId] = useState(labs[0]?.id || "");
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [activeJobDetails, setActiveJobDetails] = useState<LabJob | null>(null);
+
+  const checkOrderPaymentStatus = (orderId: string): boolean => {
+    const matchedOrder = orders.find(o => o.id.trim().toLowerCase() === orderId.trim().toLowerCase());
+    if (matchedOrder && matchedOrder.paid <= 0) {
+      return false;
+    }
+    return true;
+  };
+
+  const handleStatusChangeAttempt = (orderId: string, status: string): boolean => {
+    if (status === 'Enviado al laboratorio' || status === 'En producción') {
+      const isPaidOrHasSena = checkOrderPaymentStatus(orderId);
+      if (!isPaidOrHasSena) {
+        alert("Para enviar el pedido al laboratorio debés registrar una seña o completar el pago total");
+        return false;
+      }
+    }
+    return true;
+  };
 
   const filteredJobs = jobs.filter(j => j.labId === selectedLabId && j.date.startsWith(period));
   const filteredPayments = payments.filter(p => p.labId === selectedLabId && p.date.startsWith(period));
@@ -112,6 +133,11 @@ export function Labs() {
     if (jobs.some(j => j.orderId.trim().toLowerCase() === trimmedOrderId.toLowerCase())) {
       alert(`El número de pedido "${trimmedOrderId}" ya existe. Por favor ingrese un número único.`);
       return;
+    }
+
+    if (newJob.status === 'Enviado al laboratorio' || newJob.status === 'En producción') {
+      const ok = handleStatusChangeAttempt(trimmedOrderId, newJob.status);
+      if (!ok) return;
     }
 
     const labObj = labs.find(l => l.id === selectedLabId);
@@ -729,6 +755,10 @@ export function Labs() {
                   value={activeJobDetails.status}
                   onChange={e => {
                     const newStatus = e.target.value as any;
+                    if (newStatus === 'Enviado al laboratorio' || newStatus === 'En producción') {
+                      const ok = handleStatusChangeAttempt(activeJobDetails.orderId, newStatus);
+                      if (!ok) return;
+                    }
                     updateJobStatus(activeJobDetails.id, newStatus);
                     setActiveJobDetails({ ...activeJobDetails, status: newStatus });
                   }}

@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Client, Order, Transaction } from '../types';
+import { useNotifications } from './NotificationsContext';
 import { supabase } from '../lib/supabase';
+import { Client, Order, Transaction } from '../types';
+import { useFinance } from './FinanceContext';
 
 interface ClientContextType {
   clients: Client[];
   orders: Order[];
-  addClient: (client: Omit<Client, 'id' | 'balance'>) => Promise<Client>;
+  addClient: (clientData: Omit<Client, 'id' | 'balance'>) => Promise<Client>;
   updateClient: (client: Client) => void;
   deleteClient: (id: string) => void;
   getClientOrders: (clientId: string) => Order[];
@@ -13,6 +15,7 @@ interface ClientContextType {
   getClientBalance: (clientId: string) => number;
   addOrder: (order: Omit<Order, 'id'>) => void;
   updateOrderStatus: (orderId: string, status: string) => void;
+  payOrderBalance: (orderId: string, amount: number, boxId: string) => Promise<void>;
 }
 
 const ClientContext = createContext<ClientContextType | undefined>(undefined);
@@ -186,7 +189,9 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     amount: Number(o.amount) || 0,
     paid: Number(o.paid) || 0,
     medico: o.medico || '',
-    branchId: o.branch_id || o.branchId || ''
+    branchId: o.branch_id || o.branchId || '',
+    senaMethodId: o.sena_method_id || '',
+    previstoMethodId: o.previsto_method_id || ''
   });
 
   // Helper de mapeo de Order (camelCase) a Supabase (snake_case)
@@ -201,7 +206,9 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     amount: o.amount,
     paid: o.paid,
     medico: o.medico,
-    branch_id: o.branchId
+    branch_id: o.branchId,
+    sena_method_id: o.senaMethodId || null,
+    previsto_method_id: o.previstoMethodId || null
   });
 
   const addOrder = async (orderData: Omit<Order, 'id'>) => {
@@ -226,6 +233,48 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const payOrderBalance = async (orderId: string, amount: number, boxId: string) => {
+    let targetOrder: Order | null = null;
+    
+    setOrders(prev => prev.map(o => {
+      if (o.id === orderId) {
+        targetOrder = {
+          ...o,
+          paid: o.paid + amount
+        };
+        return targetOrder;
+      }
+      return o;
+    }));
+
+    // Register transaction in Finance
+    setTimeout(() => {
+      if (!targetOrder) return;
+      const box = boxes.find(b => b.id === boxId);
+      const boxName = box?.name || 'Caja';
+      
+      addTransaction({
+        id: `tx-balance-pay-${Date.now()}`,
+        date: new Date().toISOString().split('T')[0],
+        time: new Date().toTimeString().slice(0, 5),
+        concept: `Cobro Saldo Pedido ${targetOrder.id} - Cliente: ${targetOrder.clientName}`,
+        method: boxName,
+        amount: amount,
+        type: 'income',
+        category: 'ventas',
+        boxId: boxId,
+        clientId: targetOrder.clientId,
+        clientName: targetOrder.clientName
+      });
+    }, 100);
+
+    try {
+      await supabase.from('orders').update({ paid: (targetOrder ? (targetOrder as Order).paid : 0) }).eq('id', orderId);
+    } catch (e) {
+      console.error("Error updating order balance in Supabase:", e);
+    }
+  };
+
   return (
     <ClientContext.Provider value={{
       clients,
@@ -237,7 +286,8 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       getClientTransactions,
       getClientBalance,
       addOrder,
-      updateOrderStatus
+      updateOrderStatus,
+      payOrderBalance
     }}>
       {children}
     </ClientContext.Provider>

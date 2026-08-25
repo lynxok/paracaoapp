@@ -9,9 +9,15 @@ import { Client } from "../types";
 
 export function Clients() {
   const navigate = useNavigate();
-  const { clients, addClient, updateClient, deleteClient, getClientOrders, getClientTransactions } = useClients();
+  const { clients, addClient, updateClient, deleteClient, getClientOrders, getClientTransactions, payOrderBalance } = useClients();
   const { insurances } = useSettings();
   const { boxes, addTransaction, voidTransaction, transactions } = useFinance();
+
+  // Pay balance states
+  const [payingOrder, setPayingOrder] = useState<any | null>(null);
+  const [payBalanceAmount, setPayBalanceAmount] = useState<string>('');
+  const [payBalanceBoxId, setPayBalanceBoxId] = useState<string>('');
+  const [isPayBalanceModalOpen, setIsPayBalanceModalOpen] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCCModalOpen, setIsCCModalOpen] = useState(false);
   const [isOrdersModalOpen, setIsOrdersModalOpen] = useState(false);
@@ -760,12 +766,38 @@ export function Clients() {
                               {order.status}
                             </span>
                           </div>
-                          <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
-                            <div className="flex gap-4">
+                          
+                          <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-2 text-xs">
+                            <div className="grid grid-cols-3 gap-2">
                               <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Monto</p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total</p>
                                 <p className="font-bold text-slate-900 dark:text-white">${order.amount.toLocaleString()}</p>
                               </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Abonado</p>
+                                <p className="font-bold text-emerald-600 dark:text-emerald-450">${order.paid.toLocaleString()}</p>
+                              </div>
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Saldo Restante</p>
+                                <p className={cn("font-black", (order.amount - order.paid) > 0 ? "text-amber-600 dark:text-amber-450" : "text-slate-500")}>
+                                  ${(order.amount - order.paid).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                            {(order.senaMethodId || order.previstoMethodId) && (
+                              <div className="pt-1.5 border-t border-slate-200/50 dark:border-slate-800/50 grid grid-cols-2 gap-2 text-[10px] text-slate-500 font-medium">
+                                {order.senaMethodId && (
+                                  <p>Cobro Seña: <span className="font-bold text-slate-700 dark:text-slate-350">{boxes.find(b => b.id === order.senaMethodId)?.name || order.senaMethodId}</span></p>
+                                )}
+                                {order.previstoMethodId && (order.amount - order.paid) > 0 && (
+                                  <p>Previsión Saldo: <span className="font-bold text-slate-700 dark:text-slate-350">{boxes.find(b => b.id === order.previstoMethodId)?.name || order.previstoMethodId}</span></p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-between pt-3 border-t border-slate-100 dark:border-slate-800 text-xs mt-3">
+                            <div className="flex gap-4">
                               {order.medico && (
                                 <div>
                                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Médico</p>
@@ -773,11 +805,26 @@ export function Clients() {
                                 </div>
                               )}
                             </div>
-                            {order.type !== 'producto' && (
-                              <Link to={`/orders/new/${order.type}`} className="flex items-center gap-1 text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:translate-x-1 transition-transform">
-                                Ver Detalle <ArrowRight className="w-3 h-3" />
-                              </Link>
-                            )}
+                            <div className="flex gap-2 items-center">
+                              {order.amount - order.paid > 0 && (
+                                <button
+                                  onClick={() => {
+                                    setPayingOrder(order);
+                                    setPayBalanceAmount((order.amount - order.paid).toString());
+                                    setPayBalanceBoxId(order.previstoMethodId || boxes[0]?.id || '');
+                                    setIsPayBalanceModalOpen(true);
+                                  }}
+                                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[10px] font-bold shadow-sm transition-all"
+                                >
+                                  Cobrar Saldo
+                                </button>
+                              )}
+                              {order.type !== 'producto' && (
+                                <Link to={`/orders/new/${order.type}`} className="flex items-center gap-1 text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:translate-x-1 transition-transform">
+                                  Ver Detalle <ArrowRight className="w-3 h-3" />
+                                </Link>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1047,6 +1094,86 @@ export function Clients() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Pay Order Balance Modal */}
+      {isPayBalanceModalOpen && payingOrder && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-sm rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-indigo-50/20 dark:bg-indigo-900/10">
+              <div>
+                <h3 className="font-bold text-slate-900 dark:text-white text-sm">Registrar Cobro de Saldo</h3>
+                <p className="text-[10px] text-slate-500 mt-0.5">Pedido: {payingOrder.id} · {payingOrder.service}</p>
+              </div>
+              <button 
+                onClick={() => { setIsPayBalanceModalOpen(false); setPayingOrder(null); }}
+                className="text-slate-400 hover:text-slate-650 dark:hover:text-slate-300"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50/50 dark:bg-amber-900/10 p-3.5 rounded-xl space-y-1 text-xs border border-amber-100/50 dark:border-amber-900/20">
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Total Pedido:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">${payingOrder.amount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-slate-500 font-medium">Abonado hasta hoy:</span>
+                  <span className="font-bold text-emerald-600 dark:text-emerald-450">${payingOrder.paid.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between border-t border-amber-250/40 dark:border-amber-900/40 pt-1.5 font-bold">
+                  <span className="text-amber-800 dark:text-amber-300">Saldo Restante:</span>
+                  <span className="text-amber-850 dark:text-amber-300">${(payingOrder.amount - payingOrder.paid).toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Monto a Cobrar ($)</label>
+                <input 
+                  type="number"
+                  min="1"
+                  max={payingOrder.amount - payingOrder.paid}
+                  value={payBalanceAmount}
+                  onChange={e => setPayBalanceAmount(Math.max(1, Math.min(payingOrder.amount - payingOrder.paid, parseFloat(e.target.value) || 0)).toString())}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600 text-sm font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Caja / Banco de Ingreso</label>
+                <select
+                  value={payBalanceBoxId}
+                  onChange={e => setPayBalanceBoxId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600 text-xs font-bold text-slate-800 dark:text-slate-200"
+                >
+                  {boxes.map(box => (
+                    <option key={box.id} value={box.id}>{box.name} ({box.type === 'cash' ? 'Efectivo' : 'Banco'})</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+              <button 
+                onClick={() => { setIsPayBalanceModalOpen(false); setPayingOrder(null); }}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-100 transition-all text-xs font-bold"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  const amt = parseFloat(payBalanceAmount) || 0;
+                  if (amt <= 0) return;
+                  await payOrderBalance(payingOrder.id, amt, payBalanceBoxId);
+                  setIsPayBalanceModalOpen(false);
+                  setPayingOrder(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition-all text-xs shadow-lg shadow-indigo-500/20 active:scale-95"
+              >
+                Registrar Cobro
+              </button>
             </div>
           </div>
         </div>

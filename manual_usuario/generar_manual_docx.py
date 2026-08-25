@@ -61,9 +61,41 @@ def bullets(items):
         par.paragraph_format.space_after = Pt(3)
         font(par.add_run(item))
 
+def new_numbered_list_id():
+    numbering = doc.part.numbering_part.element
+    abstract_ids = [int(x.get(qn('w:abstractNumId'))) for x in numbering.findall(qn('w:abstractNum'))]
+    num_ids = [int(x.get(qn('w:numId'))) for x in numbering.findall(qn('w:num'))]
+    abstract_id = max(abstract_ids, default=0) + 1
+    num_id = max(num_ids, default=0) + 1
+
+    abstract = OxmlElement('w:abstractNum')
+    abstract.set(qn('w:abstractNumId'), str(abstract_id))
+    level = OxmlElement('w:lvl'); level.set(qn('w:ilvl'), '0')
+    start = OxmlElement('w:start'); start.set(qn('w:val'), '1'); level.append(start)
+    fmt = OxmlElement('w:numFmt'); fmt.set(qn('w:val'), 'decimal'); level.append(fmt)
+    text = OxmlElement('w:lvlText'); text.set(qn('w:val'), '%1.'); level.append(text)
+    justify = OxmlElement('w:lvlJc'); justify.set(qn('w:val'), 'left'); level.append(justify)
+    ppr = OxmlElement('w:pPr')
+    ind = OxmlElement('w:ind'); ind.set(qn('w:left'), '720'); ind.set(qn('w:hanging'), '360'); ppr.append(ind)
+    level.append(ppr); abstract.append(level); numbering.append(abstract)
+
+    number = OxmlElement('w:num'); number.set(qn('w:numId'), str(num_id))
+    abstract_ref = OxmlElement('w:abstractNumId'); abstract_ref.set(qn('w:val'), str(abstract_id)); number.append(abstract_ref)
+    numbering.append(number)
+    return num_id
+
+def apply_numbering(paragraph, num_id):
+    ppr = paragraph._p.get_or_add_pPr()
+    numpr = OxmlElement('w:numPr')
+    ilvl = OxmlElement('w:ilvl'); ilvl.set(qn('w:val'), '0'); numpr.append(ilvl)
+    numid = OxmlElement('w:numId'); numid.set(qn('w:val'), str(num_id)); numpr.append(numid)
+    ppr.append(numpr)
+
 def steps(items):
+    num_id = new_numbered_list_id()
     for item in items:
-        par = doc.add_paragraph(style='List Number')
+        par = doc.add_paragraph()
+        apply_numbering(par, num_id)
         par.paragraph_format.space_after = Pt(4)
         font(par.add_run(item))
 
@@ -104,7 +136,7 @@ doc.add_heading('Cómo usar esta guía', level=1)
 p('Este manual describe el uso cotidiano del sistema. Los nombres de campos, botones y pestañas pueden variar ligeramente según los permisos asignados a cada usuario.')
 note('Recomendación:', 'antes de operar, confirme que está en la sucursal correcta y que la caja seleccionada es la que corresponde a la operación.')
 doc.add_heading('Índice', level=2)
-bullets(['1. Ingreso y navegación general', '2. Panel de control', '3. Clientes y cuenta corriente', '4. Ventas, pedidos y recetas ópticas', '5. Proveedores, compras y facturas', '6. Inventario y movimientos de stock', '7. Caja, finanzas y conciliación', '8. Reportes, marketing, configuración y soporte'])
+bullets(['1. Ingreso y navegación general', '2. Panel de control', '3. Clientes y cuenta corriente', '4. Ventas, pedidos y recetas ópticas', '5. Proveedores, compras y facturas', '6. Inventario y movimientos de stock', '7. Caja, finanzas y conciliación', '8. Reportes, marketing, configuración y soporte', '9. Nuevas disposiciones: obras sociales y cajas conciliables'])
 
 doc.add_heading('1. Ingreso y navegación general', level=1)
 p('Óptica Paracao es una aplicación web y no requiere instalar programas, Node.js ni dependencias. Abra un navegador actualizado e ingrese directamente a https://opticagestionparacao.lnx.com.ar, o utilice el enlace web entregado por el administrador. Para acceder necesita conexión a Internet y sus credenciales. Luego utilice el menú lateral para acceder a cada módulo.')
@@ -134,7 +166,8 @@ steps(['Abra Venta No Recetados.', 'Busque y agregue productos de stock al carri
 doc.add_heading('Crear un pedido óptico', level=2)
 screenshot('05-pedidos.png', 'Selección del tipo de pedido recetado.')
 screenshot('06-pedido-monofocal.png', 'Formulario real de Detalle de Pedido Monofocal, vacío y sanitizado.')
-steps(['Abra Nuevo Pedido y seleccione el tipo de solución: monofocal, multifocal o lente de contacto.', 'Seleccione o cree el cliente.', 'Cargue los valores de receta solicitados: OD/OI, esférico, cilíndrico, eje, adición, distancia pupilar y, si aplica, altura de montaje.', 'Elija armazón, cristales y tratamientos. Verifique disponibilidad de stock por sucursal.', 'Defina el total, seña o pago completo y el destino del cobro.', 'Confirme el pedido. El estado inicial normalmente será En Taller.'])
+note('Cliente obligatorio:', 'todo pedido debe quedar asociado a un cliente. Desde este mismo panel puede buscar una ficha existente o crear una nueva antes de continuar.')
+steps(['Abra Nuevo Pedido y seleccione el tipo de solución: monofocal, multifocal o lente de contacto.', 'Busque al cliente por nombre, DNI o teléfono. Si no existe, use la opción de alta disponible en el panel para crear su ficha y selecciónela.', 'Cargue los valores de receta solicitados: OD/OI, esférico, cilíndrico, eje, adición, distancia pupilar y, si aplica, altura de montaje.', 'Elija armazón, cristales y tratamientos. Verifique disponibilidad de stock por sucursal.', 'Defina el total, seña o pago completo y el destino del cobro.', 'Confirme el pedido. El estado inicial normalmente será En Taller.'])
 doc.add_heading('Seguimiento y entrega', level=2)
 bullets(['En Taller: trabajo enviado o pendiente de procesamiento.', 'Para Retirar: trabajo terminado y disponible para el cliente.', 'Completado: pedido entregado y cerrado. Antes de marcarlo, registre cualquier saldo restante.'])
 
@@ -220,6 +253,25 @@ bullets(['Cierre sesión desde el perfil y no comparta cuentas.', 'No ejecute ca
 
 doc.add_heading('Lista diaria de verificación', level=1)
 bullets(['Confirmar caja y sucursal antes de comenzar.', 'Registrar ventas, señas, cobros y egresos en el momento.', 'Actualizar los estados de pedidos en taller y para retirar.', 'Controlar alertas de stock y facturas próximas a vencer.', 'Realizar el cierre de caja y revisar diferencias al finalizar la jornada.'])
+
+doc.add_heading('9. Nuevas disposiciones: obras sociales y cajas conciliables', level=1)
+doc.add_heading('Alta y configuración de una obra social', level=2)
+p('Las obras sociales pueden crearse desde la ficha de un cliente o, para una configuración completa de coberturas, desde Ajustes. La segunda alternativa es la recomendada para que los importes se apliquen de forma consistente en los pedidos.')
+screenshot('28_obras_sociales_verificada.png', 'Figura 1. Directorio de Obras Sociales y Coberturas en Ajustes.')
+steps(['Abra Configuración y seleccione la pestaña Obras Sociales.', 'Seleccione Nueva Obra Social.', 'Ingrese el nombre de la cobertura. Use una denominación única y clara, por ejemplo, OSDE o Swiss Medical.', 'En Coberturas por Categoría, pulse Añadir Regla de Cobertura.', 'Seleccione la categoría de producto y cargue el importe de cobertura o reintegro. Repita la operación para cada categoría que corresponda.', 'Seleccione Guardar. La obra social quedará disponible en la ficha de clientes y en la carga de pedidos.'])
+screenshot('29_nueva_obra_social_verificada.png', 'Figura 2. Formulario para crear una obra social y definir sus reglas de cobertura.')
+doc.add_heading('Asignar una obra social a un cliente', level=2)
+steps(['Abra la ficha del cliente o cree un cliente nuevo.', 'En Obra Social / Seguro Médico, elija la cobertura existente.', 'Si necesita una cobertura simple no configurada, use Nueva Obra Social e ingrese su nombre. El sistema evita duplicados.', 'Guarde la ficha y confirme la cobertura elegida antes de generar el pedido.'])
+note('Control:', 'para aplicar reintegros por categoría en los pedidos, la obra social debe estar configurada en Ajustes con sus reglas de cobertura. Un nombre agregado desde Clientes sin reglas no incorpora importes automáticamente.')
+doc.add_heading('Crear cajas y cuentas que puedan conciliarse', level=2)
+p('La conciliación bancaria está disponible únicamente para cajas de tipo Banco o Digital. Las cajas de Efectivo se utilizan para arqueos físicos y no aparecen en el selector de conciliación.')
+steps(['Abra Caja y Finanzas y elija la opción para crear una Nueva Caja.', 'Indique un nombre identificable, por ejemplo, Banco Galicia - Cuenta Corriente o Mercado Pago.', 'Seleccione el tipo correcto: Banco para cuentas bancarias, Digital para billeteras o plataformas digitales, y Efectivo solo para cajas físicas.', 'Ingrese el saldo inicial validado contra el extracto o saldo real de apertura.', 'Confirme Crear Caja.', 'Registre los ingresos, egresos y transferencias de esa cuenta siempre usando la caja creada.'])
+doc.add_heading('Validación previa a la conciliación', level=2)
+bullets(['Use un nombre único para cada cuenta y no mezcle movimientos de bancos distintos.', 'Compruebe que el saldo inicial coincida con el último saldo confirmado o con el extracto de apertura.', 'Revise que cada movimiento tenga fecha, importe, concepto y caja de impacto correctos.', 'Antes de conciliar, corrija movimientos duplicados o cargados en una caja equivocada.', 'No use una caja de Efectivo para movimientos que deban compararse con un extracto bancario o digital.'])
+doc.add_heading('Conciliar una caja Banco o Digital', level=2)
+steps(['Abra Caja y Finanzas y vaya a la pestaña Conciliación.', 'En Seleccionar Banco/Cuenta, elija la caja Banco o Digital que desea verificar.', 'Defina Desde y Hasta según el período del extracto.', 'Ingrese el Cierre conciliación actual informado por el banco o plataforma y, si corresponde, los gastos bancarios.', 'Compare cada movimiento del listado con el extracto y selecciónelo para marcarlo como conciliado.', 'Revise el contador de ítems conciliados y la diferencia de cierres.', 'Cuando los datos estén revisados y la diferencia sea correcta, pulse Confirmar Conciliación para guardar el nuevo cierre de la cuenta.'])
+screenshot('30_conciliacion_verificada.png', 'Figura 3. Configuración de conciliación: solo se muestran cuentas Banco y Digital.')
+note('Criterio de cierre:', 'si persiste una diferencia, no confirme la conciliación como finalizada. Revise el período, los gastos bancarios y los movimientos pendientes antes de continuar.')
 
 doc.save(OUT)
 print(OUT)

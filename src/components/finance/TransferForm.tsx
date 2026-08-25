@@ -19,7 +19,14 @@ export function TransferForm({ boxes, onSubmit }: TransferFormProps) {
   const fromBoxBalance = fromBox ? (fromBox.initialBalance + fromBox.incomes - fromBox.expenses) : 0;
 
   // Filtrar cajas de destino para no incluir la caja de origen
-  const destinationBoxes = boxes.filter(b => b.id !== fromBoxId);
+  // y aplicar la restricción de "Bancos asociados" si la cuenta origen los tiene configurados.
+  const destinationBoxes = boxes.filter(b => {
+    if (b.id === fromBoxId) return false;
+    if (fromBox && fromBox.associatedBanks && fromBox.associatedBanks.length > 0) {
+      return fromBox.associatedBanks.includes(b.id);
+    }
+    return true; // Si no tiene bancos asociados, la transferencia es libre
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

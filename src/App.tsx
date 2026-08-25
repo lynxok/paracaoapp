@@ -21,6 +21,7 @@ import { Sales } from "./pages/Sales";
 import { Marketing } from "./pages/Marketing";
 import { BillingDrafts } from "./pages/BillingDrafts";
 import { Help } from "./pages/Help";
+import { InsuranceClaims } from "./pages/InsuranceClaims";
 
 import { FinanceProvider } from "./context/FinanceContext";
 import { ClientProvider } from "./context/ClientContext";
@@ -63,6 +64,7 @@ function AppContent() {
       <Route path="/lab-management" element={<Layout title="Liquidación de Laboratorios" subtitle="Gestión de pagos externos"><Labs /></Layout>} />
       <Route path="/finance" element={<Layout title="Arqueo de Caja" subtitle="Caja Principal #01 - 24 Oct 2023"><Finance /></Layout>} />
       <Route path="/finance/closing" element={<Layout title="Arqueo de Caja" subtitle="Cierre de caja diario"><Finance /></Layout>} />
+      <Route path="/insurance-claims" element={<Layout title="Gestión de Reintegros" subtitle="Control de reintegros de obras sociales"><InsuranceClaims /></Layout>} />
       <Route path="/reports" element={<Layout title="Reportes de Rentabilidad" subtitle="Análisis financiero detallado"><Reports /></Layout>} />
       <Route path="/marketing" element={<Layout title="CRM & Marketing" subtitle="Fidelización y recordatorios"><Marketing /></Layout>} />
       <Route path="/settings" element={<Layout title="Configuración" subtitle="Ajustes generales del sistema"><Settings /></Layout>} />

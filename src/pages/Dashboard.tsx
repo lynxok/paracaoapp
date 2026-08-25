@@ -1,3 +1,4 @@
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
 import { UserPlus, Eye, PackagePlus, Calculator, AlertTriangle, CheckCircle2, ShoppingCart, Cake, Gift, Bell, Clock, Smartphone } from "lucide-react";
 import { useClients } from "../context/ClientContext";
@@ -6,13 +7,40 @@ import { useNotifications } from "../context/NotificationsContext";
 
 export function Dashboard() {
   const { clients, orders } = useClients();
-  const { boxes } = useFinance();
+  const { boxes, cheques = [] } = useFinance();
   const { notifications, removeNotification } = useNotifications();
 
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentDay = today.getDate();
   const todayStr = today.toISOString().split('T')[0];
+
+  const chequesAlerts = useMemo(() => {
+    const todayVal = new Date();
+    todayVal.setHours(0,0,0,0);
+    const next7Days = new Date(todayVal);
+    next7Days.setDate(todayVal.getDate() + 7);
+
+    let expiredCount = 0;
+    let upcomingCount = 0;
+
+    (cheques || []).forEach(c => {
+      if (c.status === 'Pendiente') {
+        const dueDate = new Date(c.dueDate + 'T12:00:00');
+        if (dueDate < todayVal) {
+          expiredCount++;
+        } else if (dueDate <= next7Days) {
+          upcomingCount++;
+        }
+      }
+    });
+
+    return {
+      expiredCount,
+      upcomingCount,
+      totalAlerts: expiredCount + upcomingCount
+    };
+  }, [cheques]);
 
   const upcomingBirthdays = clients.filter(c => {
     if (!c.birthDate) return false;
@@ -93,6 +121,26 @@ export function Dashboard() {
 
   return (
     <div className="space-y-8">
+      {chequesAlerts.totalAlerts > 0 && (
+        <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/60 rounded-2xl p-4 flex items-center justify-between gap-3 text-amber-800 dark:text-amber-300 shadow-sm animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 animate-bounce" />
+            <div>
+              <p className="text-sm font-bold">Cheques Pendientes de Atención</p>
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+                Hay {chequesAlerts.expiredCount} cheques vencidos y {chequesAlerts.upcomingCount} cheques próximos a vencer (dentro de los próximos 7 días).
+              </p>
+            </div>
+          </div>
+          <Link 
+            to="/finance" 
+            className="px-4 py-1.5 bg-amber-600 text-white rounded-lg text-xs font-bold hover:bg-amber-700 transition-all shrink-0 shadow-sm"
+          >
+            Gestionar Cheques
+          </Link>
+        </div>
+      )}
+
       <section>
         <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Acciones Rápidas</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">

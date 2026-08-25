@@ -56,12 +56,30 @@ export interface InsuranceClaim {
   date: string;
 }
 
+export interface Cheque {
+  id: string;
+  number: string;
+  bank: string;
+  amount: number;
+  dueDate: string;
+  terms: string;
+  status: 'Pendiente' | 'Cobrado' | 'Anulado' | 'Rechazado';
+  type: 'Emitido' | 'Recibido';
+  supplierId?: string;
+  supplierName?: string;
+  clientId?: string;
+  clientName?: string;
+  voucherId?: string;
+  observation?: string;
+  createdAt?: string;
+}
+
 export interface Order {
   id: string;
   clientId: string;
   clientName: string;
   date: string;
-  type: 'monofocal' | 'multifocal' | 'ocupacional' | 'contact' | 'sale';
+  type: 'monofocal' | 'multifocal' | 'ocupacional' | 'contact' | 'sale' | 'producto';
   service: string;
   status: string;
   amount: number;
@@ -69,6 +87,8 @@ export interface Order {
   medico?: string;
   branchId?: string;
   prescriptionDetails?: any;
+  senaMethodId?: string;
+  previstoMethodId?: string;
 }
 
 export type TransactionType = 'income' | 'expense';
@@ -127,6 +147,7 @@ export interface CashBox {
   expectedCash?: number;
   physicalCount?: Record<number, string>;
   lastClosingBalance?: number;
+  associatedBanks?: string[];
 }
 
 export interface FinanceCategory {

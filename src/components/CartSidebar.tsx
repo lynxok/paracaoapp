@@ -64,6 +64,11 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
   const [completedReceipt, setCompletedReceipt] = useState<any | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Seña / Pago parcial states
+  const [isPartial, setIsPartial] = useState(false);
+  const [senaAmount, setSenaAmount] = useState<number>(0);
+  const [previstoBoxId, setPrevistoBoxId] = useState<string>('');
+
   const handleCheckoutClick = () => {
     if (isProcessing) return;
 
@@ -76,7 +81,9 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
 
     setIsProcessing(true);
     try {
-      const res = checkout();
+      const res = isPartial 
+        ? checkout(senaAmount, paymentMethodId, previstoBoxId)
+        : checkout();
       if (res.receipt) {
         setCompletedReceipt(res.receipt);
       } else {
@@ -327,6 +334,62 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
             <span className="text-blue-600 dark:text-blue-400">${finalTotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
+
+        {/* Seña Toggle and Inputs */}
+        {cart.length > 0 && (
+          <div className="p-3 bg-slate-100 dark:bg-slate-950 rounded-xl space-y-3 border border-slate-200 dark:border-slate-850">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input 
+                type="checkbox" 
+                checked={isPartial} 
+                onChange={(e) => {
+                  setIsPartial(e.target.checked);
+                  if (e.target.checked) {
+                    setSenaAmount(Math.round(finalTotal / 2));
+                    setPrevistoBoxId(boxes[0]?.id || '');
+                  }
+                }}
+                className="w-4 h-4 rounded border-slate-350 text-blue-600 focus:ring-blue-500 bg-white dark:bg-slate-900"
+              />
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Registrar Seña / Pago Parcial</span>
+            </label>
+
+            {isPartial && (
+              <div className="space-y-2.5 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/50 animate-in slide-in-from-top-1">
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Monto de Seña ($)</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    max={finalTotal}
+                    value={senaAmount || ''} 
+                    onChange={e => setSenaAmount(Math.max(1, Math.min(finalTotal, parseFloat(e.target.value) || 0)))}
+                    className="w-full h-8 px-2 rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs outline-none focus:ring-1 focus:ring-blue-600 text-slate-800 dark:text-slate-200"
+                  />
+                  <p className="text-[10px] font-medium text-slate-500 mt-1">Saldo restante: <span className="font-bold text-slate-800 dark:text-slate-200">${(finalTotal - senaAmount).toLocaleString()}</span></p>
+                </div>
+                
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Caja para la Seña</label>
+                  <p className="text-[10px] text-slate-400 leading-tight">Selecciona abajo en "Método de Pago" la caja donde ingresará la seña.</p>
+                </div>
+
+                <div>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Caja prevista para el Saldo</label>
+                  <select 
+                    value={previstoBoxId}
+                    onChange={e => setPrevistoBoxId(e.target.value)}
+                    className="w-full h-8 px-2 rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-[11px] outline-none focus:ring-1 focus:ring-blue-600 text-slate-800 dark:text-slate-200"
+                  >
+                    {boxes.map(box => (
+                      <option key={box.id} value={box.id}>{box.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Payment Methods */}
         {cart.length > 0 && (

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles, FileText, FlaskConical, Check } from "lucide-react";
+import { Building2, Users, Shield, Bell, Receipt, ScrollText, Save, X, MapPin, Plus, Trash2, Smartphone, Edit2, CircleAlert, Info, Clock, AlertTriangle, CheckCircle, Eye, EyeOff, KeyRound, Lock, Activity, Package, Database, Cloud, ImageIcon, Sparkles, FileText, FlaskConical, Check, CreditCard, Wallet, Banknote } from "lucide-react";
 import { cn } from "../lib/utils";
 import { supabase, getSavedConnections, saveConnections, getActiveConnectionId, switchConnection, SupabaseConnection } from "../lib/supabase";
 import { logger } from "../lib/logger";
@@ -21,7 +21,7 @@ const tabs = [
   { id: 'notifications', label: 'Notificaciones', icon: Bell },
   { id: 'billing', label: 'Facturación', icon: Receipt },
   { id: 'insurances', label: 'Obras Sociales', icon: Activity },
-  { id: 'banks', label: 'Bancos', icon: Building2 },
+  { id: 'banks', label: 'Cajas', icon: Wallet },
   { id: 'inventory', label: 'Categorías', icon: Package },
   { id: 'labs', label: 'Laboratorios', icon: FlaskConical },
   { id: 'crystals', label: 'Tabla de Cristales', icon: Eye },
@@ -207,9 +207,24 @@ export function Settings() {
   const [newCategory, setNewCategory] = useState('');
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState({ oldName: '', newName: '' });
-  const [newBank, setNewBank] = useState({ name: '', cbu: '', alias: '', accountNumber: '' });
+  const [newBank, setNewBank] = useState<{
+    name: string;
+    type: 'Caja Efectivo' | 'Transferencia' | 'Tarjeta de Credito';
+    cbu: string;
+    alias: string;
+    accountNumber: string;
+    associatedBanks: string[];
+  }>({ name: '', type: 'Transferencia', cbu: '', alias: '', accountNumber: '', associatedBanks: [] });
   const [isBankEditModalOpen, setIsBankEditModalOpen] = useState(false);
-  const [editingBank, setEditingBank] = useState({ id: '', name: '', cbu: '', alias: '', accountNumber: '' });
+  const [editingBank, setEditingBank] = useState<{
+    id: string;
+    name: string;
+    type: 'Caja Efectivo' | 'Transferencia' | 'Tarjeta de Credito';
+    cbu: string;
+    alias: string;
+    accountNumber: string;
+    associatedBanks: string[];
+  }>({ id: '', name: '', type: 'Transferencia', cbu: '', alias: '', accountNumber: '', associatedBanks: [] });
   const [newLab, setNewLab] = useState({ name: '', contact: '' });
   const [isLabEditModalOpen, setIsLabEditModalOpen] = useState(false);
   const [editingLab, setEditingLab] = useState({ id: '', name: '', contact: '' });
@@ -504,9 +519,11 @@ export function Settings() {
     sql += `CREATE TABLE IF NOT EXISTS banks (
   id text PRIMARY KEY,
   name text,
+  type text DEFAULT 'Transferencia',
   accountNumber text,
   cbu text,
   alias text,
+  associated_banks text DEFAULT '[]',
   created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
 );\n`;
     sql += `ALTER TABLE banks ENABLE ROW LEVEL SECURITY;\n`;
@@ -772,13 +789,39 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
     sql += `DROP POLICY IF EXISTS "Permitir todo en billing_drafts" ON billing_drafts;\n`;
     sql += `CREATE POLICY "Permitir todo en billing_drafts" ON billing_drafts FOR ALL USING (true) WITH CHECK (true);\n\n`;
 
+    sql += `-- Alteraciones para Seña/Saldo en Orders\n`;
+    sql += `ALTER TABLE orders ADD COLUMN IF NOT EXISTS sena_method_id text;\n`;
+    sql += `ALTER TABLE orders ADD COLUMN IF NOT EXISTS previsto_method_id text;\n\n`;
+
+    sql += `-- 23. Tabla de Cheques (Cheques)\n`;
+    sql += `CREATE TABLE IF NOT EXISTS cheques (
+  id text PRIMARY KEY,
+  number text,
+  bank text,
+  amount numeric,
+  due_date text,
+  terms text,
+  status text,
+  type text,
+  supplier_id text,
+  supplier_name text,
+  client_id text,
+  client_name text,
+  voucher_id text,
+  observation text,
+  created_at timestamp with time zone DEFAULT timezone('utc'::text, now())
+);\n`;
+    sql += `ALTER TABLE cheques ENABLE ROW LEVEL SECURITY;\n`;
+    sql += `DROP POLICY IF EXISTS "Permitir todo en cheques" ON cheques;\n`;
+    sql += `CREATE POLICY "Permitir todo en cheques" ON cheques FOR ALL USING (true) WITH CHECK (true);\n\n`;
+
     sql += `-- DATOS INICIALES PREDETERMINADOS (SEED DATA)\n\n`;
 
     sql += `-- Bancos y Entidades\n`;
-    sql += `INSERT INTO banks (id, name, accountNumber, cbu, alias) VALUES
-('1', 'Banco Galicia', '', '', ''),
-('2', 'Banco Santander', '', '', ''),
-('3', 'Mercado Pago', '', '', '')
+    sql += `INSERT INTO banks (id, name, type, accountNumber, cbu, alias, associated_banks) VALUES
+('1', 'Banco Galicia', 'Transferencia', '', '', '', '[]'),
+('2', 'Banco Santander', 'Transferencia', '', '', '', '[]'),
+('3', 'Mercado Pago', 'Transferencia', '', '', '', '[]')
 ON CONFLICT (id) DO NOTHING;\n\n`;
 
     sql += `-- Obras Sociales\n`;
@@ -2551,9 +2594,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
           <section className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden animate-in fade-in duration-300">
             <div className="p-6 sm:p-8 border-b border-slate-100 dark:border-slate-800">
               <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Building2 className="w-6 h-6 text-blue-600" /> Bancos y Entidades
+                <Database className="w-6 h-6 text-blue-600" /> Gestión de Cajas y Cuentas Bancarias
               </h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Administra la lista de bancos y pasarelas de pago disponibles.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Administra tus cajas chicas, cuentas corrientes y tarjetas, configurando restricciones de transferencias directas.</p>
             </div>
             
             <div className="p-6 sm:p-8">
@@ -2562,22 +2605,35 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                   e.preventDefault();
                   if (newBank.name.trim()) {
                     addBank(newBank);
-                    setNewBank({ name: '', cbu: '', alias: '', accountNumber: '' });
+                    setNewBank({ name: '', type: 'Transferencia', cbu: '', alias: '', accountNumber: '', associatedBanks: [] });
                   }
                 }}
                 className="flex flex-col gap-4 mb-8 bg-slate-50 dark:bg-slate-800/30 p-6 rounded-2xl border border-slate-100 dark:border-slate-800"
               >
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Banco / Billetera</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre de la Caja / Banco</label>
                     <input 
                       type="text" 
                       value={newBank.name}
                       onChange={e => setNewBank({...newBank, name: e.target.value})}
-                      placeholder="Ej: Banco Macro" 
+                      placeholder="Ej: Caja Principal u Galicia Corriente" 
                       className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white"
                       required
                     />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Tipo de Caja / Movimiento</label>
+                    <select 
+                      value={newBank.type}
+                      onChange={e => setNewBank({...newBank, type: e.target.value as any})}
+                      className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white font-medium"
+                      required
+                    >
+                      <option value="Caja Efectivo">Caja Efectivo</option>
+                      <option value="Transferencia">Transferencia</option>
+                      <option value="Tarjeta de Credito">Tarjeta de Credito</option>
+                    </select>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nro de Cuenta (Opcional)</label>
@@ -2590,7 +2646,7 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                     />
                   </div>
                   <div className="flex flex-col gap-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CBU / CVU (Opcional)</label>
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CBU / CVU / CVU (Opcional)</label>
                     <input 
                       type="text" 
                       value={newBank.cbu}
@@ -2609,10 +2665,38 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white"
                     />
                   </div>
+
+                  {/* Selección de Bancos Asociados */}
+                  <div className="flex flex-col gap-2 md:col-span-2">
+                    <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Bancos / Cuentas Asociadas (Permitir transferir a)</label>
+                    <p className="text-[11px] text-slate-400">Selecciona a qué cuentas está permitido realizar transferencias desde esta caja. Si no seleccionas ninguna, podrá transferir a cualquiera libremente.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-1">
+                      {banks.map(b => (
+                        <label key={b.id} className="flex items-center gap-2.5 p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
+                          <input 
+                            type="checkbox"
+                            checked={newBank.associatedBanks.includes(b.id)}
+                            onChange={(e) => {
+                              const updated = e.target.checked 
+                                ? [...newBank.associatedBanks, b.id]
+                                : newBank.associatedBanks.filter(id => id !== b.id);
+                              setNewBank({...newBank, associatedBanks: updated});
+                            }}
+                            className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
+                          />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">{b.name}</span>
+                            <span className="text-[9px] text-slate-400 uppercase tracking-wider mt-0.5">{b.type || 'Transferencia'}</span>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
                 </div>
+                
                 <div className="flex justify-end pt-2 border-t border-slate-200 dark:border-slate-700 mt-2 gap-3">
                   <button type="submit" className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm">
-                    <Plus className="w-4 h-4" /> Registrar Banco
+                    <Plus className="w-4 h-4" /> Registrar Caja / Cuenta
                   </button>
                 </div>
               </form>
@@ -2623,7 +2707,15 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                     <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
                       <button 
                         onClick={() => {
-                          setEditingBank({ id: bank.id, name: bank.name, cbu: bank.cbu, alias: bank.alias, accountNumber: bank.accountNumber });
+                          setEditingBank({ 
+                            id: bank.id, 
+                            name: bank.name, 
+                            type: bank.type || 'Transferencia',
+                            cbu: bank.cbu || '', 
+                            alias: bank.alias || '', 
+                            accountNumber: bank.accountNumber || '',
+                            associatedBanks: bank.associatedBanks || [] 
+                          });
                           setIsBankEditModalOpen(true);
                         }}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all"
@@ -2639,32 +2731,64 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                     </div>
                     
                     <div className="flex items-center gap-3 mb-4">
-                      <div className="p-2.5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-xl">
-                        <Building2 className="w-5 h-5" />
+                      <div className={cn(
+                        "p-2.5 rounded-xl",
+                        bank.type === 'Caja Efectivo' ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600" :
+                        bank.type === 'Tarjeta de Credito' ? "bg-purple-50 dark:bg-purple-950/20 text-purple-600" :
+                        "bg-blue-50 dark:bg-blue-900/20 text-blue-600"
+                      )}>
+                        {bank.type === 'Caja Efectivo' ? <Wallet className="w-5 h-5" /> :
+                         bank.type === 'Tarjeta de Credito' ? <CreditCard className="w-5 h-5" /> :
+                         <Building2 className="w-5 h-5" />}
                       </div>
-                      <h4 className="font-bold text-slate-900 dark:text-white pr-6 leading-tight">{bank.name}</h4>
+                      <div>
+                        <h4 className="font-bold text-slate-900 dark:text-white pr-6 leading-tight">{bank.name}</h4>
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest mt-1 inline-block",
+                          bank.type === 'Caja Efectivo' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" :
+                          bank.type === 'Tarjeta de Credito' ? "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400" :
+                          "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
+                        )}>
+                          {bank.type || 'Transferencia'}
+                        </span>
+                      </div>
                     </div>
                     
                     <div className="space-y-2 flex-1">
                       {bank.accountNumber && (
                         <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Nro de Cuenta</p>
-                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{bank.accountNumber}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Nro de Cuenta</p>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{bank.accountNumber}</p>
                         </div>
                       )}
                       {bank.cbu && (
                         <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">CBU/CVU</p>
-                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 font-mono tracking-wider">{bank.cbu}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">CBU/CVU</p>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 font-mono tracking-wider">{bank.cbu}</p>
                         </div>
                       )}
                       {bank.alias && (
                         <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Alias</p>
-                          <p className="text-sm font-medium text-slate-700 dark:text-slate-300 italic">{bank.alias}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono">Alias</p>
+                          <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 italic">{bank.alias}</p>
                         </div>
                       )}
-                      {!bank.accountNumber && !bank.cbu && !bank.alias && (
+                      {bank.associatedBanks && bank.associatedBanks.length > 0 && (
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest font-mono mb-1">Destinos Permitidos</p>
+                          <div className="flex flex-wrap gap-1">
+                            {bank.associatedBanks.map(id => {
+                              const b = banks.find(x => x.id === id);
+                              return b ? (
+                                <span key={id} className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-[9px] font-semibold text-slate-600 dark:text-slate-350 border border-slate-200/50 dark:border-slate-700/50">
+                                  {b.name}
+                                </span>
+                              ) : null;
+                            })}
+                          </div>
+                        </div>
+                      )}
+                      {!bank.accountNumber && !bank.cbu && !bank.alias && (!bank.associatedBanks || bank.associatedBanks.length === 0) && (
                         <p className="text-xs text-slate-400 italic">Sin datos adicionales registrados</p>
                       )}
                     </div>
@@ -2675,11 +2799,11 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
 
             {/* Modal Editar Banco */}
             {isBankEditModalOpen && (
-              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800">
+              <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+                <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
                   <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800">
                     <h3 className="text-xl font-bold flex items-center gap-2 dark:text-white">
-                      <Building2 className="w-6 h-6 text-blue-600" /> Editar Banco
+                      <Database className="w-6 h-6 text-blue-600" /> Editar Caja / Cuenta
                     </h3>
                     <button onClick={() => setIsBankEditModalOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500">
                       <X className="w-5 h-5" />
@@ -2692,10 +2816,23 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       setIsBankEditModalOpen(false);
                     }
                   }}>
-                    <div className="p-6 space-y-4">
+                    <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre del Banco / Billetera</label>
-                        <input type="text" value={editingBank.name} onChange={e => setEditingBank({...editingBank, name: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" required />
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nombre de la Caja / Banco</label>
+                        <input type="text" value={editingBank.name} onChange={e => setEditingBank({...editingBank, name: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-medium" required />
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Tipo de Caja / Movimiento</label>
+                        <select 
+                          value={editingBank.type}
+                          onChange={e => setEditingBank({...editingBank, type: e.target.value as any})}
+                          className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-medium"
+                          required
+                        >
+                          <option value="Caja Efectivo">Caja Efectivo</option>
+                          <option value="Transferencia">Transferencia</option>
+                          <option value="Tarjeta de Credito">Tarjeta de Credito</option>
+                        </select>
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Nro de Cuenta</label>
@@ -2703,11 +2840,37 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">CBU / CVU</label>
-                        <input type="text" value={editingBank.cbu} onChange={e => setEditingBank({...editingBank, cbu: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" />
+                        <input type="text" value={editingBank.cbu} onChange={e => setEditingBank({...editingBank, cbu: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-mono text-xs" />
                       </div>
                       <div className="flex flex-col gap-1.5">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Alias</label>
                         <input type="text" value={editingBank.alias} onChange={e => setEditingBank({...editingBank, alias: e.target.value})} className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" />
+                      </div>
+
+                      {/* Selección de Bancos Asociados (Edición) */}
+                      <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                        <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Bancos / Cuentas Asociadas (Permitir transferir a)</label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                          {banks.filter(b => b.id !== editingBank.id).map(b => (
+                            <label key={b.id} className="flex items-center gap-2 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors">
+                              <input 
+                                type="checkbox"
+                                checked={editingBank.associatedBanks.includes(b.id)}
+                                onChange={(e) => {
+                                  const updated = e.target.checked 
+                                    ? [...editingBank.associatedBanks, b.id]
+                                    : editingBank.associatedBanks.filter(id => id !== b.id);
+                                  setEditingBank({...editingBank, associatedBanks: updated});
+                                }}
+                                className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500"
+                              />
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">{b.name}</span>
+                                <span className="text-[9px] text-slate-400 uppercase tracking-wider mt-0.5">{b.type || 'Transferencia'}</span>
+                              </div>
+                            </label>
+                          ))}
+                        </div>
                       </div>
                     </div>
                     <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">

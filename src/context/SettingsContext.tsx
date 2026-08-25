@@ -5,9 +5,11 @@ import { supabase } from '../lib/supabase';
 export interface BankEntity {
   id: string;
   name: string;
-  cbu: string;
-  alias: string;
-  accountNumber: string;
+  type: 'Caja Efectivo' | 'Transferencia' | 'Tarjeta de Credito';
+  cbu?: string;
+  alias?: string;
+  accountNumber?: string;
+  associatedBanks?: string[];
 }
 
 export interface PDFConfig {
@@ -105,9 +107,9 @@ const INITIAL_INSURANCES: Insurance[] = [
   { id: '6', name: "IAPOS", active: true, coverages: [] }
 ];
 const INITIAL_BANKS: BankEntity[] = [
-  { id: '1', name: "Banco Galicia", cbu: "", alias: "", accountNumber: "" },
-  { id: '2', name: "Banco Santander", cbu: "", alias: "", accountNumber: "" },
-  { id: '3', name: "Mercado Pago", cbu: "", alias: "", accountNumber: "" },
+  { id: '1', name: "Banco Galicia", type: 'Transferencia', cbu: "", alias: "", accountNumber: "", associatedBanks: [] },
+  { id: '2', name: "Banco Santander", type: 'Transferencia', cbu: "", alias: "", accountNumber: "", associatedBanks: [] },
+  { id: '3', name: "Mercado Pago", type: 'Transferencia', cbu: "", alias: "", accountNumber: "", associatedBanks: [] },
 ];
 
 const INITIAL_PDF_CONFIG: PDFConfig = {
@@ -409,14 +411,56 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       try {
         // 1. Banks
         const { data: bankData } = await supabase.from('banks').select('*');
+        const savedLocal = localStorage.getItem('optica_banks');
+        const localBanks: BankEntity[] = savedLocal ? JSON.parse(savedLocal) : [];
+
+        let loadedBanks: BankEntity[] = [];
         if (bankData && bankData.length > 0) {
-          setBanks(bankData.map((b: any) => ({
-            id: String(b.id),
-            name: b.name,
-            cbu: b.cbu || '',
-            alias: b.alias || '',
-            accountNumber: b.accountNumber || b.account_number || ''
-          })));
+          loadedBanks = bankData.map((b: any) => {
+            let resolvedType: 'Caja Efectivo' | 'Transferencia' | 'Tarjeta de Credito' = 'Transferencia';
+            if (b.type === 'Caja Efectivo' || b.type === 'Transferencia' || b.type === 'Tarjeta de Credito') {
+              resolvedType = b.type;
+            } else {
+              if (b.name.toLowerCase().includes('efectivo') || b.name.toLowerCase().includes('caja')) {
+                resolvedType = 'Caja Efectivo';
+              } else if (b.name.toLowerCase().includes('tarjeta') || b.name.toLowerCase().includes('visa') || b.name.toLowerCase().includes('master')) {
+                resolvedType = 'Tarjeta de Credito';
+              }
+            }
+
+            let associated: string[] = [];
+            if (b.associated_banks) {
+              try {
+                associated = JSON.parse(b.associated_banks);
+              } catch (e) {
+                if (typeof b.associated_banks === 'string' && b.associated_banks.length > 0) {
+                  associated = b.associated_banks.split(',');
+                }
+              }
+            }
+
+            return {
+              id: String(b.id),
+              name: b.name,
+              type: resolvedType,
+              cbu: b.cbu || '',
+              alias: b.alias || '',
+              accountNumber: b.accountNumber || b.account_number || '',
+              associatedBanks: associated
+            };
+          });
+        }
+
+        // Merge loaded database banks with local banks that are missing in database
+        const mergedBanks = [...loadedBanks];
+        localBanks.forEach(local => {
+          if (!mergedBanks.some(b => b.id === local.id)) {
+            mergedBanks.push(local);
+          }
+        });
+
+        if (mergedBanks.length > 0) {
+          setBanks(mergedBanks);
         }
 
         // 2. Insurances
@@ -533,9 +577,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           await supabase.from('banks').upsert(banks.map(b => ({
             id: b.id,
             name: b.name,
-            cbu: b.cbu,
-            alias: b.alias,
-            accountNumber: b.accountNumber
+            type: b.type,
+            cbu: b.cbu || '',
+            alias: b.alias || '',
+            account_number: b.accountNumber || '',
+            associated_banks: JSON.stringify(b.associatedBanks || [])
           })));
         } catch (e) {
           console.error("Error syncing banks to Supabase:", e);
@@ -855,9 +901,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       await supabase.from('banks').upsert([{
         id: newBank.id,
         name: newBank.name,
-        cbu: newBank.cbu,
-        alias: newBank.alias,
-        account_number: newBank.accountNumber
+        type: newBank.type,
+        cbu: newBank.cbu || '',
+        alias: newBank.alias || '',
+        account_number: newBank.accountNumber || '',
+        associated_banks: JSON.stringify(newBank.associatedBanks || [])
       }]);
     } catch (e) {
       console.error("Supabase add bank error:", e);
@@ -870,9 +918,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       await supabase.from('banks').upsert([{
         id: updatedBank.id,
         name: updatedBank.name,
-        cbu: updatedBank.cbu,
-        alias: updatedBank.alias,
-        account_number: updatedBank.accountNumber
+        type: updatedBank.type,
+        cbu: updatedBank.cbu || '',
+        alias: updatedBank.alias || '',
+        account_number: updatedBank.accountNumber || '',
+        associated_banks: JSON.stringify(updatedBank.associatedBanks || [])
       }]);
     } catch (e) {
       console.error("Supabase update bank error:", e);

@@ -233,6 +233,7 @@
             <li class="explain-item"><span class="explain-num">1</span> <strong>Búsqueda & DNI</strong>: Documento único para evitar duplicados.</li>
             <li class="explain-item"><span class="explain-num">2</span> <strong>Indicador de Saldo (Rojo/Verde)</strong>: Rojo = Deuda pendiente; Verde = Al día/Anticipo.</li>
             <li class="explain-item"><span class="explain-num">3</span> <strong>Botón Cuenta Corriente</strong>: Registra entregas, señas y cobros directos.</li>
+            <li class="explain-item"><span class="explain-num">4</span> <strong>Obras Sociales</strong>: Desde Ajustes se crea la cobertura y se definen reintegros por categoría; luego queda disponible en la ficha del cliente y en el pedido.</li>
           </ul>
         `,
         appHtml: `
@@ -277,14 +278,20 @@
             <div class="card-body">Registrar los parámetros dióptricos de la prescripción oftálmica y dar seguimiento en taller.</div>
           </div>
           <ul class="hotspot-explain-list">
-            <li class="explain-item"><span class="explain-num">1</span> <strong>Esférico / Cilíndrico / Eje</strong>: Parámetros técnicos de miopía, astigmatismo y graduación.</li>
-            <li class="explain-item"><span class="explain-num">2</span> <strong>Distancia Pupilar (DP/DNP)</strong>: Centrado milimétrico de los cristales.</li>
-            <li class="explain-item"><span class="explain-num">3</span> <strong>Seña y Envío a Taller</strong>: Cobro del anticipo y cambio de estado logístico.</li>
+            <li class="explain-item"><span class="explain-num">1</span> <strong>Cliente obligatorio</strong>: Busque por DNI, nombre o teléfono. Si no existe, créelo desde este mismo panel antes de continuar.</li>
+            <li class="explain-item"><span class="explain-num">2</span> <strong>Esférico / Cilíndrico / Eje</strong>: Parámetros técnicos de miopía, astigmatismo y graduación.</li>
+            <li class="explain-item"><span class="explain-num">3</span> <strong>Distancia Pupilar (DP/DNP)</strong>: Centrado milimétrico de los cristales.</li>
+            <li class="explain-item"><span class="explain-num">4</span> <strong>Seña y Envío a Taller</strong>: Cobro del anticipo y cambio de estado logístico.</li>
           </ul>
         `,
         appHtml: `
           <div class="replica-card">
             <h4 style="color:var(--accent-blue); margin-bottom:16px;">Formulario de Receta Médica oftálmica</h4>
+            <div style="display:grid; grid-template-columns: 1fr auto; gap:10px; margin-bottom:16px; padding:12px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;">
+              <div><label style="font-size:11px; color:var(--text-muted);">Cliente <strong style="color:var(--accent-red);">*</strong></label><input type="text" class="replica-input" placeholder="Buscar por DNI, nombre o teléfono"></div>
+              <button class="replica-btn" style="align-self:end; white-space:nowrap;" onclick="alert('Alta de cliente desde Nuevo Pedido')">+ Crear cliente</button>
+              <div style="grid-column:1 / -1; font-size:11px; color:var(--accent-blue); font-weight:600;">Seleccione o cree un cliente para habilitar la confirmación del pedido.</div>
+            </div>
             <div style="display:grid; grid-template-columns: repeat(4, 1fr); gap:12px; margin-bottom:16px;">
               <div><label style="font-size:11px; color:var(--text-muted);">OD - Esférico</label><input type="text" class="replica-input" value="-2.50"></div>
               <div><label style="font-size:11px; color:var(--text-muted);">OD - Cilíndrico</label><input type="text" class="replica-input" value="-0.75"></div>
@@ -386,14 +393,16 @@
             <div class="card-body">Garantizar que el dinero en sistema coincida con el dinero real en caja y bancos.</div>
           </div>
           <ul class="hotspot-explain-list">
-            <li class="explain-item"><span class="explain-num">1</span> <strong>Selector de Banco</strong>: Elección de cuenta a conciliar (Santander, Mercado Pago).</li>
-            <li class="explain-item"><span class="explain-num">2</span> <strong>Tildado Interactivo (`[✓]`)</strong>: Verificación renglón por renglón contra extracto.</li>
-            <li class="explain-item"><span class="explain-num">3</span> <strong>Gastos Bancarios</strong>: Campo para asimilar comisiones sin descuadrar.</li>
+            <li class="explain-item"><span class="explain-num">1</span> <strong>Crear y validar una caja</strong>: Asigne nombre, tipo y saldo inicial. Solo las cajas Banco o Digital pueden conciliarse.</li>
+            <li class="explain-item"><span class="explain-num">2</span> <strong>Selector de Banco</strong>: Elija la cuenta Banco o Digital a conciliar (Santander, Mercado Pago).</li>
+            <li class="explain-item"><span class="explain-num">3</span> <strong>Tildado Interactivo (`[✓]`)</strong>: Verificación renglón por renglón contra extracto.</li>
+            <li class="explain-item"><span class="explain-num">4</span> <strong>Gastos Bancarios</strong>: Campo para asimilar comisiones sin descuadrar.</li>
           </ul>
         `,
         appHtml: `
           <div class="replica-card">
             <h4 style="color:var(--accent-purple); margin-bottom:16px;">Conciliación Bancaria Avanzada</h4>
+            <div style="font-size:12px; color:var(--text-muted); margin:-6px 0 14px;">Las cajas de Efectivo se arquean físicamente; para conciliar, cree y seleccione una caja de tipo Banco o Digital.</div>
             <div style="display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-bottom:16px;">
               <div><label style="font-size:11px; color:var(--text-muted);">Banco / Cuenta</label><select class="replica-input"><option>Banco Santander - Cta Cte</option><option>Mercado Pago</option></select></div>
               <div><label style="font-size:11px; color:var(--text-muted);">Cierre Extracto Actual ($)</label><input type="text" class="replica-input" value="$450,200"></div>

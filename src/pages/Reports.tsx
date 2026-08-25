@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { TrendingUp, TrendingDown, DollarSign, Percent, PieChart, BarChart3, Users, Building2, Calendar, Filter, ShieldCheck, CheckCircle2, Clock, FileSpreadsheet } from "lucide-react";
+import { TrendingUp, TrendingDown, DollarSign, Percent, PieChart, BarChart3, Users, Building2, Calendar, Filter, ShieldCheck, CheckCircle2, Clock, FileSpreadsheet, X, Search, Info, Stethoscope, ShoppingBag } from "lucide-react";
 import { useFinance } from "../context/FinanceContext";
 import { useClients } from "../context/ClientContext";
 import { useAuth } from "../context/AuthContext";
@@ -7,7 +7,7 @@ import { useSettings } from "../context/SettingsContext";
 import { supabase } from "../lib/supabase";
 import { InsuranceClaim } from "../types";
 
-type PeriodType = 'all' | 'day' | 'month' | 'quarter' | 'year' | 'custom';
+type PeriodType = 'all' | 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom';
 
 export function Reports() {
   const { transactions } = useFinance();
@@ -20,9 +20,31 @@ export function Reports() {
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
 
+  // Modal State for Chart Detail Breakdown
+  const [detailModal, setDetailModal] = useState<{
+    isOpen: boolean;
+    type: 'income' | 'expense';
+    barLabel: string;
+    filterDate?: string; // YYYY-MM-DD
+    filterMonth?: string; // YYYY-MM
+    filterHour?: string; // e.g. "08:00"
+    startDay?: number;
+    endDay?: number;
+  } | null>(null);
+  const [modalSearchTerm, setModalSearchTerm] = useState("");
+
+  // Modal State for Recetados vs No Recetados Pie Chart
+  const [prescriptionModal, setPrescriptionModal] = useState<{
+    isOpen: boolean;
+    type: 'recetados' | 'no_recetados';
+    title: string;
+  } | null>(null);
+  const [prescriptionSearch, setPrescriptionSearch] = useState("");
+
   const periodLabel = useMemo(() => {
     switch (periodType) {
       case 'day': return 'Hoy';
+      case 'week': return 'Esta Semana';
       case 'month': return 'Este Mes';
       case 'quarter': return 'Este Trimestre';
       case 'year': return 'Este Año';
@@ -51,6 +73,14 @@ export function Reports() {
     switch (periodType) {
       case 'day':
         return dItem.getTime() === dToday.getTime();
+      case 'week': {
+        const dayOfWeek = today.getDay();
+        const monOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - monOffset);
+        const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59);
+        const itemD = new Date(dateStr);
+        return itemD >= monday && itemD <= sunday;
+      }
       case 'month':
         return itemDate.getFullYear() === today.getFullYear() && itemDate.getMonth() === today.getMonth();
       case 'quarter': {
@@ -89,6 +119,145 @@ export function Reports() {
     });
   }, [orders, selectedBranchId, periodType, startDate, endDate]);
 
+  // Modal Transactions (filtered by clicked bar criteria and type)
+  const modalTransactions = useMemo(() => {
+    if (!detailModal) return [];
+    return transactions.filter(t => {
+      const matchesBranch = selectedBranchId === 'all' || !t.boxId || t.boxId.includes(selectedBranchId);
+      const matchesType = t.type === detailModal.type;
+
+      let matchesRange = true;
+      if (detailModal.filterDate) {
+        matchesRange = t.date === detailModal.filterDate;
+      } else if (detailModal.filterMonth) {
+        matchesRange = t.date && t.date.startsWith(detailModal.filterMonth);
+      } else if (detailModal.filterHour) {
+        const hourNum = parseInt(detailModal.filterHour.split(':')[0], 10);
+        const tHour = t.time ? parseInt(t.time.split(':')[0], 10) : -1;
+        matchesRange = (tHour >= hourNum && tHour < hourNum + 2) && isDateInPeriod(t.date);
+      } else if (detailModal.startDay !== undefined && detailModal.endDay !== undefined) {
+        const dayNum = parseInt(t.date.split('-')[2], 10);
+        matchesRange = dayNum >= detailModal.startDay && dayNum <= detailModal.endDay && isDateInPeriod(t.date);
+      }
+
+      const search = modalSearchTerm.toLowerCase();
+      const matchesSearch = !search ||
+        (t.concept || '').toLowerCase().includes(search) ||
+        (t.category || '').toLowerCase().includes(search) ||
+        (t.clientName || '').toLowerCase().includes(search);
+
+      return matchesBranch && matchesType && matchesRange && matchesSearch;
+    });
+  }, [transactions, selectedBranchId, detailModal, modalSearchTerm, periodType]);
+
+  const modalTotal = useMemo(() => {
+    return modalTransactions.reduce((acc, curr) => acc + curr.amount, 0);
+  }, [modalTransactions]);
+
+  // Recetados vs No Recetados calculation
+  const prescriptionStats = useMemo(() => {
+    const isOrderRecetado = (o: any) => o.type !== 'sale' || (o.medico && o.medico.trim() !== '') || !!o.prescriptionDetails;
+
+    let recCount = 0;
+    let noRecCount = 0;
+    let recAmount = 0;
+    let noRecAmount = 0;
+
+    if (filteredOrders.length > 0) {
+      filteredOrders.forEach(o => {
+        if (isOrderRecetado(o)) {
+          recCount++;
+          recAmount += o.amount || 0;
+        } else {
+          noRecCount++;
+          noRecAmount += o.amount || 0;
+        }
+      });
+    } else {
+      // Use filteredTransactions (incomes)
+      filteredTransactions.filter(t => t.type === 'income').forEach(t => {
+        const isRec = (t.concept || '').toLowerCase().match(/monofocal|multifocal|ocupacional|lente|receta|médico|medico/);
+        if (isRec) {
+          recCount++;
+          recAmount += t.amount || 0;
+        } else {
+          noRecCount++;
+          noRecAmount += t.amount || 0;
+        }
+      });
+    }
+
+    const totalCount = recCount + noRecCount;
+    const totalAmount = recAmount + noRecAmount;
+    const recPct = totalAmount > 0 ? (recAmount / totalAmount) * 100 : (totalCount > 0 ? (recCount / totalCount) * 100 : 50);
+    const noRecPct = totalAmount > 0 ? (noRecAmount / totalAmount) * 100 : (totalCount > 0 ? (noRecCount / totalCount) * 100 : 50);
+
+    return {
+      recetadosCount: recCount,
+      noRecetadosCount: noRecCount,
+      recetadosAmount: recAmount,
+      noRecetadosAmount: noRecAmount,
+      totalCount,
+      totalAmount,
+      recPct: Math.round(recPct),
+      noRecPct: Math.round(noRecPct)
+    };
+  }, [filteredOrders, filteredTransactions]);
+
+  const prescriptionModalItems = useMemo(() => {
+    if (!prescriptionModal) return [];
+
+    const isRecetadoTarget = prescriptionModal.type === 'recetados';
+    const search = prescriptionSearch.toLowerCase();
+
+    if (filteredOrders.length > 0) {
+      return filteredOrders.filter(o => {
+        const isRec = o.type !== 'sale' || (o.medico && o.medico.trim() !== '') || !!o.prescriptionDetails;
+        const matchesCategory = isRecetadoTarget ? isRec : !isRec;
+        const matchesSearch = !search ||
+          o.clientName.toLowerCase().includes(search) ||
+          (o.medico || '').toLowerCase().includes(search) ||
+          (o.service || '').toLowerCase().includes(search) ||
+          o.id.toLowerCase().includes(search);
+
+        return matchesCategory && matchesSearch;
+      }).map(o => ({
+        id: o.id,
+        date: o.date,
+        time: '',
+        clientName: o.clientName,
+        type: o.type.toUpperCase(),
+        medico: o.medico || (o.type !== 'sale' ? 'Prescripción Médica' : 'Venta Directa'),
+        amount: o.amount,
+        status: o.status
+      }));
+    } else {
+      return filteredTransactions.filter(t => {
+        if (t.type !== 'income') return false;
+        const isRec = !!(t.concept || '').toLowerCase().match(/monofocal|multifocal|ocupacional|lente|receta|médico|medico/);
+        const matchesCategory = isRecetadoTarget ? isRec : !isRec;
+        const matchesSearch = !search ||
+          (t.concept || '').toLowerCase().includes(search) ||
+          (t.clientName || '').toLowerCase().includes(search);
+
+        return matchesCategory && matchesSearch;
+      }).map(t => ({
+        id: t.id,
+        date: t.date,
+        time: t.time || '',
+        clientName: t.clientName || 'Cliente Mostrador',
+        type: t.category || 'Venta',
+        medico: t.concept,
+        amount: t.amount,
+        status: 'Completado'
+      }));
+    }
+  }, [filteredOrders, filteredTransactions, prescriptionModal, prescriptionSearch]);
+
+  const prescriptionModalTotal = useMemo(() => {
+    return prescriptionModalItems.reduce((sum, item) => sum + item.amount, 0);
+  }, [prescriptionModalItems]);
+
   // Calculate totals
   const totalIncome = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
   const totalExpenses = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
@@ -124,29 +293,208 @@ export function Reports() {
       }).join(', ')
     : '#e2e8f0 0% 100%'; // empty state
 
-  // Dynamic Chart Data (Last 6 Months)
-  const today = new Date();
-  const last6Months = Array.from({length: 6}, (_, i) => {
-    const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
-    return {
-      monthStr: d.toISOString().slice(0, 7), // YYYY-MM
-      label: d.toLocaleString('es-ES', { month: 'short' }),
-      income: 0,
-      expense: 0
-    };
-  });
+  // Dynamic Chart Data based on selected periodType
+  const { chartBars, chartTitle } = useMemo(() => {
+    const today = new Date();
 
-  filteredTransactions.forEach(t => {
-    const tMonth = t.date.slice(0, 7);
-    const monthData = last6Months.find(m => m.monthStr === tMonth);
-    if (monthData) {
-      if (t.type === 'income') monthData.income += t.amount;
-      else if (t.type === 'expense') monthData.expense += t.amount;
+    if (periodType === 'day') {
+      const dayName = today.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'short' });
+      const hours = ['08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00'];
+      
+      const bars = hours.map(h => ({
+        key: h,
+        label: h,
+        filterHour: h,
+        barLabel: `Hoy ${h} hs`,
+        income: 0,
+        expense: 0
+      }));
+
+      filteredTransactions.forEach(t => {
+        if (!t.time) return;
+        const hourNum = parseInt(t.time.split(':')[0], 10);
+        let idx = 0;
+        if (hourNum < 9) idx = 0;
+        else if (hourNum < 11) idx = 1;
+        else if (hourNum < 13) idx = 2;
+        else if (hourNum < 15) idx = 3;
+        else if (hourNum < 17) idx = 4;
+        else if (hourNum < 19) idx = 5;
+        else idx = 6;
+
+        if (t.type === 'income') bars[idx].income += t.amount;
+        else if (t.type === 'expense') bars[idx].expense += t.amount;
+      });
+
+      return {
+        chartTitle: `Ventas vs Egresos (Hoy — ${dayName.toUpperCase()})`,
+        chartBars: bars
+      };
+    } 
+    else if (periodType === 'week') {
+      const dayOfWeek = today.getDay();
+      const monOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - monOffset);
+
+      const daysOfWeek = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+      const bars = daysOfWeek.map((dayName, idx) => {
+        const d = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + idx);
+        const dateISO = d.toISOString().slice(0, 10);
+        return {
+          key: dateISO,
+          label: `${dayName} ${d.getDate()}`,
+          filterDate: dateISO,
+          barLabel: `${dayName} ${d.getDate()} de ${d.toLocaleString('es-ES', { month: 'short' })}`,
+          income: 0,
+          expense: 0
+        };
+      });
+
+      filteredTransactions.forEach(t => {
+        const bar = bars.find(b => b.filterDate === t.date);
+        if (bar) {
+          if (t.type === 'income') bar.income += t.amount;
+          else if (t.type === 'expense') bar.expense += t.amount;
+        }
+      });
+
+      return {
+        chartTitle: `Ventas vs Egresos (Esta Semana — ${monday.getDate()} al ${new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6).getDate()} ${today.toLocaleString('es-ES', { month: 'short' })})`,
+        chartBars: bars
+      };
+    } 
+    else if (periodType === 'month') {
+      const monthName = today.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' });
+      const year = today.getFullYear();
+      const month = today.getMonth();
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+      const intervals = [
+        { label: '1 - 7', start: 1, end: 7 },
+        { label: '8 - 14', start: 8, end: 14 },
+        { label: '15 - 21', start: 15, end: 21 },
+        { label: `22 - ${daysInMonth}`, start: 22, end: daysInMonth }
+      ];
+
+      const bars = intervals.map(inv => ({
+        key: `sem-${inv.start}`,
+        label: `Días ${inv.label}`,
+        startDay: inv.start,
+        endDay: inv.end,
+        barLabel: `Días ${inv.label} de ${today.toLocaleString('es-ES', { month: 'long' })}`,
+        income: 0,
+        expense: 0
+      }));
+
+      filteredTransactions.forEach(t => {
+        const dayNum = parseInt(t.date.split('-')[2], 10);
+        const bar = bars.find(b => dayNum >= b.startDay && dayNum <= b.endDay);
+        if (bar) {
+          if (t.type === 'income') bar.income += t.amount;
+          else if (t.type === 'expense') bar.expense += t.amount;
+        }
+      });
+
+      return {
+        chartTitle: `Ventas vs Egresos (Este Mes — ${monthName.toUpperCase()})`,
+        chartBars: bars
+      };
+    } 
+    else if (periodType === 'quarter') {
+      const currentQuarter = Math.floor(today.getMonth() / 3);
+      const startMonth = currentQuarter * 3;
+      const bars = Array.from({length: 3}, (_, i) => {
+        const d = new Date(today.getFullYear(), startMonth + i, 1);
+        const monthStr = d.toISOString().slice(0, 7);
+        const monthName = d.toLocaleString('es-ES', { month: 'short' });
+        return {
+          key: monthStr,
+          label: monthName,
+          filterMonth: monthStr,
+          barLabel: `${d.toLocaleString('es-ES', { month: 'long' })} ${d.getFullYear()}`,
+          income: 0,
+          expense: 0
+        };
+      });
+
+      filteredTransactions.forEach(t => {
+        const tMonth = t.date.slice(0, 7);
+        const bar = bars.find(m => m.filterMonth === tMonth);
+        if (bar) {
+          if (t.type === 'income') bar.income += t.amount;
+          else if (t.type === 'expense') bar.expense += t.amount;
+        }
+      });
+
+      return {
+        chartTitle: `Ventas vs Egresos (Trimestre Q${currentQuarter + 1} — ${today.getFullYear()})`,
+        chartBars: bars
+      };
+    } 
+    else if (periodType === 'year') {
+      const year = today.getFullYear();
+      const bars = Array.from({length: 12}, (_, i) => {
+        const d = new Date(year, i, 1);
+        const monthStr = d.toISOString().slice(0, 7);
+        const monthName = d.toLocaleString('es-ES', { month: 'short' });
+        return {
+          key: monthStr,
+          label: monthName,
+          filterMonth: monthStr,
+          barLabel: `${d.toLocaleString('es-ES', { month: 'long' })} ${year}`,
+          income: 0,
+          expense: 0
+        };
+      });
+
+      filteredTransactions.forEach(t => {
+        const tMonth = t.date.slice(0, 7);
+        const bar = bars.find(m => m.filterMonth === tMonth);
+        if (bar) {
+          if (t.type === 'income') bar.income += t.amount;
+          else if (t.type === 'expense') bar.expense += t.amount;
+        }
+      });
+
+      return {
+        chartTitle: `Ventas vs Egresos (Año ${year})`,
+        chartBars: bars
+      };
+    } 
+    else {
+      // 'all' or 'custom' -> Last 6 months
+      const bars = Array.from({length: 6}, (_, i) => {
+        const d = new Date(today.getFullYear(), today.getMonth() - 5 + i, 1);
+        const monthStr = d.toISOString().slice(0, 7);
+        const monthName = d.toLocaleString('es-ES', { month: 'short' });
+        return {
+          key: monthStr,
+          label: monthName,
+          filterMonth: monthStr,
+          barLabel: `${d.toLocaleString('es-ES', { month: 'long' })} ${d.getFullYear()}`,
+          income: 0,
+          expense: 0
+        };
+      });
+
+      filteredTransactions.forEach(t => {
+        const tMonth = t.date.slice(0, 7);
+        const bar = bars.find(m => m.filterMonth === tMonth);
+        if (bar) {
+          if (t.type === 'income') bar.income += t.amount;
+          else if (t.type === 'expense') bar.expense += t.amount;
+        }
+      });
+
+      return {
+        chartTitle: `Ventas vs Egresos (${periodType === 'custom' ? 'Rango Personalizado' : 'Últimos 6 meses'})`,
+        chartBars: bars
+      };
     }
-  });
+  }, [filteredTransactions, periodType]);
 
   // Calculate percentages for chart heights
-  const maxChartValue = Math.max(...last6Months.map(m => Math.max(m.income, m.expense)), 1);
+  const maxChartValue = Math.max(...chartBars.map(m => Math.max(m.income, m.expense)), 1);
 
   // Group and rank doctors by order referral count
   const doctorReferrals = filteredOrders
@@ -202,6 +550,7 @@ export function Reports() {
             >
               <option value="all">Todo el histórico</option>
               <option value="day">Día actual</option>
+              <option value="week">Esta semana</option>
               <option value="month">Este mes</option>
               <option value="quarter">Este trimestre</option>
               <option value="year">Este año</option>
@@ -262,25 +611,67 @@ export function Reports() {
         <div className="lg:col-span-2 bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" /> Ventas vs Egresos (6 meses)
+              <BarChart3 className="w-5 h-5 text-blue-600 dark:text-blue-400" /> {chartTitle}
             </h3>
+            <span className="text-xs text-slate-400 dark:text-slate-500 font-medium">
+              💡 Haz clic en cualquier barra para ver el desglose detallado
+            </span>
           </div>
           
           <div className="h-64 flex items-end justify-between gap-2 sm:gap-4 px-2">
-            {last6Months.map((m, i) => {
+            {chartBars.map((m, i) => {
               const hInc = (m.income / maxChartValue) * 100;
               const hExp = (m.expense / maxChartValue) * 100;
               return (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
+                <div key={m.key || i} className="flex-1 flex flex-col items-center gap-1 h-full justify-end group">
                   <div className="flex gap-1 items-end w-full h-full justify-center">
-                    <div className="w-full max-w-12 bg-blue-600 dark:bg-blue-500 rounded-t-sm relative group-hover:bg-blue-700 dark:group-hover:bg-blue-400 transition-colors" style={{height: `${Math.max(hInc, 2)}%`}}>
-                      <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap pointer-events-none transition-opacity z-10">
-                        {formatCurrency(m.income)}
+                    {/* Barra de Ingresos (Azul) */}
+                    <div 
+                      onClick={() => {
+                        setModalSearchTerm("");
+                        setDetailModal({
+                          isOpen: true,
+                          type: 'income',
+                          barLabel: m.barLabel,
+                          filterDate: m.filterDate,
+                          filterMonth: m.filterMonth,
+                          filterHour: m.filterHour,
+                          startDay: m.startDay,
+                          endDay: m.endDay
+                        });
+                      }}
+                      title={`Ver desglose de Ingresos (${m.barLabel}): ${formatCurrency(m.income)}`}
+                      className="w-full max-w-12 bg-blue-600 dark:bg-blue-500 rounded-t-sm relative cursor-pointer hover:bg-blue-700 dark:hover:bg-blue-400 hover:scale-105 transition-all shadow-xs" 
+                      style={{height: `${Math.max(hInc, 2)}%`}}
+                    >
+                      <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs py-1 px-2.5 rounded-lg whitespace-nowrap pointer-events-none transition-opacity z-10 shadow-lg border border-slate-700 flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-blue-400"></span>
+                        <span>Ingresos: {formatCurrency(m.income)}</span>
                       </div>
                     </div>
-                    <div className="w-full max-w-12 bg-rose-400 dark:bg-rose-500/80 rounded-t-sm relative group-hover:bg-rose-500 dark:group-hover:bg-rose-400 transition-colors" style={{height: `${Math.max(hExp, 2)}%`}}>
-                      <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-xs py-1 px-2 rounded whitespace-nowrap pointer-events-none transition-opacity z-10">
-                        {formatCurrency(m.expense)}
+
+                    {/* Barra de Egresos (Rosa) */}
+                    <div 
+                      onClick={() => {
+                        setModalSearchTerm("");
+                        setDetailModal({
+                          isOpen: true,
+                          type: 'expense',
+                          barLabel: m.barLabel,
+                          filterDate: m.filterDate,
+                          filterMonth: m.filterMonth,
+                          filterHour: m.filterHour,
+                          startDay: m.startDay,
+                          endDay: m.endDay
+                        });
+                      }}
+                      title={`Ver desglose de Egresos (${m.barLabel}): ${formatCurrency(m.expense)}`}
+                      className="w-full max-w-12 bg-rose-400 dark:bg-rose-500/80 rounded-t-sm relative cursor-pointer hover:bg-rose-500 dark:hover:bg-rose-400 hover:scale-105 transition-all shadow-xs" 
+                      style={{height: `${Math.max(hExp, 2)}%`}}
+                    >
+                      <div className="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-xs py-1 px-2.5 rounded-lg whitespace-nowrap pointer-events-none transition-opacity z-10 shadow-lg border border-slate-700 flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-rose-400"></span>
+                        <span>Egresos: {formatCurrency(m.expense)}</span>
                       </div>
                     </div>
                   </div>
@@ -399,30 +790,95 @@ export function Reports() {
 
         <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
           <div>
-            <h3 className="font-bold text-slate-900 dark:text-white mb-4">
-              Resumen de Recetados
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6 leading-relaxed">
-              Métricas globales sobre las prescripciones de pacientes derivadas por médicos de la zona.
-            </p>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <PieChart className="w-5 h-5 text-indigo-600 dark:text-indigo-400" /> Recetados vs No Recetados
+              </h3>
+              <span className="text-[10px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 font-bold px-2 py-0.5 rounded-full">
+                💡 Clic para desglosar
+              </span>
+            </div>
             
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                <span className="text-xs font-bold text-slate-500 uppercase">Total Recetas</span>
-                <span className="font-black text-slate-900 dark:text-white font-mono">{filteredOrders.filter(o => o.type !== 'sale').length}</span>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">
+              Proporción de ventas derivadas con receta médica vs ventas directas de mostrador.
+            </p>
+
+            {/* Gráfico de Torta / Donut */}
+            <div className="flex flex-col items-center my-2">
+              <div 
+                className="relative w-36 h-36 rounded-full shadow-inner flex items-center justify-center transition-transform hover:scale-105"
+                style={{ 
+                  background: `conic-gradient(${
+                    prescriptionStats.totalAmount > 0 || prescriptionStats.totalCount > 0
+                      ? `#6366f1 0% ${prescriptionStats.recPct}%, #10b981 ${prescriptionStats.recPct}% 100%`
+                      : `#e2e8f0 0% 100%`
+                  })`
+                }}
+              >
+                <div className="w-24 h-24 bg-white dark:bg-slate-900 rounded-full flex flex-col items-center justify-center shadow-sm">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total</span>
+                  <span className="text-base font-black text-slate-900 dark:text-white font-mono">
+                    {prescriptionStats.totalCount}
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-medium">ventas</span>
+                </div>
               </div>
-              <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                <span className="text-xs font-bold text-slate-500 uppercase">Médicos Activos</span>
-                <span className="font-black text-slate-900 dark:text-white font-mono">{Object.keys(doctorReferrals).length}</span>
-              </div>
-              <div className="flex justify-between items-center p-3 rounded-lg bg-slate-50 dark:bg-slate-800/50">
-                <span className="text-xs font-bold text-slate-500 uppercase">Tasa Derivación</span>
-                <span className="font-black text-emerald-600 font-mono">
-                  {filteredOrders.filter(o => o.type !== 'sale').length > 0
-                    ? `${Math.round((totalReferrals / filteredOrders.filter(o => o.type !== 'sale').length) * 100)}%`
-                    : "0%"
-                  }
-                </span>
+
+              {/* Botones / Leyenda de la Torta */}
+              <div className="w-full space-y-2.5 mt-5">
+                <div 
+                  onClick={() => {
+                    setPrescriptionSearch("");
+                    setPrescriptionModal({
+                      isOpen: true,
+                      type: 'recetados',
+                      title: 'Ventas Recetadas (Con Prescripción Médica)'
+                    });
+                  }}
+                  className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-indigo-50/70 dark:hover:bg-indigo-950/40 cursor-pointer transition-all group shadow-2xs"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-indigo-600 shadow-xs"></span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-white group-hover:text-indigo-600 transition-colors">
+                      Recetados
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                      {formatCurrency(prescriptionStats.recetadosAmount)}
+                    </span>
+                    <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/60 px-1.5 py-0.5 rounded-md">
+                      {prescriptionStats.recPct}%
+                    </span>
+                  </div>
+                </div>
+
+                <div 
+                  onClick={() => {
+                    setPrescriptionSearch("");
+                    setPrescriptionModal({
+                      isOpen: true,
+                      type: 'no_recetados',
+                      title: 'Ventas No Recetadas (Mostrador / Directas)'
+                    });
+                  }}
+                  className="flex items-center justify-between p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 hover:bg-emerald-50/70 dark:hover:bg-emerald-950/40 cursor-pointer transition-all group shadow-2xs"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-xs"></span>
+                    <span className="text-xs font-bold text-slate-800 dark:text-white group-hover:text-emerald-600 transition-colors">
+                      No Recetados
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                      {formatCurrency(prescriptionStats.noRecetadosAmount)}
+                    </span>
+                    <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-1.5 py-0.5 rounded-md">
+                      {prescriptionStats.noRecPct}%
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -436,6 +892,290 @@ export function Reports() {
         periodLabel={periodLabel}
         branchLabel={branchLabel}
       />
+
+      {/* Modal de Detalle de Ingresos/Egresos por Barra del Gráfico */}
+      {detailModal && detailModal.isOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setDetailModal(null)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del Modal */}
+            <div className={`p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between ${
+              detailModal.type === 'income' 
+                ? 'bg-blue-50/60 dark:bg-blue-950/30' 
+                : 'bg-rose-50/60 dark:bg-rose-950/30'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl font-bold ${
+                  detailModal.type === 'income'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : 'bg-rose-500 text-white shadow-md shadow-rose-500/20'
+                }`}>
+                  {detailModal.type === 'income' ? <TrendingUp className="w-5 h-5" /> : <TrendingDown className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white capitalize flex items-center gap-2">
+                    Detalle de {detailModal.type === 'income' ? 'Ingresos' : 'Egresos'} — {detailModal.barLabel}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Movimientos contables asociados al período ({branchLabel})
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDetailModal(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sub-header con Buscador y Total */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar por concepto, cliente o categoría..."
+                  value={modalSearchTerm}
+                  onChange={(e) => setModalSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs self-end sm:self-auto">
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total de este Mes:</span>
+                <span className={`text-base font-black font-mono ${
+                  detailModal.type === 'income' ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'
+                }`}>
+                  {formatCurrency(modalTotal)}
+                </span>
+              </div>
+            </div>
+
+            {/* Tabla de Registros */}
+            <div className="overflow-y-auto p-4 flex-1">
+              {modalTransactions.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase font-bold text-[10px] tracking-wider">
+                        <th className="p-3">Fecha y Hora</th>
+                        <th className="p-3">Concepto / Descripción</th>
+                        <th className="p-3">Categoría</th>
+                        <th className="p-3">Cliente / Entidad</th>
+                        <th className="p-3">Método / Caja</th>
+                        <th className="p-3 text-right">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {modalTransactions.map(t => (
+                        <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="p-3 font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            <span className="font-semibold">{t.date}</span>
+                            {t.time && <span className="text-[10px] text-slate-400 font-normal ml-1">({t.time})</span>}
+                          </td>
+                          <td className="p-3 font-semibold text-slate-900 dark:text-white max-w-xs" title={t.concept}>
+                            {t.concept}
+                          </td>
+                          <td className="p-3 text-slate-500">
+                            <span className="px-2.5 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                              {t.category || 'Ventas'}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-700 dark:text-slate-300 font-medium">
+                            {t.clientName || 'Cliente Mostrador'}
+                          </td>
+                          <td className="p-3 text-slate-500">
+                            <span className="inline-flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                              {t.method || t.boxId || 'Caja Efectivo'}
+                            </span>
+                          </td>
+                          <td className={`p-3 text-right font-black font-mono text-sm ${
+                            detailModal.type === 'income' ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'
+                          }`}>
+                            {formatCurrency(t.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-12 text-center text-slate-400 space-y-2">
+                  <Info className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
+                  <p className="text-sm font-medium">No se encontraron movimientos de {detailModal.type === 'income' ? 'ingreso' : 'egreso'} en {detailModal.barLabel}.</p>
+                  {modalSearchTerm && (
+                    <p className="text-xs text-slate-400">Intenta borrando la búsqueda "{modalSearchTerm}".</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 flex justify-between items-center">
+              <span className="text-xs text-slate-500 font-medium">
+                {modalTransactions.length} registro(s) encontrado(s)
+              </span>
+              <button
+                onClick={() => setDetailModal(null)}
+                className="px-5 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all shadow-xs"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Detalle de Recetados vs No Recetados */}
+      {prescriptionModal && prescriptionModal.isOpen && (
+        <div 
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setPrescriptionModal(null)}
+        >
+          <div 
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl w-full max-w-4xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header del Modal */}
+            <div className={`p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between ${
+              prescriptionModal.type === 'recetados'
+                ? 'bg-indigo-50/60 dark:bg-indigo-950/30'
+                : 'bg-emerald-50/60 dark:bg-emerald-950/30'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl font-bold ${
+                  prescriptionModal.type === 'recetados'
+                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-500/20'
+                    : 'bg-emerald-600 text-white shadow-md shadow-emerald-500/20'
+                }`}>
+                  {prescriptionModal.type === 'recetados' ? <Stethoscope className="w-5 h-5" /> : <ShoppingBag className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-900 dark:text-white capitalize flex items-center gap-2">
+                    {prescriptionModal.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {prescriptionModal.type === 'recetados' 
+                      ? 'Ventas asociadas a prescripción u orden médica' 
+                      : 'Ventas de productos directos sin receta asociada'} ({branchLabel})
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setPrescriptionModal(null)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Sub-header con Buscador y Total */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-950/40 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Buscar por cliente, médico, servicio o ID..."
+                  value={prescriptionSearch}
+                  onChange={(e) => setPrescriptionSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 px-3.5 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xs self-end sm:self-auto">
+                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">Total Filtrado:</span>
+                <span className={`text-base font-black font-mono ${
+                  prescriptionModal.type === 'recetados' ? 'text-indigo-600 dark:text-indigo-400' : 'text-emerald-600 dark:text-emerald-400'
+                }`}>
+                  {formatCurrency(prescriptionModalTotal)}
+                </span>
+              </div>
+            </div>
+
+            {/* Tabla de Registros */}
+            <div className="overflow-y-auto p-4 flex-1">
+              {prescriptionModalItems.length > 0 ? (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 uppercase font-bold text-[10px] tracking-wider">
+                        <th className="p-3">Fecha</th>
+                        <th className="p-3">Cliente</th>
+                        <th className="p-3">Tipo / Categoría</th>
+                        <th className="p-3">Médico / Detalle</th>
+                        <th className="p-3 text-center">Estado</th>
+                        <th className="p-3 text-right">Monto</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {prescriptionModalItems.map(item => (
+                        <tr key={item.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="p-3 font-medium text-slate-600 dark:text-slate-300 whitespace-nowrap">
+                            {item.date} {item.time ? `(${item.time})` : ''}
+                          </td>
+                          <td className="p-3 font-semibold text-slate-900 dark:text-white">
+                            {item.clientName}
+                          </td>
+                          <td className="p-3 text-slate-500">
+                            <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider ${
+                              prescriptionModal.type === 'recetados'
+                                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                            }`}>
+                              {item.type}
+                            </span>
+                          </td>
+                          <td className="p-3 text-slate-700 dark:text-slate-300 font-medium max-w-xs truncate" title={item.medico}>
+                            {item.medico}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className={`p-3 text-right font-black font-mono text-sm ${
+                            prescriptionModal.type === 'recetados' ? 'text-indigo-600 dark:text-indigo-400' : 'text-emerald-600 dark:text-emerald-400'
+                          }`}>
+                            {formatCurrency(item.amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="py-12 text-center text-slate-400 space-y-2">
+                  <Info className="w-8 h-8 mx-auto text-slate-300 dark:text-slate-600" />
+                  <p className="text-sm font-medium">No se encontraron ventas de tipo {prescriptionModal.type === 'recetados' ? 'recetadas' : 'no recetadas'} en este período.</p>
+                  {prescriptionSearch && (
+                    <p className="text-xs text-slate-400">Intenta borrando el término de búsqueda "{prescriptionSearch}".</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Footer del Modal */}
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/40 flex justify-between items-center">
+              <span className="text-xs text-slate-500 font-medium">
+                {prescriptionModalItems.length} registro(s) encontrado(s)
+              </span>
+              <button
+                onClick={() => setPrescriptionModal(null)}
+                className="px-5 py-2 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 rounded-xl text-xs font-bold transition-all shadow-xs"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

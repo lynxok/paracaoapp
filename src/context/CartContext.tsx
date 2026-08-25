@@ -51,7 +51,7 @@ interface CartContextType {
   setSelectedClient: (client: any | null) => void;
   paymentMethodId: string;
   setPaymentMethodId: (id: string) => void;
-  checkout: () => { success: boolean; message: string };
+  checkout: (paidAmount?: number, senaMethodId?: string, previstoMethodId?: string) => { success: boolean; message: string; receipt?: any };
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
   billingDrafts: BillingDraft[];
@@ -203,10 +203,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setIsCartOpen(false);
   };
 
-  const checkout = () => {
+  const checkout = (paidAmount?: number, senaMethodId?: string, previstoMethodId?: string) => {
     if (cart.length === 0) return { success: false, message: "El carrito está vacío" };
 
-    const selectedBox = boxes.find(b => b.id === paymentMethodId);
+    const selectedBox = boxes.find(b => b.id === (paidAmount !== undefined ? senaMethodId : paymentMethodId));
     const boxName = selectedBox?.name || "Efectivo";
 
     const totalAmount = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
@@ -215,8 +215,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const targetClientId = targetClient?.id || 'cliente-mostrador';
     const targetClientName = targetClient?.name || 'Cliente Mostrador';
 
+    const orderIdGenerated = `ORD-${Date.now().toString().slice(-6)}`;
+
     // Process each item in the cart
     cart.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      const itemPaid = paidAmount !== undefined ? (itemTotal * paidAmount) / totalAmount : itemTotal;
+
       if (item.type === 'prescription' && item.details) {
         const details = item.details;
         
@@ -234,10 +239,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           type: details.prescriptionType || 'monofocal',
           service: item.name,
           status: 'En Taller',
-          amount: item.price * item.quantity,
-          paid: item.price * item.quantity,
+          amount: itemTotal,
+          paid: itemPaid,
           medico: details.medico,
           branchId: currentBranch?.id || undefined,
+          senaMethodId: senaMethodId,
+          previstoMethodId: previstoMethodId
         });
 
         // 2. Deduct stock for frame and crystal
@@ -253,7 +260,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           addJob({
             labId: details.assignedLab.id,
             date: new Date().toISOString().split('T')[0],
-            orderId: `ORD-${Date.now().toString().slice(-6)}`,
+            orderId: orderIdGenerated,
             concept: `${item.name} - ${rxClientName}`,
             cost: details.labCost || 0,
             status: 'Pendiente',
@@ -313,7 +320,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           const claimId = `claim-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
           const claimData = {
             id: claimId,
-            order_id: `ORD-${Date.now().toString().slice(-6)}`,
+            order_id: orderIdGenerated,
             client_id: rxClientId,
             client_name: rxClientName,
             client_dni: rxClientDni,
@@ -332,7 +339,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             if (error) console.error("Error al registrar reintegro de obra social en Supabase:", error);
           });
         }
-      } else if (item.type === 'product') {
+      } else {
         // Record product sale in client purchase history
         addOrder({
           clientId: targetClientId,
@@ -340,10 +347,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           date: new Date().toISOString().split('T')[0],
           type: 'producto',
           service: `${item.quantity}x ${item.name}`,
-          status: 'Entregado',
-          amount: item.price * item.quantity,
-          paid: item.price * item.quantity,
+          status: itemPaid === itemTotal ? 'Entregado' : 'Pendiente Entrega',
+          amount: itemTotal,
+          paid: itemPaid,
           branchId: currentBranch?.id || undefined,
+          senaMethodId: senaMethodId,
+          previstoMethodId: previstoMethodId
         });
 
         // Simple product stock deduction (optional, if catalog SKUs match inventory)
@@ -364,10 +373,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       time: timeStr,
       concept: `Venta Consolidada: ${cart.map(i => `${i.quantity}x ${i.name}`).join(', ')}`,
       method: boxName,
-      amount: totalAmount,
+      amount: paidAmount !== undefined ? paidAmount : totalAmount,
       type: 'income',
       category: 'ventas',
-      boxId: paymentMethodId,
+      boxId: paidAmount !== undefined ? (senaMethodId || paymentMethodId) : paymentMethodId,
       clientId: targetClientId,
       clientName: targetClientName
     });
