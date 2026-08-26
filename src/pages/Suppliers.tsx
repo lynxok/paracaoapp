@@ -804,9 +804,7 @@ export function Suppliers() {
                               onChange={e => setNewCheque({...newCheque, observation: e.target.value})}
                               className="w-full h-7 px-1.5 rounded border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 text-xs font-medium"
                             />
-                          </div>
-
-                          <button
+                                  <button
                             type="button"
                             disabled={!newCheque.number || !newCheque.bank || newCheque.amount <= 0}
                             onClick={() => {
