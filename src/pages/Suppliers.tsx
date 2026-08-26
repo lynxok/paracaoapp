@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Search, Plus, Edit2, Receipt, Truck, X, Settings2, Trash2, Smartphone, FileText, ArrowUpRight, ArrowDownRight, History, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { useFinance } from "../context/FinanceContext";
+import { useSettings } from "../context/SettingsContext";
 import { Supplier, SupplierTransaction } from "../types";
 import { cn } from "../lib/utils";
 
 export function Suppliers() {
   const { suppliers, addSupplierTransaction, updateSupplier, addSupplier, addCheques, boxes, addTransaction } = useFinance();
+  const { nextChequeNumber, setNextChequeNumber } = useSettings();
   const [activeTab, setActiveTab] = useState<'list' | 'purchases' | 'pending'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
@@ -720,7 +722,16 @@ export function Suppliers() {
                         <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">Cheques Emitidos</span>
                         <button 
                           type="button" 
-                          onClick={() => setShowChequeForm(!showChequeForm)}
+                          onClick={() => {
+                            const show = !showChequeForm;
+                            setShowChequeForm(show);
+                            if (show && !newCheque.number) {
+                              setNewCheque({
+                                ...newCheque,
+                                number: nextChequeNumber
+                              });
+                            }
+                          }}
                           className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 rounded text-[9px] font-bold transition-all"
                         >
                           {showChequeForm ? 'Cerrar Alta' : '+ Agregar Cheque'}
@@ -793,13 +804,17 @@ export function Suppliers() {
                               onChange={e => setNewCheque({...newCheque, observation: e.target.value})}
                               className="w-full h-7 px-1.5 rounded border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 text-xs font-medium"
                             />
-                          </div>
-
-                          <button
+                                  <button
                             type="button"
                             disabled={!newCheque.number || !newCheque.bank || newCheque.amount <= 0}
                             onClick={() => {
                               setAddedCheques([...addedCheques, { ...newCheque }]);
+                              
+                              const parsedNum = parseInt(newCheque.number.replace(/\D/g, ''), 10);
+                              if (!isNaN(parsedNum)) {
+                                setNextChequeNumber((parsedNum + 1).toString());
+                              }
+
                               setNewCheque({
                                 number: '',
                                 bank: '',

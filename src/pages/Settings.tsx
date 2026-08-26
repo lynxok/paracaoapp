@@ -88,7 +88,8 @@ export function Settings() {
     crystalRules, addCrystalRule, updateCrystalRule, removeCrystalRule,
     crystalItems, addCrystalItem, updateCrystalItem, removeCrystalItem,
     treatments, addTreatment, updateTreatment, removeTreatment,
-    brands, setBrands, materials, setMaterials, indices, setIndices, designs, setDesigns, colors, setColors
+    brands, setBrands, materials, setMaterials, indices, setIndices, designs, setDesigns, colors, setColors,
+    nextChequeNumber, setNextChequeNumber
   } = useSettings();
   const { labs, addLab, updateLab, deleteLab } = useLabs();
 
@@ -1088,6 +1089,17 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                   onChange={e => setOpticaAddress(e.target.value)}
                   placeholder="Calle, número, ciudad"
                 />
+              </div>
+              <div className="flex flex-col gap-1.5 md:col-span-2">
+                <label className="text-sm font-bold text-slate-600 dark:text-slate-400">Próximo Nº de Cheque a Emitir</label>
+                <input 
+                  type="text"
+                  className="h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-600 outline-none font-bold" 
+                  value={nextChequeNumber}
+                  onChange={e => setNextChequeNumber(e.target.value.replace(/\D/g, ''))}
+                  placeholder="Ej: 1001"
+                />
+                <p className="text-xs text-slate-400 leading-none">Numeración sugerida automáticamente para el autocompletado en compras.</p>
               </div>
             </div>
             

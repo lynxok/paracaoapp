@@ -96,6 +96,8 @@ interface SettingsContextType {
   setDesigns: (designs: string[]) => void;
   colors: string[];
   setColors: (colors: string[]) => void;
+  nextChequeNumber: string;
+  setNextChequeNumber: (num: string) => void;
 }
 
 const INITIAL_INSURANCES: Insurance[] = [
@@ -340,6 +342,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const [opticaAddress, setOpticaAddress] = useState(() => localStorage.getItem('optica_address') || "Av. Principal 123");
   const [appTheme, setAppTheme] = useState(() => localStorage.getItem('optica_theme') || "default");
+  
+  const [nextChequeNumber, setNextChequeNumberState] = useState<string>(() => {
+    return localStorage.getItem('optica_next_cheque_number') || '1001';
+  });
+
+  const setNextChequeNumber = (num: string) => {
+    setNextChequeNumberState(num);
+    localStorage.setItem('optica_next_cheque_number', num);
+    syncSetting('optica_next_cheque_number', num);
+  };
   const [pdfConfig, setPdfConfigState] = useState<PDFConfig>(() => {
     const saved = localStorage.getItem('optica_pdf_config');
     return saved ? JSON.parse(saved) : INITIAL_PDF_CONFIG;
@@ -549,6 +561,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               case 'optica_iibb': if (val) localStorage.setItem('optica_iibb', val); break;
               case 'optica_puntos_venta': if (val) localStorage.setItem('optica_puntos_venta', typeof val === 'string' ? val : JSON.stringify(val)); break;
               case 'optica_default_pv': if (val) localStorage.setItem('optica_default_pv', val); break;
+              case 'optica_next_cheque_number': if (val) {
+                localStorage.setItem('optica_next_cheque_number', val);
+                setNextChequeNumberState(val);
+              } break;
             }
           });
         }
@@ -998,6 +1014,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setDesigns,
       colors,
       setColors,
+      nextChequeNumber,
+      setNextChequeNumber,
     }}>
       {children}
     </SettingsContext.Provider>
