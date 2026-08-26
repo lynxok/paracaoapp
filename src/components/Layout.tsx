@@ -519,14 +519,14 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
               <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">Desarrollado por</span>
               <img src="/logolynxnaranja.png" alt="LYNX" className="h-10 w-auto object-contain grayscale group-hover:grayscale-0 transition-all opacity-80 group-hover:opacity-100 mt-0.5" />
             </a>
-            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-1">v2.4.0 (25/08)</span>
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-1">v2.4.1 (26/08)</span>
           </div>
         ) : (
           <div className="pb-3 pt-1 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-900/40 rounded-b-2xl">
-            <a href="https://www.lnx.com.ar" target="_blank" rel="noopener noreferrer" title="Desarrollado por LYNX - v2.4.0" className="group cursor-pointer">
+            <a href="https://www.lnx.com.ar" target="_blank" rel="noopener noreferrer" title="Desarrollado por LYNX - v2.4.1" className="group cursor-pointer">
               <img src="/logolynxnaranja.png" alt="LYNX" className="h-5 w-auto object-contain grayscale group-hover:grayscale-0 transition-all opacity-80 group-hover:opacity-100" />
             </a>
-            <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5">v2.4</span>
+            <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5">v2.4.1</span>
           </div>
         )}
       </aside>

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual de Cambios - Versión v2.5.0</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      body {
+        background-color: white !important;
+        color: black !important;
+      }
+      main {
+        padding-top: 0 !important;
+      }
+      section {
+        page-break-inside: avoid;
+      }
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen">
+
+  <!-- Header Section -->
+  <header class="bg-indigo-900 text-white py-12 px-6 shadow-md border-b border-indigo-950 relative overflow-hidden">
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.2),transparent)] pointer-events-none"></div>
+    <div class="max-w-4xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
+      <div>
+        <span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+          Actualización de Sistema
+        </span>
+        <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight mt-3">Manual de Nuevas Funcionalidades</h1>
+        <p class="text-indigo-200 mt-2 text-sm md:text-base">Guía de cambios implementados en la versión <b>v2.5.0</b> para Óptica Paracao</p>
+      </div>
+      <div class="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10">
+        <i data-lucide="sparkles" class="w-8 h-8 text-amber-400 animate-pulse"></i>
+        <div class="text-right">
+          <p class="text-xs text-indigo-300 font-bold uppercase">Versión Actual</p>
+          <p class="text-lg font-black tracking-wide">v2.5.0</p>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="max-w-4xl mx-auto py-12 px-6 space-y-12">
+
+    <!-- Executive Summary -->
+    <section class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm relative overflow-hidden">
+      <div class="absolute top-0 right-0 w-36 h-36 bg-indigo-50 rounded-full blur-3xl pointer-events-none"></div>
+      <h2 class="text-2xl font-black text-slate-900 flex items-center gap-2.5">
+        <i data-lucide="info" class="w-6 h-6 text-indigo-600"></i>
+        Resumen Ejecutivo
+      </h2>
+      <p class="text-slate-655 mt-3 leading-relaxed">
+        Esta actualización introduce herramientas contables y comerciales clave para la óptica. El objetivo es estructurar de forma clara y segura el flujo de efectivo con proveedores (pagos mixtos y chequeras), simplificar la venta y financiamiento de clientes (señas y cobranza de saldos), y blindar el taller frente a trabajos sin pagar.
+      </p>
+      
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex gap-3.5">
+          <div class="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl h-fit">
+            <i data-lucide="receipt" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-950 text-sm">Finanzas y Compras</h4>
+            <p class="text-xs text-slate-500 mt-1">Carga detallada de facturas de proveedores con efectivo, bancos, tarjetas, C.C. y cheques en un mismo comprobante.</p>
+          </div>
+        </div>
+        <div class="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex gap-3.5">
+          <div class="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl h-fit">
+            <i data-lucide="wallet" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h4 class="font-bold text-slate-950 text-sm">Ventas y Clientes</h4>
+            <p class="text-xs text-slate-500 mt-1">Registro de señas (pago parcial) y cobranza posterior de saldos deudores asociados a cajas de destino específicas.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 1. Pagos Mixtos y Cheques a Proveedores -->
+    <section class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
+      <div class="flex items-start justify-between border-b border-slate-100 pb-5">
+        <div class="space-y-1">
+          <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+            <span class="bg-indigo-600 text-white w-7 h-7 rounded-lg inline-flex items-center justify-center text-sm font-black shadow-sm shadow-indigo-200">1</span>
+            Pagos Mixtos y Cheques a Proveedores
+          </h3>
+          <p class="text-slate-500 text-xs pl-9">Módulo: Ajustes > Proveedores > Cargar Comprobante</p>
+        </div>
+        <span class="bg-indigo-50 text-indigo-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">Compras</span>
+      </div>
+
+      <div class="space-y-4">
+        <p class="text-slate-655 leading-relaxed text-sm">
+          Al registrar una compra o factura a un proveedor, ahora es posible estructurar el pago exacto combinando múltiples medios financieros en una sola operación.
+        </p>
+
+        <div class="border border-slate-100 rounded-2xl p-5 bg-slate-50 space-y-3.5 text-xs">
+          <h4 class="font-bold text-slate-800 text-sm">Medios de Pago Soportados en el Comprobante:</h4>
+          <ul class="grid grid-cols-1 md:grid-cols-2 gap-3 pl-4 list-disc text-slate-600">
+            <li><strong class="text-slate-900">Efectivo:</strong> Imputa un monto y selecciona de qué caja física egresa el dinero.</li>
+            <li><strong class="text-slate-900">Transferencia:</strong> Imputa un monto y selecciona de qué banco egresa.</li>
+            <li><strong class="text-slate-900">Tarjeta:</strong> Imputa un monto y selecciona la caja de tarjeta asociada.</li>
+            <li><strong class="text-slate-900">Cuenta Corriente (Deuda):</strong> Monto pendiente de pago que queda en la cuenta deudora con el proveedor.</li>
+            <li><strong class="text-slate-900">Uno o más Cheques:</strong> Permite ingresar múltiples cheques emitidos con su número, banco, importe, plazo de vencimiento (30, 60, 90 o 120 días) y observaciones.</li>
+          </ul>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Validación Estricta -->
+          <div class="p-4 rounded-2xl border border-rose-100 bg-rose-50/30 flex gap-3">
+            <i data-lucide="shield-alert" class="w-5 h-5 text-rose-600 shrink-0"></i>
+            <div>
+              <h5 class="font-bold text-rose-955 text-xs">Validación de Diferencia Cero ($0.00)</h5>
+              <p class="text-[11px] text-rose-700 mt-1 leading-relaxed">
+                El sistema muestra un resumen en tiempo real del total de la factura frente al total imputado. Si existe alguna diferencia (aunque sea de centavos), el botón de confirmación se deshabilita para evitar inconsistencias en el balance.
+              </p>
+            </div>
+          </div>
+          <!-- Auto-incremento Cheques -->
+          <div class="p-4 rounded-2xl border border-blue-100 bg-blue-50/30 flex gap-3">
+            <i data-lucide="binary" class="w-5 h-5 text-blue-600 shrink-0"></i>
+            <div>
+              <h5 class="font-bold text-blue-955 text-xs">Numeración y Auto-incremento de Cheques</h5>
+              <p class="text-[11px] text-blue-700 mt-1 leading-relaxed">
+                El sistema propone de forma automática el número del cheque emitido basándose en la configuración general. Al guardar un cheque con número <code class="bg-blue-100 px-1 rounded font-mono font-bold text-blue-900">X</code>, el sistema automáticamente configura el próximo cheque a emitir como <code class="bg-blue-100 px-1 rounded font-mono font-bold text-blue-900">X + 1</code>.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Ajustes Setting Highlight -->
+        <div class="p-4 bg-indigo-50 border border-indigo-100 rounded-2xl flex gap-3 text-xs">
+          <i data-lucide="settings-2" class="w-5 h-5 text-indigo-600 shrink-0"></i>
+          <div>
+            <p class="font-bold text-indigo-900">Configuración en Ajustes</p>
+            <p class="text-indigo-755 mt-1">
+              En la pestaña **Ajustes > General**, se incorporó el campo **"Próximo Nº de Cheque a Emitir"** donde puedes cambiar manualmente el número de cheque inicial de la chequera en uso para que la secuencia empiece desde allí.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Panel de Finanzas e Historial de Cheques -->
+    <section class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
+      <div class="flex items-start justify-between border-b border-slate-100 pb-5">
+        <div class="space-y-1">
+          <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+            <span class="bg-indigo-600 text-white w-7 h-7 rounded-lg inline-flex items-center justify-center text-sm font-black shadow-sm shadow-indigo-200">2</span>
+            Panel de Finanzas y Control de Cheques
+          </h3>
+          <p class="text-slate-500 text-xs pl-9">Módulo: Finanzas > Cheques</p>
+        </div>
+        <span class="bg-emerald-50 text-emerald-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">Control</span>
+      </div>
+
+      <div class="space-y-4">
+        <p class="text-slate-655 leading-relaxed text-sm">
+          Todos los cheques generados al pagar proveedores (cheques emitidos) y los cobrados a clientes (cheques recibidos) se centralizan en una nueva pestaña interactiva en el panel de Finanzas.
+        </p>
+
+        <!-- KPI Cards Mockup -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200/50">
+          <div class="bg-white p-3.5 rounded-xl border border-slate-200">
+            <p class="text-[9px] font-bold text-slate-400 uppercase">Pendientes</p>
+            <p class="text-base font-extrabold text-slate-900 mt-1">Cartera Activa</p>
+          </div>
+          <div class="bg-white p-3.5 rounded-xl border border-amber-200">
+            <p class="text-[9px] font-bold text-amber-500 uppercase">A Vencer &lt; 7 días</p>
+            <p class="text-base font-extrabold text-amber-600 mt-1">Alerta Amarilla</p>
+          </div>
+          <div class="bg-white p-3.5 rounded-xl border border-red-200">
+            <p class="text-[9px] font-bold text-red-500 uppercase">Vencidos</p>
+            <p class="text-base font-extrabold text-red-600 mt-1">Alerta Roja</p>
+          </div>
+          <div class="bg-white p-3.5 rounded-xl border border-emerald-250">
+            <p class="text-[9px] font-bold text-emerald-500 uppercase">Cobrados</p>
+            <p class="text-base font-extrabold text-emerald-600 mt-1">Impactados</p>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <h4 class="font-bold text-slate-800 text-sm">Gestión de Acreditación / Débito:</h4>
+          <p class="text-slate-655 text-xs leading-relaxed">
+            Al hacer clic en <strong class="text-slate-900">"Cobrar / Acreditar"</strong> sobre un cheque pendiente, el sistema permite elegir a qué Caja o Banco de destino ingresará el efectivo (si es un cheque recibido de un cliente) o de cuál se debitará el saldo (si es un cheque emitido a un proveedor), sincronizando la transacción financiera de forma automática.
+          </p>
+        </div>
+
+        <!-- Alert Banner Mockup -->
+        <div class="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex gap-3 text-xs items-center">
+          <i data-lucide="bell" class="w-6 h-6 text-amber-600 shrink-0"></i>
+          <div>
+            <p class="font-bold text-amber-900">Banners de Alerta Preventiva</p>
+            <p class="text-amber-800 mt-0.5">
+              Si existen cheques vencidos o próximos a vencer, un cartel de advertencia de color naranja/amarillo se mantendrá visible en la cabecera de la pantalla de **Inicio (Dashboard)** y **Finanzas** hasta que sean gestionados.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Checkout de Ventas con Señas -->
+    <section class="bg-white rounded-3xl p-8 border border-slate-250 shadow-sm space-y-6">
+      <div class="flex items-start justify-between border-b border-slate-100 pb-5">
+        <div class="space-y-1">
+          <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+            <span class="bg-indigo-600 text-white w-7 h-7 rounded-lg inline-flex items-center justify-center text-sm font-black shadow-sm shadow-indigo-200">3</span>
+            Venta con Señas (Pago Parcial)
+          </h3>
+          <p class="text-slate-500 text-xs pl-9">Módulo: Venta (Sidebar del Carrito)</p>
+        </div>
+        <span class="bg-blue-50 text-blue-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">Ventas</span>
+      </div>
+
+      <div class="space-y-4">
+        <p class="text-slate-655 leading-relaxed text-sm">
+          Al concretar una venta, el vendedor ahora puede activar el checkbox **"Registrar Seña / Pago Parcial"**.
+        </p>
+
+        <div class="p-5 border border-slate-200 rounded-2xl space-y-3.5 bg-slate-50 text-xs max-w-md mx-auto">
+          <div class="flex items-center gap-2">
+            <input type="checkbox" checked disabled class="w-4 h-4 rounded text-blue-600">
+            <span class="font-bold text-slate-700">Registrar Seña / Pago Parcial</span>
+          </div>
+          <div class="space-y-2 border-t border-slate-200 pt-3">
+            <div>
+              <span class="text-[9px] font-black text-slate-400 block uppercase">Monto de Seña ($)</span>
+              <div class="bg-white border border-slate-250 rounded p-1.5 font-bold text-slate-900 mt-0.5">$50,000.00</div>
+              <p class="text-[10px] text-slate-450 mt-1 font-medium">Saldo restante a pagar: <strong class="text-slate-700">$50,000.00</strong></p>
+            </div>
+            <div>
+              <span class="text-[9px] font-black text-slate-400 block uppercase">Caja de Seña (Método de Pago)</span>
+              <p class="text-[10px] text-slate-500">Se elige abajo en la selección general de caja (ej: Posnet Getnet 1).</p>
+            </div>
+            <div>
+              <span class="text-[9px] font-black text-slate-400 block uppercase">Caja prevista para cobrar el Saldo</span>
+              <div class="bg-white border border-slate-250 rounded p-1.5 text-slate-800 font-bold mt-0.5">Caja Principal (Efectivo)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-2 text-xs text-slate-600">
+          <p class="font-bold text-slate-800 text-sm">Lógica de Prorrateo e Impacto Contable:</p>
+          <ul class="list-disc pl-5 space-y-1">
+            <li>La seña ingresa inmediatamente en la caja seleccionada como método de pago.</li>
+            <li>El sistema **prorratea proporcionalmente** la seña cobrada entre todos los artículos comprados en el carrito de venta para reflejar de forma exacta el saldo pendiente por producto.</li>
+            <li>El pedido queda registrado en estado "Incompleto" o con deuda y guarda la previsión de en qué caja se debería cobrar el saldo restante.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. Cobro de Saldos en Clientes -->
+    <section class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
+      <div class="flex items-start justify-between border-b border-slate-100 pb-5">
+        <div class="space-y-1">
+          <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+            <span class="bg-indigo-600 text-white w-7 h-7 rounded-lg inline-flex items-center justify-center text-sm font-black shadow-sm shadow-indigo-200">4</span>
+            Cobro de Saldos de Pedidos
+          </h3>
+          <p class="text-slate-500 text-xs pl-9">Módulo: Clientes > Historial de Compras</p>
+        </div>
+        <span class="bg-amber-50 text-amber-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">Clientes</span>
+      </div>
+
+      <div class="space-y-4">
+        <p class="text-slate-655 leading-relaxed text-sm">
+          Cuando el cliente retira el pedido o asiste a saldar su deuda, el cobro del saldo se gestiona directamente desde su ficha individual de forma integrada.
+        </p>
+
+        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200/50 text-xs space-y-3">
+          <div class="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-100 shadow-sm">
+            <div>
+              <p class="text-[10px] font-black text-indigo-600 uppercase">Pedido: #OD-9999 · Multifocal Varilux</p>
+              <div class="flex gap-4 mt-2">
+                <div>
+                  <span class="text-[9px] text-slate-400 block font-bold uppercase">Total</span>
+                  <span class="font-bold text-slate-800">$100,000</span>
+                </div>
+                <div>
+                  <span class="text-[9px] text-slate-400 block font-bold uppercase">Abonado</span>
+                  <span class="font-bold text-emerald-600">$50,000</span>
+                </div>
+                <div>
+                  <span class="text-[9px] text-amber-550 block font-bold uppercase text-amber-500">Saldo Restante</span>
+                  <span class="font-extrabold text-amber-600">$50,000</span>
+                </div>
+              </div>
+            </div>
+            <button class="bg-amber-655 text-amber-900 border border-amber-300 font-bold px-3 py-1.5 rounded-lg text-[10px] uppercase shadow-sm bg-amber-50">
+              Cobrar Saldo
+            </button>
+          </div>
+
+          <div class="p-3.5 bg-white border border-slate-100 rounded-xl space-y-2">
+            <p class="font-bold text-slate-800 text-[11px]">Acción "Cobrar Saldo":</p>
+            <p class="text-slate-600 leading-relaxed text-[11px]">
+              Al hacer clic en el botón, se abre un modal con el saldo cargado por defecto. El usuario selecciona en cuál de las **Cajas/Bancos** del local ingresará el pago y confirma. La orden se actualiza automáticamente a "Cobrado Total" y el dinero ingresa al balance de la caja seleccionada.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5. Bloqueo Preventivo de Taller sin Seña -->
+    <section class="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm space-y-6">
+      <div class="flex items-start justify-between border-b border-slate-100 pb-5">
+        <div class="space-y-1">
+          <h3 class="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+            <span class="bg-indigo-600 text-white w-7 h-7 rounded-lg inline-flex items-center justify-center text-sm font-black shadow-sm shadow-indigo-200">5</span>
+            Bloqueo Preventivo en Laboratorios
+          </h3>
+          <p class="text-slate-500 text-xs pl-9">Módulo: Taller / Laboratorio</p>
+        </div>
+        <span class="bg-rose-50 text-rose-700 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider">Bloqueo</span>
+      </div>
+
+      <div class="space-y-4">
+        <p class="text-slate-655 leading-relaxed text-sm">
+          Para evitar enviar trabajos de laboratorio externos o iniciar producción de recetas sin que el cliente haya abonado un compromiso mínimo, se implementó un control sincrónico de taller.
+        </p>
+
+        <!-- Bloqueo Alert Mockup -->
+        <div class="p-5 bg-rose-50 border border-rose-250 rounded-2xl flex flex-col md:flex-row gap-4 items-center md:items-start text-xs">
+          <div class="p-3 bg-rose-600 text-white rounded-full">
+            <i data-lucide="ban" class="w-6 h-6"></i>
+          </div>
+          <div class="space-y-2">
+            <h5 class="font-extrabold text-rose-955 text-sm uppercase">Regla de Envío al Laboratorio</h5>
+            <p class="text-rose-900 font-medium leading-relaxed">
+              Si se intenta cambiar el estado de producción de un trabajo a <strong>"Enviado al laboratorio"</strong> o <strong>"En producción"</strong> (o al darlo de alta manualmente) y el pedido asociado cuenta con una seña de <strong>$0.00</strong> (<code class="bg-rose-100 px-1 py-0.5 rounded font-mono text-rose-900 font-bold">paid &lt;= 0</code>), el sistema bloqueará la acción mostrando el siguiente diálogo:
+            </p>
+            <div class="p-3 bg-white border border-rose-200 rounded-xl font-mono text-rose-800 font-bold leading-normal text-center shadow-sm">
+              “Para enviar el pedido al laboratorio debés registrar una seña o completar el pago total”
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer Summary Diagrams -->
+    <section class="bg-slate-900 text-white rounded-3xl p-8 space-y-6 shadow-xl relative overflow-hidden">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_bottom_left,rgba(99,102,241,0.15),transparent)] pointer-events-none"></div>
+      <h3 class="text-xl font-bold flex items-center gap-2.5">
+        <i data-lucide="workflow" class="w-6 h-6 text-indigo-400"></i>
+        Flujos Financieros e Impacto Contable
+      </h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+        <div class="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-2.5">
+          <h5 class="font-extrabold text-indigo-300 uppercase tracking-wider">Carga Proveedor</h5>
+          <p class="text-slate-300 font-medium">Factura de proveedor de $10,000:</p>
+          <ul class="space-y-1 text-[11px] text-slate-400 list-disc pl-4">
+            <li>Efectivo $3,000 &rarr; Egresa de Caja.</li>
+            <li>Cheque $7,000 &rarr; Cartera Cheques Emitidos (Pendiente).</li>
+          </ul>
+        </div>
+        <div class="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-2.5">
+          <h5 class="font-extrabold text-emerald-300 uppercase tracking-wider">Venta con Seña</h5>
+          <p class="text-slate-300 font-medium">Venta de lentes de $50,000:</p>
+          <ul class="space-y-1 text-[11px] text-slate-400 list-disc pl-4">
+            <li>Seña $20,000 &rarr; Ingresa a Caja.</li>
+            <li>Saldo $30,000 &rarr; Previsión de caja indicada. Pedido queda Deudor.</li>
+          </ul>
+        </div>
+        <div class="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-2.5">
+          <h5 class="font-extrabold text-amber-300 uppercase tracking-wider">Taller / Lab</h5>
+          <p class="text-slate-300 font-medium">Condición de Producción:</p>
+          <ul class="space-y-1 text-[11px] text-slate-400 list-disc pl-4">
+            <li>Abonado &gt; $0 &rarr; Permitido enviar al Laboratorio.</li>
+            <li>Abonado = $0 &rarr; Bloqueado para ingresar a Taller.</li>
+          </ul>
+        </div>
+      </div>
+      
+      <div class="text-center pt-4 text-slate-500 border-t border-white/5 text-[10px] uppercase font-bold tracking-widest">
+        Desarrollado y Auditado por LYNX Consulting & Antigravity AI - 2026
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Floating Print Button (Export to PDF) -->
+  <div class="fixed bottom-6 right-6 no-print z-50">
+    <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold px-6 py-3.5 rounded-full shadow-2xl flex items-center gap-2.5 border border-indigo-500 transition-all transform hover:scale-105 active:scale-95 text-xs uppercase tracking-wider shadow-indigo-650/30">
+      <i data-lucide="printer" class="w-5 h-5 animate-pulse"></i>
+      Exportar a PDF
+    </button>
+  </div>
+
+  <!-- Lucide Initiation Script -->
+  <script>
+    lucide.createIcons();
+  </script>
+</body>
+</html>

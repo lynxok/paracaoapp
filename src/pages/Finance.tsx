@@ -119,6 +119,46 @@ export function Finance() {
       totalAlerts: expiredCount + upcomingCount
     };
   }, [cheques]);
+
+  const filteredCheques = useMemo(() => {
+    return (cheques || []).filter(c => {
+      const todayVal = new Date();
+      todayVal.setHours(0,0,0,0);
+      const next7Days = new Date(todayVal);
+      next7Days.setDate(todayVal.getDate() + 7);
+      const dueDate = new Date(c.dueDate + 'T12:00:00');
+
+      if (chequeStatusFilter === 'Proximos') {
+        if (!(c.status === 'Pendiente' && dueDate >= todayVal && dueDate <= next7Days)) {
+          return false;
+        }
+      } else if (chequeStatusFilter === 'Vencidos') {
+        if (!(c.status === 'Pendiente' && dueDate < todayVal)) {
+          return false;
+        }
+      } else if (chequeStatusFilter !== 'Todos') {
+        if (c.status !== chequeStatusFilter) {
+          return false;
+        }
+      }
+
+      if (chequeSearch.trim() !== '') {
+        const query = chequeSearch.toLowerCase().trim();
+        const numMatch = c.number?.toLowerCase().includes(query);
+        const bankMatch = c.bank?.toLowerCase().includes(query);
+        const obsMatch = c.observation?.toLowerCase().includes(query);
+        const supplierMatch = c.supplierName?.toLowerCase().includes(query);
+        const clientMatch = c.clientName?.toLowerCase().includes(query);
+
+        if (!numMatch && !bankMatch && !obsMatch && !supplierMatch && !clientMatch) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [cheques, chequeStatusFilter, chequeSearch]);
+
   const [selectedBoxId, setSelectedBoxId] = useState<string>('consolidated');
   const [denominations, setDenominations] = useState<Denomination[]>(INITIAL_DENOMINATIONS);
   const [showAddBox, setShowAddBox] = useState(false);

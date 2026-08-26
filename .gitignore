@@ -13,4 +13,5 @@ test_*.png
 skills-lock.json
 Versiones anteriores/
 *.zip
-
+output/
+tmp/
