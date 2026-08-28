@@ -485,7 +485,8 @@ export function Clients() {
             <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{contextItem?.name}</p>
           </div>
           <Link
-            to={`/orders/new?clientId=${contextItem?.dni}`}
+            to={`/orders/new?clientId=${contextItem?.id || contextItem?.dni}`}
+            state={{ client: contextItem, clientId: contextItem?.id, clientName: contextItem?.name, clientDni: contextItem?.dni }}
             className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
           >
             <ShoppingCart className="w-4 h-4" /> Nuevo Pedido
@@ -707,9 +708,24 @@ export function Clients() {
                   <p className="text-sm text-slate-500">{contextItem.name} ({contextItem.dni})</p>
                 </div>
               </div>
-              <button onClick={() => { setIsOrdersModalOpen(false); setContextItem(null); }} className="text-slate-500 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setIsOrdersModalOpen(false);
+                    navigate(`/orders/new?clientId=${contextItem.id}`, { 
+                      state: { client: contextItem, clientId: contextItem.id, clientName: contextItem.name, clientDni: contextItem.dni } 
+                    });
+                  }}
+                  className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                  title="Crear un nuevo pedido para este cliente"
+                >
+                  <ShoppingCart className="w-3.5 h-3.5" />
+                  <span>Nuevo Pedido</span>
+                </button>
+                <button onClick={() => { setIsOrdersModalOpen(false); setContextItem(null); }} className="text-slate-500 hover:text-slate-700 transition-colors p-2 rounded-full hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             
             <div className="p-6 overflow-y-auto max-h-[500px] custom-scrollbar space-y-4">
@@ -726,7 +742,9 @@ export function Clients() {
                       <button 
                         onClick={() => {
                           setIsOrdersModalOpen(false);
-                          navigate('/orders/new/monofocal', { state: { clientId: contextItem.id, clientName: contextItem.name } });
+                          navigate(`/orders/new/monofocal?clientId=${contextItem.id}`, { 
+                            state: { client: contextItem, clientId: contextItem.id, clientName: contextItem.name, clientDni: contextItem.dni } 
+                          });
                         }}
                         className="mt-4 px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-md shadow-indigo-500/20"
                       >

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays, AlertTriangle, UserPlus, ShieldCheck } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useFinance } from "../context/FinanceContext";
@@ -23,6 +23,8 @@ export function NewOrder() {
   const { labs, addJob } = useLabs();
   const { cart, updateCartItem, addToCart, setIsCartOpen } = useCart();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { type, cartItemId } = useParams<{ type?: string; cartItemId?: string }>();
   const isEditMode = !!cartItemId;
   const editingItem = isEditMode ? cart.find(item => item.id === cartItemId) : null;
@@ -37,7 +39,10 @@ export function NewOrder() {
   const [isClientModalOpen, setIsClientModalOpen] = useState(false);
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [addClientDni, setAddClientDni] = useState("");
-  const [selectedClient, setSelectedClient] = useState<any>(null);
+  const [selectedClient, setSelectedClient] = useState<any>(() => {
+    if (location.state?.client) return location.state.client;
+    return null;
+  });
   const [clientSearch, setClientSearch] = useState("");
   const [tempDni, setTempDni] = useState("");
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -162,6 +167,29 @@ export function NewOrder() {
       }
     }
   };
+
+  // Auto-cargar cliente desde location.state o query params (?clientId=...)
+  useEffect(() => {
+    if (selectedClient) return;
+
+    if (location.state?.client) {
+      setSelectedClient(location.state.client);
+      return;
+    }
+
+    const targetClientId = location.state?.clientId || location.state?.clientDni || searchParams.get('clientId');
+    if (targetClientId && clients.length > 0) {
+      const cleanTarget = String(targetClientId).replace(/\D/g, '');
+      const found = clients.find(c => 
+        c.id === targetClientId || 
+        c.dni === targetClientId || 
+        (cleanTarget.length >= 3 && c.dni.replace(/\D/g, '') === cleanTarget)
+      );
+      if (found) {
+        setSelectedClient(found);
+      }
+    }
+  }, [clients, location.state, searchParams, selectedClient]);
 
   // Auto-seleccionar la obra social cuando cambia el cliente seleccionado
   useEffect(() => {
@@ -1013,7 +1041,11 @@ export function NewOrder() {
       )}
 
       <div className="flex items-center justify-between">
-        <Link to="/orders/new" className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors group">
+        <Link 
+          to={selectedClient ? `/orders/new?clientId=${selectedClient.id || selectedClient.dni}` : "/orders/new"} 
+          state={selectedClient ? { client: selectedClient, clientId: selectedClient.id, clientName: selectedClient.name, clientDni: selectedClient.dni } : undefined}
+          className="flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors group"
+        >
           <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 group-hover:border-blue-200 dark:group-hover:border-blue-900 transition-all">
             <ArrowLeft className="w-5 h-5" />
           </div>
