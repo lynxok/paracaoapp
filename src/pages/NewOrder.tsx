@@ -1629,7 +1629,33 @@ export function NewOrder() {
                     </span>
                   </div>
                   
-                  {/* Desplegable Principal: Elegir el Cristal específico del catálogo */}
+                  {/* 1. Filtros por Modelo y Material */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Modelo / Marca</label>
+                      <select
+                        value={selBrand}
+                        onChange={e => setSelBrand(e.target.value)}
+                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
+                      >
+                        <option value="">Todos los modelos</option>
+                        {availableBrandsForSelect.map(b => <option key={b} value={b}>{b}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Material</label>
+                      <select
+                        value={selMaterial}
+                        onChange={e => setSelMaterial(e.target.value)}
+                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
+                      >
+                        <option value="">Todos los materiales</option>
+                        {availableMaterialsForSelect.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* 2. Desplegable del Cristal / Variante específica del catálogo */}
                   <div>
                     <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">
                       Opción de Cristal del Catálogo
@@ -1655,32 +1681,6 @@ export function NewOrder() {
                         <option value="">No hay cristales con este filtro</option>
                       )}
                     </select>
-                  </div>
-
-                  {/* Filtros rápidos: Modelo y Material */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Filtrar Modelo</label>
-                      <select
-                        value={selBrand}
-                        onChange={e => setSelBrand(e.target.value)}
-                        className="h-8 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
-                      >
-                        <option value="">Todos los modelos</option>
-                        {availableBrandsForSelect.map(b => <option key={b} value={b}>{b}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Filtrar Material</label>
-                      <select
-                        value={selMaterial}
-                        onChange={e => setSelMaterial(e.target.value)}
-                        className="h-8 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
-                      >
-                        <option value="">Todos los materiales</option>
-                        {availableMaterialsForSelect.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                    </div>
                   </div>
 
                   {/* Tratamientos */}
