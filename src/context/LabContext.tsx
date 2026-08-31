@@ -9,7 +9,7 @@ export interface Lab {
   contact?: string;
 }
 
-export type LabJobStatus = 'Pendiente' | 'Enviado al laboratorio' | 'En producción' | 'Demorado' | 'Recibido' | 'Entregado';
+export type LabJobStatus = 'En Taller' | 'Demorado' | 'Para Retirar' | 'Entregado';
 
 export interface LabJob {
   id: string;
@@ -104,7 +104,10 @@ export function LabProvider({ children }: { children: ReactNode }) {
             date: row.date,
             concept: row.concept,
             cost: Number(row.cost) || 0,
-            status: row.status,
+            status: (row.status === 'Recibido' || row.status === 'Para Retirar') ? 'Para Retirar'
+              : (row.status === 'Entregado' || row.status === 'Completado') ? 'Entregado'
+              : row.status === 'Demorado' ? 'Demorado'
+              : 'En Taller',
             labName: row.lab_name || row.labName,
             clientName: row.client_name || row.clientName,
             clientDni: row.client_dni || row.clientDni,
@@ -212,20 +215,10 @@ export function LabProvider({ children }: { children: ReactNode }) {
   };
 
   const updateJobStatus = async (id: string, status: LabJobStatus) => {
-    // Sincronizar estado con la orden comercial del cliente
+    // Sincronizar estado idéntico con la orden comercial del cliente
     const targetJob = jobs.find(j => j.id === id);
     if (targetJob && targetJob.orderId) {
-      let mappedOrderStatus = 'En Taller';
-      if (status === 'Recibido') {
-        mappedOrderStatus = 'Para Retirar';
-      } else if (status === 'Entregado') {
-        mappedOrderStatus = 'Entregado';
-      } else if (status === 'Demorado') {
-        mappedOrderStatus = 'Demorado';
-      } else if (status === 'Pendiente' || status === 'Enviado al laboratorio' || status === 'En producción') {
-        mappedOrderStatus = 'En Taller';
-      }
-      updateOrderStatus(targetJob.orderId, mappedOrderStatus);
+      updateOrderStatus(targetJob.orderId, status);
     }
 
     setJobs(prevJobs => {
@@ -236,7 +229,7 @@ export function LabProvider({ children }: { children: ReactNode }) {
         let notifType: 'info' | 'success' | 'warning' = 'info';
         let notifIcon = 'Truck';
         
-        if (status === 'Recibido') {
+        if (status === 'Para Retirar') {
           notifType = 'success';
           notifIcon = 'CheckCircle';
         } else if (status === 'Entregado') {
@@ -253,8 +246,8 @@ export function LabProvider({ children }: { children: ReactNode }) {
           type: notifType,
           category: "Info",
           iconName: notifIcon,
-          color: "text-blue-500",
-          bg: "bg-blue-50 dark:bg-blue-900/20"
+          color: status === 'Demorado' ? "text-red-500" : status === 'Para Retirar' ? "text-blue-500" : status === 'Entregado' ? "text-emerald-500" : "text-amber-500",
+          bg: status === 'Demorado' ? "bg-red-50 dark:bg-red-900/20" : status === 'Para Retirar' ? "bg-blue-50 dark:bg-blue-900/20" : status === 'Entregado' ? "bg-emerald-50 dark:bg-emerald-900/20" : "bg-amber-50 dark:bg-amber-900/20"
         });
       }
       

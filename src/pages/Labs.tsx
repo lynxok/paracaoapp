@@ -52,7 +52,7 @@ export function Labs() {
     clientDni: '',
     concept: '',
     cost: 0,
-    status: 'Pendiente' as any,
+    status: 'En Taller' as any,
     estimatedLabDeliveryDate: '',
     observaciones: ''
   });
@@ -288,24 +288,21 @@ export function Labs() {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredJobs.map((job) => {
-                let statusClasses = 'bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
-                let statusIcon = <Clock className="w-3 h-3" />;
+                let statusClasses = 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900';
+                let statusIcon = <Clock className="w-3 h-3 text-amber-600" />;
                 
-                if (job.status === 'Enviado al laboratorio') {
-                  statusClasses = 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-950/40 dark:text-violet-400 dark:border-violet-900';
-                  statusIcon = <FlaskConical className="w-3 h-3" />;
-                } else if (job.status === 'En producción') {
-                  statusClasses = 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900';
-                  statusIcon = <Clock className="w-3 h-3" />;
-                } else if (job.status === 'Demorado') {
+                if (job.status === 'Demorado') {
                   statusClasses = 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900';
                   statusIcon = <AlertTriangle className="w-3 h-3 text-red-500" />;
-                } else if (job.status === 'Recibido') {
+                } else if (job.status === 'Para Retirar' || job.status === 'Recibido') {
+                  statusClasses = 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900';
+                  statusIcon = <CheckCircle2 className="w-3 h-3 text-blue-500" />;
+                } else if (job.status === 'Entregado' || job.status === 'Completado') {
                   statusClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900';
-                  statusIcon = <CheckCircle2 className="w-3 h-3" />;
-                } else if (job.status === 'Entregado') {
-                  statusClasses = 'bg-slate-900 text-white border-slate-800 dark:bg-white dark:text-slate-900 dark:border-slate-100';
-                  statusIcon = <CheckCircle className="w-3 h-3" />;
+                  statusIcon = <CheckCircle className="w-3 h-3 text-emerald-500" />;
+                } else {
+                  statusClasses = 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900';
+                  statusIcon = <Clock className="w-3 h-3 text-amber-600" />;
                 }
 
                 return (
@@ -322,10 +319,6 @@ export function Labs() {
                           value={job.status}
                           onChange={(e) => {
                             const newStatus = e.target.value as any;
-                            if (newStatus === 'Enviado al laboratorio' || newStatus === 'En producción') {
-                              const ok = handleStatusChangeAttempt(job.orderId, newStatus);
-                              if (!ok) return;
-                            }
                             updateJobStatus(job.id, newStatus);
                           }}
                           className={cn(
@@ -334,12 +327,10 @@ export function Labs() {
                           )}
                           title="Hacé clic para cambiar el estado de este pedido"
                         >
-                          <option value="Pendiente" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🟡 Pendiente</option>
-                          <option value="Enviado al laboratorio" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🟣 Enviado al laboratorio</option>
-                          <option value="En producción" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🔵 En producción</option>
-                          <option value="Demorado" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🔴 Demorado (Alerta)</option>
-                          <option value="Recibido" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🟢 Recibido (Listo en Local)</option>
-                          <option value="Entregado" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">⚫ Entregado al Cliente</option>
+                          <option value="En Taller" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🟡 En Taller</option>
+                          <option value="Demorado" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🔴 Demorado</option>
+                          <option value="Para Retirar" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🔵 Para Retirar</option>
+                          <option value="Entregado" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🟢 Entregado</option>
                         </select>
                         <div className="pointer-events-none absolute right-2 flex items-center text-current opacity-70">
                           <ChevronDown className="w-3 h-3" />
@@ -611,12 +602,10 @@ export function Labs() {
                     <div className="flex flex-col gap-1">
                       <label className="font-bold text-slate-700 dark:text-slate-300">Estado Inicial</label>
                       <select className="h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full font-medium" value={newJob.status} onChange={e => setNewJob({...newJob, status: e.target.value as any})}>
-                        <option value="Pendiente">Pendiente</option>
-                        <option value="Enviado al laboratorio">Enviado al laboratorio</option>
-                        <option value="En producción">En producción</option>
-                        <option value="Demorado">Demorado</option>
-                        <option value="Recibido">Recibido</option>
-                        <option value="Entregado">Entregado</option>
+                        <option value="En Taller">🟡 En Taller</option>
+                        <option value="Demorado">🔴 Demorado</option>
+                        <option value="Para Retirar">🔵 Para Retirar</option>
+                        <option value="Entregado">🟢 Entregado</option>
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
@@ -783,21 +772,15 @@ export function Labs() {
                   value={activeJobDetails.status}
                   onChange={e => {
                     const newStatus = e.target.value as any;
-                    if (newStatus === 'Enviado al laboratorio' || newStatus === 'En producción') {
-                      const ok = handleStatusChangeAttempt(activeJobDetails.orderId, newStatus);
-                      if (!ok) return;
-                    }
                     updateJobStatus(activeJobDetails.id, newStatus);
                     setActiveJobDetails({ ...activeJobDetails, status: newStatus });
                   }}
                   className="h-10 px-3 rounded-lg border border-slate-250 bg-white dark:bg-slate-950 dark:border-slate-800 text-slate-900 dark:text-white font-bold text-xs outline-none"
                 >
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Enviado al laboratorio">Enviado al laboratorio</option>
-                  <option value="En producción">En producción</option>
-                  <option value="Demorado">Demorado (Alerta en Taller)</option>
-                  <option value="Recibido">Recibido (Listo en Local)</option>
-                  <option value="Entregado">Entregado al Cliente</option>
+                  <option value="En Taller">🟡 En Taller</option>
+                  <option value="Demorado">🔴 Demorado</option>
+                  <option value="Para Retirar">🔵 Para Retirar</option>
+                  <option value="Entregado">🟢 Entregado</option>
                 </select>
               </div>
             </div>
