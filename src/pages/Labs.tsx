@@ -10,7 +10,7 @@ export function Labs() {
   const { lensTypes, materials, indices, brands, designs, colors, treatments } = useSettings();
   const { orders } = useClients();
   
-  const [selectedLabId, setSelectedLabId] = useState(labs[0]?.id || "");
+  const [selectedLabId, setSelectedLabId] = useState("all");
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [activeJobDetails, setActiveJobDetails] = useState<LabJob | null>(null);
 
@@ -33,8 +33,8 @@ export function Labs() {
     return true;
   };
 
-  const filteredJobs = jobs.filter(j => j.labId === selectedLabId && j.date.startsWith(period));
-  const filteredPayments = payments.filter(p => p.labId === selectedLabId && p.date.startsWith(period));
+  const filteredJobs = jobs.filter(j => (selectedLabId === 'all' || !selectedLabId || j.labId === selectedLabId) && (!period || j.date.startsWith(period)));
+  const filteredPayments = payments.filter(p => (selectedLabId === 'all' || !selectedLabId || p.labId === selectedLabId) && (!period || p.date.startsWith(period)));
 
   const totalJobs = filteredJobs.length;
   const subtotal = filteredJobs.reduce((sum, j) => sum + j.cost, 0);
@@ -127,7 +127,8 @@ export function Labs() {
 
   const handleAddJob = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedLabId) return;
+    const targetLabId = (selectedLabId === 'all' || !selectedLabId) ? (labs[0]?.id || 'lab-general') : selectedLabId;
+    const labObj = labs.find(l => l.id === targetLabId);
 
     const trimmedOrderId = newJob.orderId.trim();
     if (jobs.some(j => j.orderId.trim().toLowerCase() === trimmedOrderId.toLowerCase())) {
@@ -135,19 +136,12 @@ export function Labs() {
       return;
     }
 
-    if (newJob.status === 'Enviado al laboratorio' || newJob.status === 'En producción') {
-      const ok = handleStatusChangeAttempt(trimmedOrderId, newJob.status);
-      if (!ok) return;
-    }
-
-    const labObj = labs.find(l => l.id === selectedLabId);
-
     if (modalMode === 'crystal') {
       const autoConcept = newJob.concept.trim() || `${crystalForm.lensType} ${crystalForm.material} ${crystalForm.index} - ${crystalForm.brand}`;
       
       addJob({
-        labId: selectedLabId,
-        labName: labObj?.name,
+        labId: targetLabId,
+        labName: labObj?.name || 'Laboratorio',
         date: newJob.date,
         orderId: trimmedOrderId,
         concept: autoConcept,
@@ -185,8 +179,8 @@ export function Labs() {
       });
     } else {
       addJob({
-        labId: selectedLabId,
-        labName: labObj?.name,
+        labId: targetLabId,
+        labName: labObj?.name || 'Laboratorio',
         date: newJob.date,
         orderId: trimmedOrderId,
         concept: newJob.concept || 'Trabajo de Servicio / Reparación',
@@ -212,10 +206,11 @@ export function Labs() {
             <FlaskConical className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Laboratorio
           </label>
           <select 
-            className="w-full h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white"
+            className="w-full h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-bold"
             value={selectedLabId}
             onChange={(e) => setSelectedLabId(e.target.value)}
           >
+            <option value="all">Todos los Laboratorios</option>
             {labs.map(lab => (
               <option key={lab.id} value={lab.id}>{lab.name}</option>
             ))}
@@ -311,7 +306,15 @@ export function Labs() {
                       {new Date(job.date + 'T00:00:00').toLocaleDateString('es-ES')}
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">{job.orderId}</td>
-                    <td className="px-6 py-4 text-slate-700 dark:text-slate-300">{job.concept}</td>
+                    <td className="px-6 py-4 text-slate-700 dark:text-slate-300">
+                      <div className="font-medium text-slate-900 dark:text-white">{job.concept}</div>
+                      {selectedLabId === 'all' && (
+                        <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded w-fit">
+                          <FlaskConical className="w-3 h-3" />
+                          <span>{job.labName || 'Laboratorio'}</span>
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-right font-bold text-slate-900 dark:text-white">${job.cost.toLocaleString('es-AR')}</td>
                     <td className="px-6 py-4 text-center">
                       <div className="relative inline-flex items-center group">
