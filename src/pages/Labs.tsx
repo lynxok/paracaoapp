@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench, AlertTriangle } from "lucide-react";
+import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench, AlertTriangle, ChevronDown } from "lucide-react";
 import { useLabs, LabJob } from "../context/LabContext";
 import { useSettings } from "../context/SettingsContext";
 import { useClients } from "../context/ClientContext";
@@ -317,10 +317,34 @@ export function Labs() {
                     <td className="px-6 py-4 text-slate-700 dark:text-slate-300">{job.concept}</td>
                     <td className="px-6 py-4 text-right font-bold text-slate-900 dark:text-white">${job.cost.toLocaleString('es-AR')}</td>
                     <td className="px-6 py-4 text-center">
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${statusClasses}`}>
-                        {statusIcon} 
-                        {job.status}
-                      </span>
+                      <div className="relative inline-flex items-center group">
+                        <select
+                          value={job.status}
+                          onChange={(e) => {
+                            const newStatus = e.target.value as any;
+                            if (newStatus === 'Enviado al laboratorio' || newStatus === 'En producción') {
+                              const ok = handleStatusChangeAttempt(job.orderId, newStatus);
+                              if (!ok) return;
+                            }
+                            updateJobStatus(job.id, newStatus);
+                          }}
+                          className={cn(
+                            "appearance-none cursor-pointer inline-flex items-center gap-1.5 pl-3 pr-6 py-1 rounded-full text-xs font-bold border transition-all shadow-sm outline-none hover:opacity-90 hover:scale-[1.02] focus:ring-2 focus:ring-blue-500/50",
+                            statusClasses
+                          )}
+                          title="Hacé clic para cambiar el estado de este pedido"
+                        >
+                          <option value="Pendiente" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🟡 Pendiente</option>
+                          <option value="Enviado al laboratorio" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🟣 Enviado al laboratorio</option>
+                          <option value="En producción" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🔵 En producción</option>
+                          <option value="Demorado" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🔴 Demorado (Alerta)</option>
+                          <option value="Recibido" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">🟢 Recibido (Listo en Local)</option>
+                          <option value="Entregado" className="bg-white text-slate-900 dark:bg-slate-900 dark:text-white font-bold">⚫ Entregado al Cliente</option>
+                        </select>
+                        <div className="pointer-events-none absolute right-2 flex items-center text-current opacity-70">
+                          <ChevronDown className="w-3 h-3" />
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <input
