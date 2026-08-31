@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { UserPlus, Eye, PackagePlus, Calculator, AlertTriangle, CheckCircle2, ShoppingCart, Cake, Gift, Bell, Clock, Smartphone, X, Search, Filter, History, ArrowUpRight, Check, Package, FileText } from "lucide-react";
+import { UserPlus, Eye, PackagePlus, Calculator, AlertTriangle, CheckCircle2, ShoppingCart, Cake, Gift, Bell, Clock, Smartphone, X, Search, Filter, History, ArrowUpRight, Check, Package, FileText, FlaskConical } from "lucide-react";
 import { useClients } from "../context/ClientContext";
 import { useFinance } from "../context/FinanceContext";
 import { useNotifications } from "../context/NotificationsContext";
@@ -14,14 +14,27 @@ export function Dashboard() {
   const [isAllOrdersModalOpen, setIsAllOrdersModalOpen] = useState(false);
   const [ordersSearchQuery, setOrdersSearchQuery] = useState("");
   const [ordersStatusFilter, setOrdersStatusFilter] = useState("all");
+  const [ordersCategoryTab, setOrdersCategoryTab] = useState<'all' | 'recetados' | 'productos'>('all');
 
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentDay = today.getDate();
   const todayStr = today.toISOString().split('T')[0];
 
+  const prescriptionOrders = useMemo(() => orders.filter(o => o.type !== 'producto'), [orders]);
+  const productOrders = useMemo(() => orders.filter(o => o.type === 'producto'), [orders]);
+
+  const recentPrescriptionOrders = useMemo(() => prescriptionOrders.slice(0, 5), [prescriptionOrders]);
+  const recentProductOrders = useMemo(() => productOrders.slice(0, 5), [productOrders]);
+
+  const currentCategoryOrders = useMemo(() => {
+    if (ordersCategoryTab === 'recetados') return prescriptionOrders;
+    if (ordersCategoryTab === 'productos') return productOrders;
+    return orders;
+  }, [orders, ordersCategoryTab, prescriptionOrders, productOrders]);
+
   const filteredAllOrders = useMemo(() => {
-    return orders.filter(order => {
+    return currentCategoryOrders.filter(order => {
       const q = ordersSearchQuery.toLowerCase().trim();
       const matchesSearch = 
         !q ||
@@ -38,7 +51,7 @@ export function Dashboard() {
       if (ordersStatusFilter === "demorado") return order.status === "Demorado" || order.status === "Cancelado";
       return true;
     });
-  }, [orders, ordersSearchQuery, ordersStatusFilter]);
+  }, [currentCategoryOrders, ordersSearchQuery, ordersStatusFilter]);
 
   const chequesAlerts = useMemo(() => {
     const todayVal = new Date();
@@ -218,67 +231,162 @@ export function Dashboard() {
       </section>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 flex flex-col gap-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Actividad Reciente</h2>
-            <button 
-              onClick={() => setIsAllOrdersModalOpen(true)}
-              className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-all flex items-center gap-1 cursor-pointer"
-            >
-              Ver todo ({orders.length})
-            </button>
-          </div>
-          <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-500 dark:text-slate-400">
-                <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase text-slate-700 dark:text-slate-300">
-                  <tr>
-                    <th className="px-6 py-3 font-semibold">ID Pedido</th>
-                    <th className="px-6 py-3 font-semibold">Cliente</th>
-                    <th className="px-6 py-3 font-semibold">Servicio</th>
-                    <th className="px-6 py-3 font-semibold">Estado</th>
-                    <th className="px-6 py-3 font-semibold text-right">Monto</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {recentOrders.map((row) => {
-                    let badgeClass = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700";
-                    if (row.status === "Completado" || row.status === "Entregado") {
-                      badgeClass = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800";
-                    } else if (row.status === "En Taller") {
-                      badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800";
-                    } else if (row.status === "Demorado") {
-                      badgeClass = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800 font-bold";
-                    } else if (row.status === "Para Retirar" || row.status === "Recibido") {
-                      badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800";
-                    }
-                    
-                    return (
-                    <tr 
-                      key={row.id} 
-                      onClick={() => setIsAllOrdersModalOpen(true)}
-                      className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                      title="Clic para ver historial completo"
-                    >
-                      <td className="px-6 py-4 font-mono font-bold text-slate-900 dark:text-white">{row.id}</td>
-                      <td className="px-6 py-4">{row.clientName}</td>
-                      <td className="px-6 py-4">{row.service}</td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${badgeClass}`}>
-                          {row.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right font-medium text-slate-900 dark:text-white">${row.amount.toLocaleString('es-AR')}</td>
-                    </tr>
-                    );
-                  })}
-                  {recentOrders.length === 0 && (
+        <div className="lg:col-span-2 flex flex-col gap-6">
+          {/* 1. Trabajos de Laboratorio / Recetados */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                  <FlaskConical className="w-4 h-4" />
+                </div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Trabajos de Laboratorio (Recetados)</h2>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                  {prescriptionOrders.length}
+                </span>
+              </div>
+              <button 
+                onClick={() => {
+                  setOrdersCategoryTab('recetados');
+                  setOrdersStatusFilter('all');
+                  setIsAllOrdersModalOpen(true);
+                }}
+                className="text-xs font-bold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-all flex items-center gap-1 cursor-pointer"
+              >
+                Ver todos ({prescriptionOrders.length})
+              </button>
+            </div>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-500 dark:text-slate-400">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase text-slate-700 dark:text-slate-300">
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No hay pedidos recientes.</td>
+                      <th className="px-5 py-3 font-semibold">ID Pedido</th>
+                      <th className="px-5 py-3 font-semibold">Cliente</th>
+                      <th className="px-5 py-3 font-semibold">Lente / Servicio</th>
+                      <th className="px-5 py-3 font-semibold">Estado Taller</th>
+                      <th className="px-5 py-3 font-semibold text-right">Monto</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {recentPrescriptionOrders.map((row) => {
+                      let badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800";
+                      if (row.status === "Completado" || row.status === "Entregado") {
+                        badgeClass = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800";
+                      } else if (row.status === "Demorado") {
+                        badgeClass = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800 font-bold";
+                      } else if (row.status === "Para Retirar" || row.status === "Recibido") {
+                        badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800";
+                      }
+                      
+                      return (
+                      <tr 
+                        key={row.id} 
+                        onClick={() => {
+                          setOrdersCategoryTab('recetados');
+                          setIsAllOrdersModalOpen(true);
+                        }}
+                        className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                        title="Clic para ver historial completo de recetados"
+                      >
+                        <td className="px-5 py-3 font-mono font-bold text-slate-900 dark:text-white">{row.id}</td>
+                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-200">{row.clientName}</td>
+                        <td className="px-5 py-3">{row.service}</td>
+                        <td className="px-5 py-3">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${badgeClass}`}>
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right font-medium text-slate-900 dark:text-white">${row.amount.toLocaleString('es-AR')}</td>
+                      </tr>
+                      );
+                    })}
+                    {recentPrescriptionOrders.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-6 text-center text-slate-500 text-xs">No hay trabajos de laboratorio recientes.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          {/* 2. Ventas de Mostrador / No Recetados */}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
+                  <ShoppingCart className="w-4 h-4" />
+                </div>
+                <h2 className="text-base font-bold text-slate-900 dark:text-white">Ventas de Mostrador (No Recetados)</h2>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
+                  {productOrders.length}
+                </span>
+              </div>
+              <button 
+                onClick={() => {
+                  setOrdersCategoryTab('productos');
+                  setOrdersStatusFilter('all');
+                  setIsAllOrdersModalOpen(true);
+                }}
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 hover:underline transition-all flex items-center gap-1 cursor-pointer"
+              >
+                Ver todas ({productOrders.length})
+              </button>
+            </div>
+            <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-slate-500 dark:text-slate-400">
+                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase text-slate-700 dark:text-slate-300">
+                    <tr>
+                      <th className="px-5 py-3 font-semibold">ID Venta</th>
+                      <th className="px-5 py-3 font-semibold">Cliente</th>
+                      <th className="px-5 py-3 font-semibold">Producto / Detalle</th>
+                      <th className="px-5 py-3 font-semibold">Estado</th>
+                      <th className="px-5 py-3 font-semibold text-right">Monto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {recentProductOrders.map((row) => {
+                      let badgeClass = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700";
+                      if (row.status === "Completado" || row.status === "Entregado") {
+                        badgeClass = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800";
+                      } else if (row.status === "Demorado" || row.status === "Cancelado") {
+                        badgeClass = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800 font-bold";
+                      } else if (row.status === "Para Retirar" || row.status === "Recibido" || row.status === "Pendiente Entrega") {
+                        badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800";
+                      }
+                      
+                      return (
+                      <tr 
+                        key={row.id} 
+                        onClick={() => {
+                          setOrdersCategoryTab('productos');
+                          setIsAllOrdersModalOpen(true);
+                        }}
+                        className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                        title="Clic para ver historial completo de ventas no recetadas"
+                      >
+                        <td className="px-5 py-3 font-mono font-bold text-slate-900 dark:text-white">{row.id}</td>
+                        <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-200">{row.clientName}</td>
+                        <td className="px-5 py-3">{row.service}</td>
+                        <td className="px-5 py-3">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${badgeClass}`}>
+                            {row.status}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-right font-medium text-slate-900 dark:text-white">${row.amount.toLocaleString('es-AR')}</td>
+                      </tr>
+                      );
+                    })}
+                    {recentProductOrders.length === 0 && (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-6 text-center text-slate-500 text-xs">No hay ventas de mostrador recientes.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -457,23 +565,71 @@ export function Dashboard() {
               </button>
             </div>
 
+            {/* Category Switcher Tabs */}
+            <div className="px-6 pt-4 pb-2 flex flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+              <button
+                onClick={() => {
+                  setOrdersCategoryTab('all');
+                  setOrdersStatusFilter('all');
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  ordersCategoryTab === 'all'
+                    ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700'
+                }`}
+              >
+                <span>Todos los Pedidos</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-black/10 dark:bg-black/20 rounded-full">{orders.length}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setOrdersCategoryTab('recetados');
+                  setOrdersStatusFilter('all');
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  ordersCategoryTab === 'recetados'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40 border border-blue-200 dark:border-blue-900'
+                }`}
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+                <span>Trabajos de Laboratorio (Recetados)</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-blue-500/20 text-blue-700 dark:text-blue-200 rounded-full">{prescriptionOrders.length}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setOrdersCategoryTab('productos');
+                  setOrdersStatusFilter('all');
+                }}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  ordersCategoryTab === 'productos'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900'
+                }`}
+              >
+                <ShoppingCart className="w-3.5 h-3.5" />
+                <span>Ventas de Mostrador (No Recetados)</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-indigo-500/20 text-indigo-700 dark:text-indigo-200 rounded-full">{productOrders.length}</span>
+              </button>
+            </div>
+
             {/* Quick Metrics Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800 text-xs">
               <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800">
-                <span className="text-slate-500 block font-medium">Total Pedidos</span>
-                <span className="text-lg font-black text-slate-900 dark:text-white">{orders.length}</span>
+                <span className="text-slate-500 block font-medium">Total Filtrado</span>
+                <span className="text-lg font-black text-slate-900 dark:text-white">{currentCategoryOrders.length}</span>
               </div>
               <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-200/80 dark:border-amber-900/40">
                 <span className="text-amber-600 dark:text-amber-400 block font-medium">En Taller</span>
-                <span className="text-lg font-black text-amber-700 dark:text-amber-300">{orders.filter(o => o.status === 'En Taller').length}</span>
+                <span className="text-lg font-black text-amber-700 dark:text-amber-300">{currentCategoryOrders.filter(o => o.status === 'En Taller').length}</span>
               </div>
               <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-blue-200/80 dark:border-blue-900/40">
                 <span className="text-blue-600 dark:text-blue-400 block font-medium">Listos para Retirar</span>
-                <span className="text-lg font-black text-blue-700 dark:text-blue-300">{orders.filter(o => o.status === 'Para Retirar' || o.status === 'Recibido').length}</span>
+                <span className="text-lg font-black text-blue-700 dark:text-blue-300">{currentCategoryOrders.filter(o => o.status === 'Para Retirar' || o.status === 'Recibido').length}</span>
               </div>
               <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-emerald-200/80 dark:border-emerald-900/40">
                 <span className="text-emerald-600 dark:text-emerald-400 block font-medium">Entregados</span>
-                <span className="text-lg font-black text-emerald-700 dark:text-emerald-300">{orders.filter(o => o.status === 'Entregado' || o.status === 'Completado').length}</span>
+                <span className="text-lg font-black text-emerald-700 dark:text-emerald-300">{currentCategoryOrders.filter(o => o.status === 'Entregado' || o.status === 'Completado').length}</span>
               </div>
             </div>
 
@@ -498,11 +654,11 @@ export function Dashboard() {
               {/* Status Filter Pills */}
               <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
                 {[
-                  { id: 'all', label: 'Todos', count: orders.length },
-                  { id: 'taller', label: 'En Taller', count: orders.filter(o => o.status === 'En Taller').length },
-                  { id: 'retirar', label: 'Para Retirar', count: orders.filter(o => o.status === 'Para Retirar' || o.status === 'Recibido').length },
-                  { id: 'entregado', label: 'Entregados', count: orders.filter(o => o.status === 'Entregado' || o.status === 'Completado').length },
-                  { id: 'demorado', label: 'Demorados', count: orders.filter(o => o.status === 'Demorado' || o.status === 'Cancelado').length },
+                  { id: 'all', label: 'Todos', count: currentCategoryOrders.length },
+                  { id: 'taller', label: 'En Taller', count: currentCategoryOrders.filter(o => o.status === 'En Taller').length },
+                  { id: 'retirar', label: 'Para Retirar', count: currentCategoryOrders.filter(o => o.status === 'Para Retirar' || o.status === 'Recibido').length },
+                  { id: 'entregado', label: 'Entregados', count: currentCategoryOrders.filter(o => o.status === 'Entregado' || o.status === 'Completado').length },
+                  { id: 'demorado', label: 'Demorados', count: currentCategoryOrders.filter(o => o.status === 'Demorado' || o.status === 'Cancelado').length },
                 ].map(tab => (
                   <button
                     key={tab.id}
