@@ -9,6 +9,7 @@ import { Client } from "../types";
 
 export function Clients() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { clients, addClient, updateClient, deleteClient, getClientOrders, getClientTransactions, payOrderBalance } = useClients();
   const { insurances } = useSettings();
   const { boxes, addTransaction, voidTransaction, transactions } = useFinance();
@@ -37,6 +38,38 @@ export function Clients() {
   const [menuPosition, setMenuPosition] = useState<{ x: number, y: number } | null>(null);
   const [contextItem, setContextItem] = useState<Client | null>(null);
   const [formData, setFormData] = useState<Partial<Client>>({});
+
+  // Auto-select client and open modal when navigating with state or search params
+  useEffect(() => {
+    const state = location.state as { clientId?: string; clientName?: string; openModal?: 'orders' | 'profile' | 'cc' } | null;
+    const searchParams = new URLSearchParams(location.search);
+    const targetClientId = state?.clientId || searchParams.get('clientId');
+    const targetClientName = state?.clientName || searchParams.get('clientName');
+    const targetModal = state?.openModal || searchParams.get('modal') || 'orders';
+
+    if ((targetClientId || targetClientName) && clients.length > 0) {
+      const found = clients.find(c => 
+        (targetClientId && String(c.id) === String(targetClientId)) ||
+        (targetClientName && c.name.toLowerCase().trim() === targetClientName.toLowerCase().trim())
+      );
+
+      if (found) {
+        setContextItem(found);
+        setFormData(found);
+        setSearchTerm(found.name);
+
+        if (targetModal === 'orders') {
+          setIsOrdersModalOpen(true);
+        } else if (targetModal === 'profile' || targetModal === 'edit') {
+          setIsModalOpen(true);
+        } else if (targetModal === 'cc') {
+          setIsCCModalOpen(true);
+        } else {
+          setIsOrdersModalOpen(true);
+        }
+      }
+    }
+  }, [location, clients]);
 
   const userRole = "superadmin"; // Simulated role
 

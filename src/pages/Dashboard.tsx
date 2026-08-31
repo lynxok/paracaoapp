@@ -594,10 +594,16 @@ export function Dashboard() {
                               <button
                                 onClick={() => {
                                   setIsAllOrdersModalOpen(false);
-                                  navigate('/clients');
+                                  navigate('/clients', {
+                                    state: {
+                                      clientId: order.clientId,
+                                      clientName: order.clientName,
+                                      openModal: 'orders'
+                                    }
+                                  });
                                 }}
                                 className="px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
-                                title="Ir a clientes"
+                                title={`Abrir ficha e historial de ${order.clientName}`}
                               >
                                 <span>Ver Cliente</span>
                                 <ArrowUpRight className="w-3.5 h-3.5" />
