@@ -69,6 +69,144 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
   const [senaAmount, setSenaAmount] = useState<number>(0);
   const [previstoBoxId, setPrevistoBoxId] = useState<string>('');
 
+  const handlePrintReceipt = (receipt: any) => {
+    if (!receipt) return;
+    const win = window.open('', '_blank', 'width=450,height=700');
+    if (!win) {
+      window.print();
+      return;
+    }
+
+    const itemsRows = receipt.items.map((item: any) => `
+      <div style="margin-bottom: 6px;">
+        <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:11px;">
+          <span>${item.quantity}x ${item.name}</span>
+          <span>$${(item.price * item.quantity).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+        </div>
+        <div style="font-size:10px; color:#555; display:flex; justify-content:space-between;">
+          <span>P. Unit: $${item.price.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+          ${item.type === 'prescription' ? '<span style="font-style:italic;">(Recetado)</span>' : ''}
+        </div>
+      </div>
+    `).join('');
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Comprobante de Venta - ${receipt.id}</title>
+        <style>
+          @page { size: auto; margin: 6mm; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Courier New', Courier, monospace; font-size: 12px; color: #000; background: #fff; padding: 12px; }
+          .receipt { border: 2px dashed #000; padding: 16px; max-width: 360px; margin: 0 auto; }
+          .text-center { text-align: center; }
+          .title { font-size: 16px; font-weight: bold; margin-bottom: 2px; }
+          .subtitle { font-size: 10px; color: #444; margin-bottom: 2px; }
+          .divider { border-bottom: 1px dashed #000; margin: 8px 0; }
+          .double-divider { border-bottom: 2px dashed #000; margin: 10px 0; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 3px; font-size: 11px; }
+          .bold { font-weight: bold; }
+          .highlight-card { background: #f0f0f0; border: 1px solid #ccc; padding: 8px; border-radius: 4px; margin-top: 8px; }
+          .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; margin: 6px 0; }
+          .no-print { text-align: center; margin-top: 18px; }
+          .btn { padding: 8px 18px; font-weight: bold; cursor: pointer; border: none; border-radius: 4px; margin: 0 4px; font-size: 12px; }
+          .btn-primary { background: #000; color: #fff; }
+          .btn-secondary { background: #eee; color: #333; }
+          @media print {
+            .no-print { display: none !important; }
+            body { padding: 0; }
+            .receipt { border: none; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt">
+          <div class="text-center">
+            <h2 class="title">ÓPTICA PARACAO</h2>
+            <p class="subtitle">Paraná, Entre Ríos</p>
+            <p class="subtitle">Comprobante de Venta / Resumen</p>
+            <div class="divider"></div>
+            <p class="bold" style="font-size: 11px;">COMPROBANTE #${receipt.id}</p>
+            <p style="font-size: 10px;">${receipt.date} - ${receipt.time}</p>
+          </div>
+
+          <div style="margin-top: 8px;">
+            <div class="row">
+              <span class="bold">Cliente:</span>
+              <span>${receipt.clientName}</span>
+            </div>
+            ${receipt.clientDni ? `
+            <div class="row">
+              <span class="bold">DNI:</span>
+              <span>${receipt.clientDni}</span>
+            </div>` : ''}
+            <div class="row">
+              <span class="bold">Medio de Pago:</span>
+              <span>${receipt.paymentMethod}</span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <p class="bold" style="font-size: 10px; margin-bottom: 6px; text-transform: uppercase;">Detalle de Artículos / Servicios:</p>
+          
+          ${itemsRows}
+
+          <div class="divider"></div>
+
+          <div class="row">
+            <span>Subtotal:</span>
+            <span>$${receipt.subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          ${receipt.discountPercent > 0 ? `
+          <div class="row" style="font-weight: bold;">
+            <span>Descuento (${receipt.discountPercent}%):</span>
+            <span>-$${receipt.discountAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+          </div>` : ''}
+
+          <div class="double-divider"></div>
+
+          <div class="total-row">
+            <span>TOTAL VENTA:</span>
+            <span>$${receipt.total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+          </div>
+
+          ${receipt.isPartial ? `
+          <div class="highlight-card">
+            <div class="row bold">
+              <span>SEÑA / ABONO HOY:</span>
+              <span>$${receipt.paidAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+            </div>
+            <div class="row bold" style="font-size: 12px; margin-top: 4px; border-top: 1px dashed #999; padding-top: 4px;">
+              <span>SALDO PENDIENTE:</span>
+              <span>$${receipt.remainingBalance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+            </div>
+          </div>
+          ` : `
+          <div class="highlight-card" style="text-align: center; font-size: 10px; font-weight: bold;">
+            TOTALMENTE ABONADO ($${receipt.paidAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })})
+          </div>
+          `}
+
+          <div class="text-center" style="margin-top: 18px; font-size: 9px; color: #555;">
+            <p>*** Conserve este comprobante ***</p>
+            <p style="margin-top: 2px;">¡Gracias por su compra y confianza!</p>
+          </div>
+        </div>
+
+        <div class="no-print">
+          <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
+          <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+  };
+
   const handleCheckoutClick = () => {
     if (isProcessing) return;
 
@@ -82,10 +220,13 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
     setIsProcessing(true);
     try {
       const res = isPartial 
-        ? checkout(senaAmount, paymentMethodId, previstoBoxId)
-        : checkout();
+        ? checkout(senaAmount, paymentMethodId, previstoBoxId, discountPercent)
+        : checkout(undefined, undefined, undefined, discountPercent);
       if (res.receipt) {
         setCompletedReceipt(res.receipt);
+        setDiscountPercent(0);
+        setIsPartial(false);
+        setSenaAmount(0);
       } else {
         alert(res.message);
       }
@@ -644,70 +785,136 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
         </div>
       )}
 
-      {/* Ticket Receipt Modal */}
+      {/* Ticket Receipt Modal / Prompt Impresión */}
       {completedReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
-            <div className="p-4 bg-emerald-500 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Check className="w-6 h-6 bg-white/20 p-1 rounded-full" />
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-150">
+            
+            {/* Header del Modal */}
+            <div className="p-4 bg-emerald-600 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+                  <Check className="w-5 h-5" />
+                </div>
                 <div>
-                  <h3 className="font-bold text-sm">Venta Exitosa</h3>
-                  <p className="text-[10px] opacity-90">Comprobante #{completedReceipt.id}</p>
+                  <h3 className="font-black text-sm">¡Venta Registrada con Éxito!</h3>
+                  <p className="text-[11px] text-emerald-100 font-medium">¿Desea imprimir el comprobante para el cliente?</p>
                 </div>
               </div>
               <button 
                 onClick={() => setCompletedReceipt(null)}
-                className="p-1 hover:bg-white/20 rounded-lg transition-colors"
+                className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4 font-mono text-xs text-slate-700 dark:text-slate-300">
-              <div className="text-center border-b border-slate-200 dark:border-slate-800 pb-3">
-                <p className="font-black text-sm text-slate-900 dark:text-white">ÓPTICA PARACAO</p>
-                <p className="text-[10px] text-slate-400">Comprobante X - Venta Mostrador</p>
-                <p className="text-[10px] text-slate-400 mt-1">{completedReceipt.date} - {completedReceipt.time}</p>
+            {/* Vista Previa del Ticket / Resumen */}
+            <div className="p-5 space-y-3 font-mono text-xs text-slate-700 dark:text-slate-300 max-h-[60vh] overflow-y-auto custom-scrollbar">
+              
+              {/* Encabezado Comercio */}
+              <div className="text-center border-b border-dashed border-slate-200 dark:border-slate-800 pb-2.5">
+                <p className="font-black text-sm text-slate-900 dark:text-white tracking-wide">ÓPTICA PARACAO</p>
+                <p className="text-[10px] text-slate-400">Comprobante de Venta / Resumen</p>
+                <div className="flex items-center justify-center gap-2 mt-1 text-[10px] text-slate-500">
+                  <span className="font-bold">#{completedReceipt.id}</span>
+                  <span>•</span>
+                  <span>{completedReceipt.date} {completedReceipt.time}</span>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <p className="font-bold text-slate-500 text-[10px]">CLIENTE:</p>
-                <p className="font-bold text-slate-900 dark:text-white">{completedReceipt.clientName}</p>
-                <p className="font-bold text-slate-500 text-[10px] mt-2">MÉTODO DE PAGO:</p>
-                <p className="font-bold text-slate-900 dark:text-white">{completedReceipt.paymentMethod}</p>
+              {/* Datos Cliente & Pago */}
+              <div className="bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg space-y-1 text-[11px] border border-slate-100 dark:border-slate-800">
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-sans font-medium">Cliente:</span>
+                  <span className="font-bold text-slate-900 dark:text-white">{completedReceipt.clientName}</span>
+                </div>
+                {completedReceipt.clientDni && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-sans font-medium">DNI:</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300">{completedReceipt.clientDni}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-sans font-medium">Medio de Pago:</span>
+                  <span className="font-bold text-blue-600 dark:text-blue-400">{completedReceipt.paymentMethod}</span>
+                </div>
               </div>
 
-              <div className="border-t border-b border-slate-200 dark:border-slate-800 py-3 space-y-2">
-                <p className="font-bold text-slate-500 text-[10px]">DETALLE DE ITEMS:</p>
+              {/* Lista de Items */}
+              <div className="border-t border-b border-dashed border-slate-200 dark:border-slate-800 py-2.5 space-y-2">
+                <p className="font-bold text-slate-400 text-[10px] uppercase font-sans tracking-wider">Artículos / Servicios:</p>
                 {completedReceipt.items.map((item: any, idx: number) => (
-                  <div key={idx} className="flex justify-between text-[11px]">
-                    <span>{item.quantity}x {item.name}</span>
-                    <span className="font-bold">${(item.price * item.quantity).toLocaleString('es-AR')}</span>
+                  <div key={idx} className="flex justify-between items-start text-[11px] gap-2">
+                    <div className="flex-1">
+                      <span className="font-bold text-slate-800 dark:text-slate-200">{item.quantity}x {item.name}</span>
+                      <div className="text-[10px] text-slate-400">
+                        ${item.price.toLocaleString('es-AR', { minimumFractionDigits: 2 })} c/u
+                      </div>
+                    </div>
+                    <span className="font-black text-slate-900 dark:text-white whitespace-nowrap">
+                      ${(item.price * item.quantity).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                    </span>
                   </div>
                 ))}
               </div>
 
-              <div className="flex justify-between items-center text-sm font-black text-slate-900 dark:text-white pt-1">
-                <span>TOTAL:</span>
-                <span className="text-emerald-600 dark:text-emerald-400 text-base">${completedReceipt.total.toLocaleString('es-AR')}</span>
+              {/* Desglose Financiero */}
+              <div className="space-y-1.5 pt-1 text-[11px]">
+                <div className="flex justify-between text-slate-500 dark:text-slate-400">
+                  <span>Subtotal:</span>
+                  <span className="font-bold">${completedReceipt.subtotal.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                {completedReceipt.discountPercent > 0 && (
+                  <div className="flex justify-between text-emerald-600 dark:text-emerald-400 font-bold">
+                    <span>Descuento ({completedReceipt.discountPercent}%):</span>
+                    <span>-${completedReceipt.discountAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
+
+                <div className="flex justify-between items-center text-sm font-black text-slate-900 dark:text-white border-t border-slate-200 dark:border-slate-800 pt-2">
+                  <span>TOTAL VENTA:</span>
+                  <span className="text-blue-600 dark:text-blue-400 text-base font-black">
+                    ${completedReceipt.total.toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
+
+              {/* Bloque de Seña / Saldo Restante */}
+              {completedReceipt.isPartial ? (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/50 rounded-xl space-y-1 text-xs">
+                  <div className="flex justify-between text-amber-800 dark:text-amber-300 font-bold">
+                    <span>Seña Dejada (Abonado):</span>
+                    <span className="font-black">${completedReceipt.paidAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="flex justify-between text-red-600 dark:text-red-400 font-black pt-1 border-t border-amber-200 dark:border-amber-800/40">
+                    <span>Saldo Restante Pendiente:</span>
+                    <span className="text-sm font-black">${completedReceipt.remainingBalance.toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-center text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                  ✓ Totalmente Abonado (${completedReceipt.paidAmount.toLocaleString('es-AR', { minimumFractionDigits: 2 })})
+                </div>
+              )}
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+            {/* Botones de Acción */}
+            <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-2">
               <button
-                onClick={() => {
-                  window.print();
-                }}
-                className="flex-1 bg-slate-800 hover:bg-slate-900 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
+                onClick={() => handlePrintReceipt(completedReceipt)}
+                className="flex-1 bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all active:scale-[0.98]"
               >
-                <Printer className="w-4 h-4" /> Imprimir Comprobante
+                <Printer className="w-4 h-4 text-emerald-400" />
+                <span>🖨️ Imprimir Comprobante</span>
               </button>
               <button
                 onClick={() => setCompletedReceipt(null)}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-blue-500/20 transition-all active:scale-[0.98]"
               >
-                Aceptar / Nueva Venta
+                <Check className="w-4 h-4" />
+                <span>Finalizar sin Imprimir</span>
               </button>
             </div>
           </div>

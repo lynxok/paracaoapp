@@ -3871,15 +3871,15 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       <div className="grid grid-cols-3 gap-3">
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF Mínimo (ej: -12.00)</label>
-                          <input type="number" step="0.25" value={crystalItemForm.sphMin} onChange={e => setCrystalItemForm({...crystalItemForm, sphMin: parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                          <input type="number" step="0.25" value={crystalItemForm.sphMin ?? ''} onChange={e => setCrystalItemForm({...crystalItemForm, sphMin: e.target.value === '' ? '' : parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF Máximo (ej: 6.00)</label>
-                          <input type="number" step="0.25" value={crystalItemForm.sphMax} onChange={e => setCrystalItemForm({...crystalItemForm, sphMax: parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                          <input type="number" step="0.25" value={crystalItemForm.sphMax ?? ''} onChange={e => setCrystalItemForm({...crystalItemForm, sphMax: e.target.value === '' ? '' : parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CIL Máximo (Abs) (ej: 4.00)</label>
-                          <input type="number" step="0.25" min="0" value={crystalItemForm.cylMax} onChange={e => setCrystalItemForm({...crystalItemForm, cylMax: parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CIL Máximo (ej: -4.00 o 4.00)</label>
+                          <input type="number" step="0.25" value={crystalItemForm.cylMax ?? ''} onChange={e => setCrystalItemForm({...crystalItemForm, cylMax: e.target.value === '' ? '' : parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
                         </div>
                       </div>
                       {(crystalItemForm.type === 'multifocal' || crystalItemForm.type === 'ocupacional') && (
@@ -3938,10 +3938,16 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                     <button
                       onClick={() => {
                         if (!crystalItemForm.name.trim() || crystalItemForm.basePrice <= 0) return alert('Por favor, completá el nombre y el precio.');
+                        const itemToSave = {
+                          ...crystalItemForm,
+                          sphMin: crystalItemForm.sphMin !== '' && !isNaN(Number(crystalItemForm.sphMin)) ? Number(crystalItemForm.sphMin) : 0,
+                          sphMax: crystalItemForm.sphMax !== '' && !isNaN(Number(crystalItemForm.sphMax)) ? Number(crystalItemForm.sphMax) : 0,
+                          cylMax: crystalItemForm.cylMax !== '' && !isNaN(Number(crystalItemForm.cylMax)) ? Number(crystalItemForm.cylMax) : 0,
+                        };
                         if (editingCrystalItem) {
-                          updateCrystalItem({ ...crystalItemForm, id: editingCrystalItem.id });
+                          updateCrystalItem({ ...itemToSave, id: editingCrystalItem.id });
                         } else {
-                          addCrystalItem(crystalItemForm);
+                          addCrystalItem(itemToSave);
                         }
                         setIsCrystalItemModalOpen(false);
                       }}
