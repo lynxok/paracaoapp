@@ -1,19 +1,44 @@
-import React, { useMemo } from "react";
-import { Link } from "react-router-dom";
-import { UserPlus, Eye, PackagePlus, Calculator, AlertTriangle, CheckCircle2, ShoppingCart, Cake, Gift, Bell, Clock, Smartphone } from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { UserPlus, Eye, PackagePlus, Calculator, AlertTriangle, CheckCircle2, ShoppingCart, Cake, Gift, Bell, Clock, Smartphone, X, Search, Filter, History, ArrowUpRight, Check, Package, FileText } from "lucide-react";
 import { useClients } from "../context/ClientContext";
 import { useFinance } from "../context/FinanceContext";
 import { useNotifications } from "../context/NotificationsContext";
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const { clients, orders } = useClients();
   const { boxes, cheques = [] } = useFinance();
   const { notifications, removeNotification } = useNotifications();
+
+  const [isAllOrdersModalOpen, setIsAllOrdersModalOpen] = useState(false);
+  const [ordersSearchQuery, setOrdersSearchQuery] = useState("");
+  const [ordersStatusFilter, setOrdersStatusFilter] = useState("all");
 
   const today = new Date();
   const currentMonth = today.getMonth();
   const currentDay = today.getDate();
   const todayStr = today.toISOString().split('T')[0];
+
+  const filteredAllOrders = useMemo(() => {
+    return orders.filter(order => {
+      const q = ordersSearchQuery.toLowerCase().trim();
+      const matchesSearch = 
+        !q ||
+        (order.id && order.id.toLowerCase().includes(q)) ||
+        (order.clientName && order.clientName.toLowerCase().includes(q)) ||
+        (order.service && order.service.toLowerCase().includes(q));
+
+      if (!matchesSearch) return false;
+
+      if (ordersStatusFilter === "all") return true;
+      if (ordersStatusFilter === "taller") return order.status === "En Taller";
+      if (ordersStatusFilter === "retirar") return order.status === "Para Retirar" || order.status === "Recibido";
+      if (ordersStatusFilter === "entregado") return order.status === "Entregado" || order.status === "Completado";
+      if (ordersStatusFilter === "demorado") return order.status === "Demorado" || order.status === "Cancelado";
+      return true;
+    });
+  }, [orders, ordersSearchQuery, ordersStatusFilter]);
 
   const chequesAlerts = useMemo(() => {
     const todayVal = new Date();
@@ -196,7 +221,12 @@ export function Dashboard() {
         <div className="lg:col-span-2 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Actividad Reciente</h2>
-            <button className="text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">Ver todo</button>
+            <button 
+              onClick={() => setIsAllOrdersModalOpen(true)}
+              className="text-sm font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 hover:underline transition-all flex items-center gap-1 cursor-pointer"
+            >
+              Ver todo ({orders.length})
+            </button>
           </div>
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
             <div className="overflow-x-auto">
@@ -211,19 +241,30 @@ export function Dashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {recentOrders.map((row, idx) => {
-                    let color = "slate";
-                    if (row.status === "Completado" || row.status === "Entregado") color = "emerald";
-                    else if (row.status === "En Taller") color = "amber";
-                    else if (row.status === "Para Retirar") color = "blue";
+                  {recentOrders.map((row) => {
+                    let badgeClass = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700";
+                    if (row.status === "Completado" || row.status === "Entregado") {
+                      badgeClass = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800";
+                    } else if (row.status === "En Taller") {
+                      badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800";
+                    } else if (row.status === "Demorado") {
+                      badgeClass = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800 font-bold";
+                    } else if (row.status === "Para Retirar" || row.status === "Recibido") {
+                      badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800";
+                    }
                     
                     return (
-                    <tr key={row.id} className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-slate-900 dark:text-white">{row.id}</td>
+                    <tr 
+                      key={row.id} 
+                      onClick={() => setIsAllOrdersModalOpen(true)}
+                      className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
+                      title="Clic para ver historial completo"
+                    >
+                      <td className="px-6 py-4 font-mono font-bold text-slate-900 dark:text-white">{row.id}</td>
                       <td className="px-6 py-4">{row.clientName}</td>
                       <td className="px-6 py-4">{row.service}</td>
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center rounded-full bg-${color}-100 dark:bg-${color}-900/30 px-2.5 py-0.5 text-xs font-medium text-${color}-800 dark:text-${color}-400 border border-${color}-200 dark:border-${color}-800`}>
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${badgeClass}`}>
                           {row.status}
                         </span>
                       </td>
@@ -390,6 +431,202 @@ export function Dashboard() {
           </section>
         </div>
       </div>
+
+      {/* Modal Completo de Todas las Órdenes / Actividad */}
+      {isAllOrdersModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-5xl rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-gradient-to-r from-blue-50/70 via-indigo-50/50 to-white dark:from-blue-950/20 dark:via-indigo-950/10 dark:to-slate-900">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-blue-600 text-white rounded-2xl shadow-md shadow-blue-500/20">
+                  <History className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 dark:text-white">Registro Completo de Actividad & Pedidos</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {orders.length} pedidos registrados · Total facturado: <span className="font-bold text-slate-800 dark:text-slate-200">${orders.reduce((sum, o) => sum + (o.amount || 0), 0).toLocaleString('es-AR')}</span>
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsAllOrdersModalOpen(false)}
+                className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 bg-slate-50/70 dark:bg-slate-800/40 border-b border-slate-100 dark:border-slate-800 text-xs">
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200/80 dark:border-slate-800">
+                <span className="text-slate-500 block font-medium">Total Pedidos</span>
+                <span className="text-lg font-black text-slate-900 dark:text-white">{orders.length}</span>
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-amber-200/80 dark:border-amber-900/40">
+                <span className="text-amber-600 dark:text-amber-400 block font-medium">En Taller</span>
+                <span className="text-lg font-black text-amber-700 dark:text-amber-300">{orders.filter(o => o.status === 'En Taller').length}</span>
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-blue-200/80 dark:border-blue-900/40">
+                <span className="text-blue-600 dark:text-blue-400 block font-medium">Listos para Retirar</span>
+                <span className="text-lg font-black text-blue-700 dark:text-blue-300">{orders.filter(o => o.status === 'Para Retirar' || o.status === 'Recibido').length}</span>
+              </div>
+              <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-emerald-200/80 dark:border-emerald-900/40">
+                <span className="text-emerald-600 dark:text-emerald-400 block font-medium">Entregados</span>
+                <span className="text-lg font-black text-emerald-700 dark:text-emerald-300">{orders.filter(o => o.status === 'Entregado' || o.status === 'Completado').length}</span>
+              </div>
+            </div>
+
+            {/* Filter & Search Bar */}
+            <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row gap-3 items-center justify-between">
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder="Buscar por ID, cliente o producto..."
+                  value={ordersSearchQuery}
+                  onChange={(e) => setOrdersSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-8 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-900 dark:text-white"
+                />
+                {ordersSearchQuery && (
+                  <button onClick={() => setOrdersSearchQuery("")} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Status Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'all', label: 'Todos', count: orders.length },
+                  { id: 'taller', label: 'En Taller', count: orders.filter(o => o.status === 'En Taller').length },
+                  { id: 'retirar', label: 'Para Retirar', count: orders.filter(o => o.status === 'Para Retirar' || o.status === 'Recibido').length },
+                  { id: 'entregado', label: 'Entregados', count: orders.filter(o => o.status === 'Entregado' || o.status === 'Completado').length },
+                  { id: 'demorado', label: 'Demorados', count: orders.filter(o => o.status === 'Demorado' || o.status === 'Cancelado').length },
+                ].map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setOrdersStatusFilter(tab.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                      ordersStatusFilter === tab.id
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                    }`}
+                  >
+                    {tab.label} ({tab.count})
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Table Content */}
+            <div className="p-4 overflow-y-auto max-h-[500px] flex-1">
+              {filteredAllOrders.length === 0 ? (
+                <div className="text-center py-16 text-slate-400">
+                  <Package className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p className="font-bold text-slate-600 dark:text-slate-300">No se encontraron pedidos</p>
+                  <p className="text-xs text-slate-400 mt-1">Prueba cambiando el término de búsqueda o el filtro de estado.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                  <table className="w-full text-left text-sm text-slate-500 dark:text-slate-400">
+                    <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase text-slate-700 dark:text-slate-300">
+                      <tr>
+                        <th className="px-5 py-3 font-semibold">ID Pedido</th>
+                        <th className="px-5 py-3 font-semibold">Fecha</th>
+                        <th className="px-5 py-3 font-semibold">Cliente</th>
+                        <th className="px-5 py-3 font-semibold">Servicio / Producto</th>
+                        <th className="px-5 py-3 font-semibold">Estado</th>
+                        <th className="px-5 py-3 font-semibold text-right">Monto</th>
+                        <th className="px-5 py-3 font-semibold text-right">Saldo</th>
+                        <th className="px-5 py-3 font-semibold text-center">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                      {filteredAllOrders.map((order) => {
+                        let badgeClass = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-400 border-slate-200 dark:border-slate-700";
+                        if (order.status === "Completado" || order.status === "Entregado") {
+                          badgeClass = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800";
+                        } else if (order.status === "En Taller") {
+                          badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800";
+                        } else if (order.status === "Para Retirar" || order.status === "Recibido") {
+                          badgeClass = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 border-blue-200 dark:border-blue-800";
+                        } else if (order.status === "Demorado" || order.status === "Cancelado") {
+                          badgeClass = "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400 border-red-200 dark:border-red-800 font-bold";
+                        }
+
+                        const saldo = Math.max(0, (order.amount || 0) - (order.paid || 0));
+
+                        return (
+                          <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                            <td className="px-5 py-3.5 font-mono font-bold text-slate-900 dark:text-white">
+                              {order.id}
+                            </td>
+                            <td className="px-5 py-3.5 text-xs text-slate-500 whitespace-nowrap">
+                              {order.date ? new Date(order.date).toLocaleDateString('es-AR') : '-'}
+                            </td>
+                            <td className="px-5 py-3.5 font-medium text-slate-900 dark:text-white">
+                              {order.clientName}
+                            </td>
+                            <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">
+                              {order.service}
+                            </td>
+                            <td className="px-5 py-3.5 whitespace-nowrap">
+                              <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${badgeClass}`}>
+                                {order.status}
+                              </span>
+                            </td>
+                            <td className="px-5 py-3.5 text-right font-bold text-slate-900 dark:text-white whitespace-nowrap">
+                              ${(order.amount || 0).toLocaleString('es-AR')}
+                            </td>
+                            <td className="px-5 py-3.5 text-right whitespace-nowrap">
+                              {saldo > 0 ? (
+                                <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-900/40">
+                                  ${saldo.toLocaleString('es-AR')}
+                                </span>
+                              ) : (
+                                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                                  Saldado
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3.5 text-center whitespace-nowrap">
+                              <button
+                                onClick={() => {
+                                  setIsAllOrdersModalOpen(false);
+                                  navigate('/clients');
+                                }}
+                                className="px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                title="Ir a clientes"
+                              >
+                                <span>Ver Cliente</span>
+                                <ArrowUpRight className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/80 flex items-center justify-between">
+              <span className="text-xs text-slate-500">
+                Mostrando {filteredAllOrders.length} de {orders.length} pedidos
+              </span>
+              <button
+                onClick={() => setIsAllOrdersModalOpen(false)}
+                className="px-5 py-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800 dark:hover:bg-slate-100 rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNotifications } from './NotificationsContext';
+import { useClients } from './ClientContext';
 import { supabase } from '../lib/supabase';
 
 export interface Lab {
@@ -8,7 +9,7 @@ export interface Lab {
   contact?: string;
 }
 
-export type LabJobStatus = 'Pendiente' | 'Enviado al laboratorio' | 'En producción' | 'Recibido' | 'Entregado';
+export type LabJobStatus = 'Pendiente' | 'Enviado al laboratorio' | 'En producción' | 'Demorado' | 'Recibido' | 'Entregado';
 
 export interface LabJob {
   id: string;
@@ -81,6 +82,8 @@ interface LabContextType {
 const LabContext = createContext<LabContextType | undefined>(undefined);
 
 export function LabProvider({ children }: { children: ReactNode }) {
+  const { addNotification } = useNotifications();
+  const { updateOrderStatus } = useClients();
   const [labs, setLabs] = useState<Lab[]>([]);
   const [jobs, setJobs] = useState<LabJob[]>([]);
   const [payments, setPayments] = useState<LabPayment[]>([]);
@@ -133,8 +136,6 @@ export function LabProvider({ children }: { children: ReactNode }) {
     }
     loadLabDataFromSupabase();
   }, []);
-
-  const { addNotification } = useNotifications();
 
   const addLab = async (lab: Omit<Lab, 'id'>) => {
     const newLab: Lab = { ...lab, id: Date.now().toString() };
@@ -211,6 +212,22 @@ export function LabProvider({ children }: { children: ReactNode }) {
   };
 
   const updateJobStatus = async (id: string, status: LabJobStatus) => {
+    // Sincronizar estado con la orden comercial del cliente
+    const targetJob = jobs.find(j => j.id === id);
+    if (targetJob && targetJob.orderId) {
+      let mappedOrderStatus = 'En Taller';
+      if (status === 'Recibido') {
+        mappedOrderStatus = 'Para Retirar';
+      } else if (status === 'Entregado') {
+        mappedOrderStatus = 'Entregado';
+      } else if (status === 'Demorado') {
+        mappedOrderStatus = 'Demorado';
+      } else if (status === 'Pendiente' || status === 'Enviado al laboratorio' || status === 'En producción') {
+        mappedOrderStatus = 'En Taller';
+      }
+      updateOrderStatus(targetJob.orderId, mappedOrderStatus);
+    }
+
     setJobs(prevJobs => {
       const updated = prevJobs.map(j => j.id === id ? { ...j, status } : j);
       
@@ -225,6 +242,9 @@ export function LabProvider({ children }: { children: ReactNode }) {
         } else if (status === 'Entregado') {
           notifType = 'success';
           notifIcon = 'ShoppingBag';
+        } else if (status === 'Demorado') {
+          notifType = 'warning';
+          notifIcon = 'AlertTriangle';
         }
         
         addNotification({

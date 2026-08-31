@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench } from "lucide-react";
+import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench, AlertTriangle } from "lucide-react";
 import { useLabs, LabJob } from "../context/LabContext";
 import { useSettings } from "../context/SettingsContext";
 import { useClients } from "../context/ClientContext";
@@ -297,6 +297,9 @@ export function Labs() {
                 } else if (job.status === 'En producción') {
                   statusClasses = 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-900';
                   statusIcon = <Clock className="w-3 h-3" />;
+                } else if (job.status === 'Demorado') {
+                  statusClasses = 'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-400 dark:border-red-900';
+                  statusIcon = <AlertTriangle className="w-3 h-3 text-red-500" />;
                 } else if (job.status === 'Recibido') {
                   statusClasses = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-900';
                   statusIcon = <CheckCircle2 className="w-3 h-3" />;
@@ -587,6 +590,7 @@ export function Labs() {
                         <option value="Pendiente">Pendiente</option>
                         <option value="Enviado al laboratorio">Enviado al laboratorio</option>
                         <option value="En producción">En producción</option>
+                        <option value="Demorado">Demorado</option>
                         <option value="Recibido">Recibido</option>
                         <option value="Entregado">Entregado</option>
                       </select>
@@ -767,6 +771,7 @@ export function Labs() {
                   <option value="Pendiente">Pendiente</option>
                   <option value="Enviado al laboratorio">Enviado al laboratorio</option>
                   <option value="En producción">En producción</option>
+                  <option value="Demorado">Demorado (Alerta en Taller)</option>
                   <option value="Recibido">Recibido (Listo en Local)</option>
                   <option value="Entregado">Entregado al Cliente</option>
                 </select>

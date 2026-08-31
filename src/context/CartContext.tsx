@@ -233,6 +233,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
         // 1. Add order to client orders list (del titular de la receta)
         addOrder({
+          id: orderIdGenerated,
           clientId: rxClientId,
           clientName: rxClientName,
           date: new Date().toISOString().split('T')[0],
@@ -342,6 +343,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       } else {
         // Record product sale in client purchase history
         addOrder({
+          id: orderIdGenerated,
           clientId: targetClientId,
           clientName: targetClientName,
           date: new Date().toISOString().split('T')[0],

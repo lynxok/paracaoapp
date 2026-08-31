@@ -13,7 +13,7 @@ interface ClientContextType {
   getClientOrders: (clientId: string) => Order[];
   getClientTransactions: (clientId: string) => Transaction[];
   getClientBalance: (clientId: string) => number;
-  addOrder: (order: Omit<Order, 'id'>) => void;
+  addOrder: (order: Omit<Order, 'id'> & { id?: string }) => void;
   updateOrderStatus: (orderId: string, status: string) => void;
   payOrderBalance: (orderId: string, amount: number, boxId: string) => Promise<void>;
 }
@@ -212,10 +212,10 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     previsto_method_id: o.previstoMethodId || null
   });
 
-  const addOrder = async (orderData: Omit<Order, 'id'>) => {
+  const addOrder = async (orderData: Omit<Order, 'id'> & { id?: string }) => {
     const newOrder: Order = {
       ...orderData,
-      id: `ORD-${Math.floor(Math.random() * 10000)}`,
+      id: orderData.id || `ORD-${Date.now().toString().slice(-6)}`,
     };
     setOrders(prev => [newOrder, ...prev]);
     try {
