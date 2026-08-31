@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench, AlertTriangle, ChevronDown } from "lucide-react";
 import { useLabs, LabJob } from "../context/LabContext";
 import { useSettings } from "../context/SettingsContext";
@@ -6,6 +7,7 @@ import { useClients } from "../context/ClientContext";
 import { cn } from "../lib/utils";
 
 export function Labs() {
+  const location = useLocation();
   const { labs, jobs, payments, addJob, updateJobStatus, updateJobEstimatedDelivery } = useLabs();
   const { lensTypes, materials, indices, brands, designs, colors, treatments } = useSettings();
   const { orders } = useClients();
@@ -13,6 +15,54 @@ export function Labs() {
   const [selectedLabId, setSelectedLabId] = useState("all");
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [activeJobDetails, setActiveJobDetails] = useState<LabJob | null>(null);
+
+  // Auto-open job details when navigated with orderId / jobId in state or query params
+  useEffect(() => {
+    const state = location.state as { openOrderId?: string; openJobId?: string } | null;
+    const searchParams = new URLSearchParams(location.search);
+    const targetOrderId = state?.openOrderId || searchParams.get('orderId');
+    const targetJobId = state?.openJobId || searchParams.get('jobId');
+
+    if (targetOrderId || targetJobId) {
+      // 1. Try finding in jobs
+      const foundJob = jobs.find(j => 
+        (targetJobId && String(j.id) === String(targetJobId)) ||
+        (targetOrderId && j.orderId && j.orderId.trim().toLowerCase() === targetOrderId.trim().toLowerCase())
+      );
+
+      if (foundJob) {
+        setSelectedLabId("all");
+        if (foundJob.date) {
+          setPeriod(foundJob.date.slice(0, 7));
+        }
+        setActiveJobDetails(foundJob);
+        return;
+      }
+
+      // 2. Fallback: match from orders if job list is still synchronizing
+      if (targetOrderId && orders.length > 0) {
+        const matchedOrder = orders.find(o => o.id && o.id.trim().toLowerCase() === targetOrderId.trim().toLowerCase());
+        if (matchedOrder) {
+          setSelectedLabId("all");
+          if (matchedOrder.date) {
+            setPeriod(matchedOrder.date.slice(0, 7));
+          }
+          setActiveJobDetails({
+            id: `temp-${matchedOrder.id}`,
+            labId: 'all',
+            labName: 'Laboratorio / Taller',
+            date: matchedOrder.date || new Date().toISOString().split('T')[0],
+            orderId: matchedOrder.id,
+            concept: matchedOrder.service || 'Trabajo Recetado',
+            cost: matchedOrder.amount || 0,
+            status: (matchedOrder.status as any) || 'En Taller',
+            clientName: matchedOrder.clientName,
+            observaciones: 'Trabajo vinculado desde registro de pedidos'
+          });
+        }
+      }
+    }
+  }, [location.state, location.search, jobs, orders]);
 
   const checkOrderPaymentStatus = (orderId: string): boolean => {
     const matchedOrder = orders.find(o => o.id.trim().toLowerCase() === orderId.trim().toLowerCase());

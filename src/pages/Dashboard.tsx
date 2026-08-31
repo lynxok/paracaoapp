@@ -282,13 +282,15 @@ export function Dashboard() {
                       <tr 
                         key={row.id} 
                         onClick={() => {
-                          setOrdersCategoryTab('recetados');
-                          setIsAllOrdersModalOpen(true);
+                          navigate('/labs', { state: { openOrderId: row.id } });
                         }}
-                        className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer"
-                        title="Clic para ver historial completo de recetados"
+                        className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                        title="Clic para abrir trabajo y Ficha Técnica en Laboratorio"
                       >
-                        <td className="px-5 py-3 font-mono font-bold text-slate-900 dark:text-white">{row.id}</td>
+                        <td className="px-5 py-3 font-mono font-bold text-blue-600 dark:text-blue-400 group-hover:underline flex items-center gap-1.5">
+                          <FlaskConical className="w-3.5 h-3.5 opacity-80 text-blue-500" />
+                          <span>{row.id}</span>
+                        </td>
                         <td className="px-5 py-3 font-medium text-slate-800 dark:text-slate-200">{row.clientName}</td>
                         <td className="px-5 py-3">{row.service}</td>
                         <td className="px-5 py-3">
@@ -712,11 +714,28 @@ export function Dashboard() {
                         }
 
                         const saldo = Math.max(0, (order.amount || 0) - (order.paid || 0));
+                        const isPrescription = order.type !== 'producto';
 
                         return (
                           <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                            <td className="px-5 py-3.5 font-mono font-bold text-slate-900 dark:text-white">
-                              {order.id}
+                            <td className="px-5 py-3.5 font-mono font-bold whitespace-nowrap">
+                              {isPrescription ? (
+                                <button
+                                  onClick={() => {
+                                    setIsAllOrdersModalOpen(false);
+                                    navigate('/labs', { state: { openOrderId: order.id } });
+                                  }}
+                                  className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1.5 cursor-pointer font-mono font-bold text-left"
+                                  title="Ver trabajo en Taller y Ficha Técnica"
+                                >
+                                  <FlaskConical className="w-3.5 h-3.5 opacity-80 text-blue-500" />
+                                  <span>{order.id}</span>
+                                </button>
+                              ) : (
+                                <span className="text-slate-900 dark:text-white">
+                                  {order.id}
+                                </span>
+                              )}
                             </td>
                             <td className="px-5 py-3.5 text-xs text-slate-500 whitespace-nowrap">
                               {order.date ? new Date(order.date).toLocaleDateString('es-AR') : '-'}
@@ -747,23 +766,38 @@ export function Dashboard() {
                               )}
                             </td>
                             <td className="px-5 py-3.5 text-center whitespace-nowrap">
-                              <button
-                                onClick={() => {
-                                  setIsAllOrdersModalOpen(false);
-                                  navigate('/clients', {
-                                    state: {
-                                      clientId: order.clientId,
-                                      clientName: order.clientName,
-                                      openModal: 'orders'
-                                    }
-                                  });
-                                }}
-                                className="px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
-                                title={`Abrir ficha e historial de ${order.clientName}`}
-                              >
-                                <span>Ver Cliente</span>
-                                <ArrowUpRight className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center justify-center gap-1.5">
+                                {isPrescription && (
+                                  <button
+                                    onClick={() => {
+                                      setIsAllOrdersModalOpen(false);
+                                      navigate('/labs', { state: { openOrderId: order.id } });
+                                    }}
+                                    className="px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                    title={`Abrir ficha técnica de taller para ${order.id}`}
+                                  >
+                                    <FlaskConical className="w-3.5 h-3.5" />
+                                    <span>Ficha Lab</span>
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => {
+                                    setIsAllOrdersModalOpen(false);
+                                    navigate('/clients', {
+                                      state: {
+                                        clientId: order.clientId,
+                                        clientName: order.clientName,
+                                        openModal: 'orders'
+                                      }
+                                    });
+                                  }}
+                                  className="px-2.5 py-1 text-xs font-bold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
+                                  title={`Abrir ficha e historial de ${order.clientName}`}
+                                >
+                                  <span>Ver Cliente</span>
+                                  <ArrowUpRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );

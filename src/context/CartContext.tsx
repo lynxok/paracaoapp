@@ -51,7 +51,7 @@ interface CartContextType {
   setSelectedClient: (client: any | null) => void;
   paymentMethodId: string;
   setPaymentMethodId: (id: string) => void;
-  checkout: (paidAmount?: number, senaMethodId?: string, previstoMethodId?: string) => { success: boolean; message: string; receipt?: any };
+  checkout: (paidAmount?: number, senaMethodId?: string, previstoMethodId?: string, discountPercent?: number) => { success: boolean; message: string; receipt?: any };
   isCartOpen: boolean;
   setIsCartOpen: (open: boolean) => void;
   billingDrafts: BillingDraft[];
@@ -203,13 +203,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setIsCartOpen(false);
   };
 
-  const checkout = (paidAmount?: number, senaMethodId?: string, previstoMethodId?: string) => {
+  const checkout = (paidAmount?: number, senaMethodId?: string, previstoMethodId?: string, discountPercent?: number) => {
     if (cart.length === 0) return { success: false, message: "El carrito está vacío" };
 
     const selectedBox = boxes.find(b => b.id === (paidAmount !== undefined ? senaMethodId : paymentMethodId));
     const boxName = selectedBox?.name || "Efectivo";
 
-    const totalAmount = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+    const validDiscountPercent = (discountPercent && discountPercent > 0) ? Math.min(100, discountPercent) : 0;
+    const discountAmount = (subtotal * validDiscountPercent) / 100;
+    const totalAmount = Math.max(0, subtotal - discountAmount);
+
+    const isPartial = paidAmount !== undefined && paidAmount < totalAmount;
+    const effectivePaid = paidAmount !== undefined ? Math.min(paidAmount, totalAmount) : totalAmount;
+    const remainingBalance = Math.max(0, totalAmount - effectivePaid);
 
     const targetClient = selectedClient || cart.find(c => c.details?.client)?.details?.client;
     const targetClientId = targetClient?.id || 'cliente-mostrador';
@@ -219,8 +226,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     // Process each item in the cart
     cart.forEach(item => {
-      const itemTotal = item.price * item.quantity;
-      const itemPaid = paidAmount !== undefined ? (itemTotal * paidAmount) / totalAmount : itemTotal;
+      const itemRawTotal = item.price * item.quantity;
+      const itemTotal = subtotal > 0 ? (itemRawTotal * totalAmount) / subtotal : 0;
+      const itemPaid = totalAmount > 0 ? (itemTotal * effectivePaid) / totalAmount : 0;
 
       if (item.type === 'prescription' && item.details) {
         const details = item.details;
@@ -369,13 +377,16 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const dateStr = now.toISOString().split('T')[0];
     const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
 
+    const descSuffix = validDiscountPercent > 0 ? ` (Desc. ${validDiscountPercent}%)` : '';
+    const partialSuffix = isPartial ? ` [Seña: $${effectivePaid.toLocaleString('es-AR')} - Saldo: $${remainingBalance.toLocaleString('es-AR')}]` : '';
+
     addTransaction({
       id: `sale-${Date.now()}`,
       date: dateStr,
       time: timeStr,
-      concept: `Venta Consolidada: ${cart.map(i => `${i.quantity}x ${i.name}`).join(', ')}`,
+      concept: `Venta Consolidada: ${cart.map(i => `${i.quantity}x ${i.name}`).join(', ')}${descSuffix}${partialSuffix}`,
       method: boxName,
-      amount: paidAmount !== undefined ? paidAmount : totalAmount,
+      amount: effectivePaid,
       type: 'income',
       category: 'ventas',
       boxId: paidAmount !== undefined ? (senaMethodId || paymentMethodId) : paymentMethodId,
@@ -388,7 +399,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       id: `draft-${Date.now()}`,
       date: dateStr,
       clientName: selectedClient?.name || cart.find(c => c.details?.client)?.details?.client?.name || 'Cliente Mostrador',
-      concept: `Venta Consolidada: ${cart.map(i => `${i.quantity}x ${i.name}`).join(', ')}`,
+      concept: `Venta Consolidada: ${cart.map(i => `${i.quantity}x ${i.name}`).join(', ')}${descSuffix}`,
       amount: totalAmount,
       paymentMethod: boxName,
       billed: false,
@@ -417,19 +428,35 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       if (error) console.error('Error saving billing draft:', error);
     });
 
-    const itemsSummary = cart.map(i => ({ name: i.name, quantity: i.quantity, price: i.price }));
+    const itemsSummary = cart.map(i => ({
+      name: i.name,
+      quantity: i.quantity,
+      price: i.price,
+      type: i.type,
+      prescriptionDetails: i.type === 'prescription' ? i.details : undefined
+    }));
+
     clearCart();
     return { 
       success: true, 
-      message: `Venta cobrada por $${totalAmount.toLocaleString('es-AR')} vía ${boxName}`,
+      message: `Venta cobrada por $${effectivePaid.toLocaleString('es-AR')} vía ${boxName}`,
       receipt: {
         id: `REC-${Date.now().toString().slice(-6)}`,
         date: dateStr,
         time: timeStr,
-        clientName: selectedClient?.name || 'Cliente Mostrador',
+        clientName: targetClientName,
+        clientDni: targetClient?.dni || '',
+        clientPhone: targetClient?.phone || '',
         items: itemsSummary,
+        subtotal: subtotal,
+        discountPercent: validDiscountPercent,
+        discountAmount: discountAmount,
         total: totalAmount,
-        paymentMethod: boxName
+        isPartial: isPartial,
+        paidAmount: effectivePaid,
+        remainingBalance: remainingBalance,
+        paymentMethod: boxName,
+        previstoBoxName: boxes.find(b => b.id === previstoMethodId)?.name || undefined
       }
     };
   };
