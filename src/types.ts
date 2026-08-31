@@ -198,6 +198,7 @@ export interface CrystalItem {
   sphMin: number;
   sphMax: number;
   cylMax: number;
+  esfPlusCilMax?: number;
   addMin?: number;
   addMax?: number;
   treatments?: string[];

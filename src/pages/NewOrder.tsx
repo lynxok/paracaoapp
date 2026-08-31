@@ -450,6 +450,16 @@ export function NewOrder() {
             `Ojo ${eyeName}: El cilíndrico (${cilFormatted}) excede el límite permitido (máx ${maxFormatted}) de este cristal.`
           );
         }
+        if (selectedCrystal.esfPlusCilMax !== undefined && selectedCrystal.esfPlusCilMax > 0) {
+          const combinedMax = Math.max(Math.abs(esf), Math.abs(esf + cil));
+          if (combinedMax > selectedCrystal.esfPlusCilMax) {
+            const sumVal = esf + cil;
+            const sumFormatted = sumVal >= 0 ? `+${sumVal.toFixed(2)}` : `${sumVal.toFixed(2)}`;
+            errors.push(
+              `Ojo ${eyeName}: La potencia combinada Esférico + Cilíndrico (${sumFormatted}) supera el límite de suma máxima (±${selectedCrystal.esfPlusCilMax.toFixed(2)}) permitido para este cristal de stock.`
+            );
+          }
+        }
         if (selectedCrystal.type === 'multifocal' || selectedCrystal.type === 'ocupacional') {
           if (selectedCrystal.addMin !== undefined && selectedCrystal.addMax !== undefined) {
             if (add < selectedCrystal.addMin || add > selectedCrystal.addMax) {
@@ -1638,7 +1648,7 @@ export function NewOrder() {
                     >
                       {availableCrystals.map(c => (
                         <option key={c.id} value={c.id}>
-                          {c.name} — ${c.basePrice.toLocaleString('es-AR')} ({c.brand} | {c.material} {c.index ? `índ ${c.index}` : ''})
+                          {c.name} — ${c.basePrice.toLocaleString('es-AR')} ({c.brand} | {c.material} {c.index ? `índ ${c.index}` : ''}{c.esfPlusCilMax ? ` | Suma máx ±${c.esfPlusCilMax}` : ''})
                         </option>
                       ))}
                       {availableCrystals.length === 0 && (
@@ -1724,6 +1734,12 @@ export function NewOrder() {
                         <span>Material: <strong>{selectedCrystal.material} {selectedCrystal.index ? `(${selectedCrystal.index})` : ''}</strong></span>
                         <span>•</span>
                         <span>CIL máx: <strong>{selectedCrystal.cylMax >= 0 ? `+${selectedCrystal.cylMax}` : selectedCrystal.cylMax}</strong></span>
+                        {selectedCrystal.esfPlusCilMax !== undefined && selectedCrystal.esfPlusCilMax > 0 && (
+                          <>
+                            <span>•</span>
+                            <span className="text-purple-600 dark:text-purple-400 font-bold">Suma máx: <strong>±{selectedCrystal.esfPlusCilMax}</strong></span>
+                          </>
+                        )}
                       </div>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-0.5">
                         Ojos a procesar: {isSingleEyeCharged ? '1 Cristal (50% del par)' : 'Ambos Ojos (Par completo)'}

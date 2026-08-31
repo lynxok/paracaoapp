@@ -109,6 +109,7 @@ export function Settings() {
     sphMin: -6.00,
     sphMax: 6.00,
     cylMax: 2.00,
+    esfPlusCilMax: '',
     addMin: 1.00,
     addMax: 3.00,
     treatments: []
@@ -3543,7 +3544,10 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                           </td>
                           <td className="px-4 py-3 text-xs text-slate-500">
                             <div>ESF: {item.sphMin >= 0 ? `+${item.sphMin}` : item.sphMin} a {item.sphMax >= 0 ? `+${item.sphMax}` : item.sphMax}</div>
-                            <div>CIL máx: {item.cylMax}</div>
+                            <div>CIL máx: {item.cylMax >= 0 ? `+${item.cylMax}` : item.cylMax}</div>
+                            {item.esfPlusCilMax !== undefined && item.esfPlusCilMax > 0 && (
+                              <div className="text-[10px] text-purple-600 dark:text-purple-400 font-bold">Suma Máx: ±{item.esfPlusCilMax}</div>
+                            )}
                             {(item.type === 'multifocal' || item.type === 'ocupacional') && (
                               <div className="text-[10px] text-blue-600 font-bold">ADD: {item.addMin} a {item.addMax}</div>
                             )}
@@ -3867,8 +3871,11 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                     </div>
 
                     <div className="p-4 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 space-y-4">
-                      <h5 className="font-bold text-xs text-slate-700 dark:text-slate-300">Límites y Rangos Técnicos de la Receta</h5>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="font-bold text-xs text-slate-700 dark:text-slate-300">Límites y Rangos Técnicos de la Receta</h5>
+                        <span className="text-[10px] text-slate-400 font-semibold">Validación automática en pedidos</span>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF Mínimo (ej: -12.00)</label>
                           <input 
@@ -3892,17 +3899,33 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                           />
                         </div>
                         <div>
-                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CIL Máximo (ej: -4.00 o 4.00)</label>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CIL Máximo (ej: 4.00)</label>
                           <input 
                             type="text" 
                             inputMode="decimal"
                             value={crystalItemForm.cylMax ?? ''} 
                             onChange={e => setCrystalItemForm({...crystalItemForm, cylMax: e.target.value})} 
-                            placeholder="-4.00"
+                            placeholder="2.00"
                             className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" 
                           />
                         </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-0.5" title="Límite máximo de la suma |Esférico + Cilíndrico|">
+                            Suma Máx. Esf+Cil <span className="text-purple-500 font-bold">(±)</span>
+                          </label>
+                          <input 
+                            type="text" 
+                            inputMode="decimal"
+                            value={crystalItemForm.esfPlusCilMax ?? ''} 
+                            onChange={e => setCrystalItemForm({...crystalItemForm, esfPlusCilMax: e.target.value})} 
+                            placeholder="6.00 (opcional)"
+                            className="h-9 px-2 w-full rounded border border-purple-200 dark:border-purple-900/50 bg-white dark:bg-slate-950 text-xs font-mono text-center font-bold text-purple-700 dark:text-purple-400" 
+                          />
+                        </div>
                       </div>
+                      <p className="text-[10px] text-slate-400">
+                        💡 <strong>Suma Máx. Esf + Cil:</strong> Límite de potencia combinada |Esf + Cil| (ej: 6.00). Si la graduación combinada del paciente supera este valor, el sistema advertirá que no corresponde al precio de este cristal de stock.
+                      </p>
                       {(crystalItemForm.type === 'multifocal' || crystalItemForm.type === 'ocupacional') && (
                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                           <div>
@@ -3979,6 +4002,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                           sphMin: crystalItemForm.sphMin !== '' && !isNaN(Number(crystalItemForm.sphMin)) ? Number(crystalItemForm.sphMin) : 0,
                           sphMax: crystalItemForm.sphMax !== '' && !isNaN(Number(crystalItemForm.sphMax)) ? Number(crystalItemForm.sphMax) : 0,
                           cylMax: crystalItemForm.cylMax !== '' && !isNaN(Number(crystalItemForm.cylMax)) ? Number(crystalItemForm.cylMax) : 0,
+                          esfPlusCilMax: (crystalItemForm.esfPlusCilMax !== '' && crystalItemForm.esfPlusCilMax !== undefined && !isNaN(Number(crystalItemForm.esfPlusCilMax))) 
+                            ? Math.abs(Number(crystalItemForm.esfPlusCilMax)) 
+                            : undefined,
                           addMin: crystalItemForm.addMin !== '' && !isNaN(Number(crystalItemForm.addMin)) ? Number(crystalItemForm.addMin) : undefined,
                           addMax: crystalItemForm.addMax !== '' && !isNaN(Number(crystalItemForm.addMax)) ? Number(crystalItemForm.addMax) : undefined,
                         };

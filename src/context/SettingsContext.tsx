@@ -522,6 +522,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             sphMin: Number(i.sphmin ?? i.sphMin ?? i.sph_min ?? 0),
             sphMax: Number(i.sphmax ?? i.sphMax ?? i.sph_max ?? 0),
             cylMax: Number(i.cylmax ?? i.cylMax ?? i.cyl_max ?? 0),
+            esfPlusCilMax: (i.esfpluscilmax !== undefined && i.esfpluscilmax !== null) ? Number(i.esfpluscilmax) : ((i.esfPlusCilMax !== undefined && i.esfPlusCilMax !== null) ? Number(i.esfPlusCilMax) : ((i.esf_plus_cil_max !== undefined && i.esf_plus_cil_max !== null) ? Number(i.esf_plus_cil_max) : undefined)),
             addMin: i.addmin !== undefined ? Number(i.addmin) : (i.addMin !== undefined ? Number(i.addMin) : undefined),
             addMax: i.addmax !== undefined ? Number(i.addmax) : (i.addMax !== undefined ? Number(i.addMax) : undefined),
             treatments: i.treatments || []
