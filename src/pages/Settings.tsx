@@ -3871,26 +3871,61 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       <div className="grid grid-cols-3 gap-3">
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF Mínimo (ej: -12.00)</label>
-                          <input type="number" step="0.25" value={crystalItemForm.sphMin ?? ''} onChange={e => setCrystalItemForm({...crystalItemForm, sphMin: e.target.value === '' ? '' : parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                          <input 
+                            type="text" 
+                            inputMode="decimal"
+                            value={crystalItemForm.sphMin ?? ''} 
+                            onChange={e => setCrystalItemForm({...crystalItemForm, sphMin: e.target.value})} 
+                            placeholder="-6.00"
+                            className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" 
+                          />
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ESF Máximo (ej: 6.00)</label>
-                          <input type="number" step="0.25" value={crystalItemForm.sphMax ?? ''} onChange={e => setCrystalItemForm({...crystalItemForm, sphMax: e.target.value === '' ? '' : parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                          <input 
+                            type="text" 
+                            inputMode="decimal"
+                            value={crystalItemForm.sphMax ?? ''} 
+                            onChange={e => setCrystalItemForm({...crystalItemForm, sphMax: e.target.value})} 
+                            placeholder="6.00"
+                            className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" 
+                          />
                         </div>
                         <div>
                           <label className="text-[10px] font-bold text-slate-500 block mb-0.5">CIL Máximo (ej: -4.00 o 4.00)</label>
-                          <input type="number" step="0.25" value={crystalItemForm.cylMax ?? ''} onChange={e => setCrystalItemForm({...crystalItemForm, cylMax: e.target.value === '' ? '' : parseFloat(e.target.value)})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                          <input 
+                            type="text" 
+                            inputMode="decimal"
+                            value={crystalItemForm.cylMax ?? ''} 
+                            onChange={e => setCrystalItemForm({...crystalItemForm, cylMax: e.target.value})} 
+                            placeholder="-4.00"
+                            className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" 
+                          />
                         </div>
                       </div>
                       {(crystalItemForm.type === 'multifocal' || crystalItemForm.type === 'ocupacional') && (
                         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                           <div>
                             <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ADD Mínima (ej: 1.00)</label>
-                            <input type="number" step="0.25" min="0" value={crystalItemForm.addMin || ''} onChange={e => setCrystalItemForm({...crystalItemForm, addMin: parseFloat(e.target.value) || undefined})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                            <input 
+                              type="text" 
+                              inputMode="decimal"
+                              value={crystalItemForm.addMin ?? ''} 
+                              onChange={e => setCrystalItemForm({...crystalItemForm, addMin: e.target.value})} 
+                              placeholder="1.00"
+                              className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" 
+                            />
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-slate-500 block mb-0.5">ADD Máxima (ej: 3.50)</label>
-                            <input type="number" step="0.25" min="0" value={crystalItemForm.addMax || ''} onChange={e => setCrystalItemForm({...crystalItemForm, addMax: parseFloat(e.target.value) || undefined})} className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" />
+                            <input 
+                              type="text" 
+                              inputMode="decimal"
+                              value={crystalItemForm.addMax ?? ''} 
+                              onChange={e => setCrystalItemForm({...crystalItemForm, addMax: e.target.value})} 
+                              placeholder="3.50"
+                              className="h-9 px-2 w-full rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs font-mono text-center" 
+                            />
                           </div>
                         </div>
                       )}
@@ -3940,9 +3975,12 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                         if (!crystalItemForm.name.trim() || crystalItemForm.basePrice <= 0) return alert('Por favor, completá el nombre y el precio.');
                         const itemToSave = {
                           ...crystalItemForm,
+                          basePrice: Number(crystalItemForm.basePrice) || 0,
                           sphMin: crystalItemForm.sphMin !== '' && !isNaN(Number(crystalItemForm.sphMin)) ? Number(crystalItemForm.sphMin) : 0,
                           sphMax: crystalItemForm.sphMax !== '' && !isNaN(Number(crystalItemForm.sphMax)) ? Number(crystalItemForm.sphMax) : 0,
                           cylMax: crystalItemForm.cylMax !== '' && !isNaN(Number(crystalItemForm.cylMax)) ? Number(crystalItemForm.cylMax) : 0,
+                          addMin: crystalItemForm.addMin !== '' && !isNaN(Number(crystalItemForm.addMin)) ? Number(crystalItemForm.addMin) : undefined,
+                          addMax: crystalItemForm.addMax !== '' && !isNaN(Number(crystalItemForm.addMax)) ? Number(crystalItemForm.addMax) : undefined,
                         };
                         if (editingCrystalItem) {
                           updateCrystalItem({ ...itemToSave, id: editingCrystalItem.id });
