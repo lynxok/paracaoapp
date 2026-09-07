@@ -72,6 +72,8 @@ interface SettingsContextType {
   setAppTheme: (theme: string) => void;
   pdfConfig: PDFConfig;
   setPdfConfig: (config: PDFConfig) => void;
+  receiptPaperSize: 'a4' | 'ticket';
+  setReceiptPaperSize: (size: 'a4' | 'ticket') => void;
   // Crystal pricing rules
   crystalRules: CrystalPricingRule[];
   addCrystalRule: (rule: Omit<CrystalPricingRule, 'id'>) => void;
@@ -360,6 +362,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setPdfConfig = (newConfig: PDFConfig) => {
     setPdfConfigState(newConfig);
     localStorage.setItem('optica_pdf_config', JSON.stringify(newConfig));
+  };
+
+  const [receiptPaperSize, setReceiptPaperSizeState] = useState<'a4' | 'ticket'>(() => {
+    return (localStorage.getItem('optica_receipt_paper_size') as 'a4' | 'ticket') || 'a4';
+  });
+
+  const setReceiptPaperSize = (size: 'a4' | 'ticket') => {
+    setReceiptPaperSizeState(size);
+    localStorage.setItem('optica_receipt_paper_size', size);
+    syncSetting('optica_receipt_paper_size', size);
   };
 
   const [crystalRules, setCrystalRules] = useState<CrystalPricingRule[]>(() => {
@@ -993,6 +1005,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setAppTheme,
       pdfConfig,
       setPdfConfig,
+      receiptPaperSize,
+      setReceiptPaperSize,
       crystalRules,
       addCrystalRule,
       updateCrystalRule,

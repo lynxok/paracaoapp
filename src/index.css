@@ -236,3 +236,27 @@
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
 }
+
+/* ==========================================================================
+   Optimizaciones para Pantallas de Notebooks / Laptops Compactas (1366x768 / 14")
+   ========================================================================== */
+@media screen and (max-width: 1440px) {
+  /* Escala de texto y densidad visual optimizada para portátiles */
+  :root {
+    font-size: 15px;
+  }
+}
+
+@media screen and (max-width: 1280px), screen and (max-height: 800px) {
+  /* Contenedores de contenido con scroll seguro y aprovechamiento de altura */
+  main {
+    padding-left: 0.75rem !important;
+    padding-right: 0.75rem !important;
+    padding-top: 0.75rem !important;
+  }
+
+  /* Reducción sutil de paddings en tarjetas y tablas para que nada se corte */
+  .glass-panel {
+    border-radius: 1rem;
+  }
+}

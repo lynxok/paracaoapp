@@ -436,6 +436,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       prescriptionDetails: i.type === 'prescription' ? i.details : undefined
     }));
 
+    // Find any prescription client if target client lacks some data
+    const prescriptionClient = cart.find(c => c.type === 'prescription' && c.details?.client)?.details?.client;
+    const finalClient = targetClient || prescriptionClient;
+
     clearCart();
     return { 
       success: true, 
@@ -444,9 +448,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         id: `REC-${Date.now().toString().slice(-6)}`,
         date: dateStr,
         time: timeStr,
-        clientName: targetClientName,
-        clientDni: targetClient?.dni || '',
-        clientPhone: targetClient?.phone || '',
+        clientName: finalClient?.name || targetClientName,
+        clientDni: finalClient?.dni || '',
+        clientPhone: finalClient?.phone || '',
+        clientAddress: finalClient?.address || '',
+        clientInsurance: finalClient?.insurance || '',
         items: itemsSummary,
         subtotal: subtotal,
         discountPercent: validDiscountPercent,

@@ -38,7 +38,10 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
-  Shield
+  Shield,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useAuth } from "../context/AuthContext";
@@ -82,7 +85,10 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
   const [isManualLauncherOpen, setIsManualLauncherOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('sidebar_collapsed') === 'true';
+      const saved = localStorage.getItem('sidebar_collapsed');
+      if (saved !== null) return saved === 'true';
+      // En notebooks chicas (< 1380px) iniciar colapsado para máxima comodidad
+      return window.innerWidth < 1380;
     }
     return false;
   });
@@ -94,6 +100,46 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
       return next;
     });
   };
+
+  // Nivel de zoom del navegador y advertencia
+  const [zoomLevel, setZoomLevel] = useState<number>(100);
+  const [showZoomModal, setShowZoomModal] = useState(false);
+
+  useEffect(() => {
+    const updateZoom = () => {
+      // Cálculo del factor de zoom aproximado
+      const ratio = Math.round((window.outerWidth / window.innerWidth) * 100);
+      if (ratio >= 25 && ratio <= 500) {
+        setZoomLevel(ratio);
+      }
+    };
+
+    updateZoom();
+    window.addEventListener('resize', updateZoom);
+
+    // Prevenir zoom accidental con Ctrl + rueda del ratón
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    };
+
+    // Prevenir atajos accidentales de zoom con Ctrl + '+' o Ctrl + '-'
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '=')) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false });
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('resize', updateZoom);
+      window.removeEventListener('wheel', handleWheel);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const startInteractiveHoverMode = () => {
     const guideEl = document.getElementById('manual-overlay-guide');
@@ -404,6 +450,67 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
           </div>
         </div>
       )}
+
+      {/* Modal / Alerta de Restablecimiento de Zoom */}
+      {showZoomModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-900/40 text-amber-600 flex items-center justify-center font-black">
+                  🔍
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">Zoom Actual: {zoomLevel}%</h3>
+                  <p className="text-[11px] text-slate-500">Recomendado para esta pantalla: 100%</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowZoomModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl text-xs text-amber-800 dark:text-amber-300 space-y-1">
+                <p className="font-bold">¿Por qué es importante el 100%?</p>
+                <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Tener el zoom variado puede desalinear tablas, cortar botones o hacer que las columnas no quepan cómodamente en notebooks de 13" o 14".
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Para restablecer la visión completa al 100%:
+                </p>
+                <div className="flex items-center justify-between p-3 bg-slate-100 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-750">
+                  <span className="text-xs text-slate-600 dark:text-slate-300">Presiona en tu teclado:</span>
+                  <div className="flex items-center gap-1">
+                    <kbd className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md text-xs font-mono font-bold shadow-xs text-slate-800 dark:text-slate-200">Ctrl</kbd>
+                    <span className="text-slate-400 text-xs">+</span>
+                    <kbd className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-md text-xs font-mono font-bold shadow-xs text-slate-800 dark:text-slate-200">0</kbd>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400 text-center">
+                  O desde el menú de Chrome/Edge (tres puntos ⋮ arriba a la derecha ➜ Zoom ➜ 100%).
+                </p>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex justify-end">
+              <button
+                onClick={() => setShowZoomModal(false)}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm"
+              >
+                Entendido, cerrar aviso
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Sidebar Overlay */}
       {isMobileMenuOpen && (
         <div 
@@ -580,6 +687,19 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
                 {isDark ? <Sun className="w-5 h-5 text-amber-500" /> : <Moon className="w-5 h-5 text-blue-600" />}
               </div>
             </button>
+
+            {/* Indicador de Zoom Variado (Si difiere de 100%) */}
+            {Math.abs(zoomLevel - 100) > 4 && (
+              <button
+                onClick={() => setShowZoomModal(true)}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-amber-50 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800/60 text-amber-700 dark:text-amber-300 font-bold text-xs animate-pulse hover:bg-amber-100 transition-all"
+                title="El zoom del navegador está modificado. Clic para ver cómo restablecerlo al 100%."
+              >
+                {zoomLevel > 100 ? <ZoomIn className="w-3.5 h-3.5 text-amber-600" /> : <ZoomOut className="w-3.5 h-3.5 text-amber-600" />}
+                <span>Zoom {zoomLevel}%</span>
+                <RotateCcw className="w-3 h-3 text-amber-600 ml-0.5" />
+              </button>
+            )}
 
             {/* Toggle Modo Manual / Guiado */}
             <button 

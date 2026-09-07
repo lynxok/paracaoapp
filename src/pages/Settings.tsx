@@ -85,6 +85,7 @@ export function Settings() {
     lensTypes, addLensType, updateLensType, removeLensType, 
     opticaLogo, setOpticaLogo, opticaName, setOpticaName, opticaPhone, setOpticaPhone, opticaAddress, setOpticaAddress, 
     appTheme, setAppTheme, pdfConfig, setPdfConfig, 
+    receiptPaperSize, setReceiptPaperSize,
     crystalRules, addCrystalRule, updateCrystalRule, removeCrystalRule,
     crystalItems, addCrystalItem, updateCrystalItem, removeCrystalItem,
     treatments, addTreatment, updateTreatment, removeTreatment,
@@ -1991,6 +1992,71 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                   >
                     🔑 Generar Clave y Solicitud CSR (AFIP)
                   </button>
+                </div>
+              </div>
+
+              {/* Formato Predeterminado de Comprobante / Ticket */}
+              <div className="p-6 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+                <div>
+                  <h4 className="font-black text-slate-900 dark:text-white flex items-center gap-2 text-sm">
+                    <Receipt className="w-5 h-5 text-blue-600" /> Formato Predeterminado de Comprobante / Ticket de Venta
+                  </h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Elige el formato en el que se imprimirán los resúmenes y comprobantes de compra tras confirmar el cobro en caja.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                  <div 
+                    onClick={() => setReceiptPaperSize('a4')}
+                    className={cn(
+                      "p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3.5 bg-white dark:bg-slate-950",
+                      receiptPaperSize === 'a4'
+                        ? "border-blue-600 bg-blue-50/20 dark:bg-blue-900/10 shadow-sm"
+                        : "border-slate-200 dark:border-slate-800 hover:border-slate-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5",
+                      receiptPaperSize === 'a4' ? "border-blue-600 bg-blue-600" : "border-slate-300"
+                    )}>
+                      {receiptPaperSize === 'a4' && <div className="w-2 h-2 rounded-full bg-white" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">📄 Hoja Completa A4</span>
+                        <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 rounded-full">Recomendado</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Diseño formal de membrete con tabla técnica de recetas (OD/OI: Esf, Cil, Eje, DI, AP), datos del paciente, armazón, cristales, seña, saldo adeudado y talón con firma.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div 
+                    onClick={() => setReceiptPaperSize('ticket')}
+                    className={cn(
+                      "p-4 rounded-xl border-2 cursor-pointer transition-all flex items-start gap-3.5 bg-white dark:bg-slate-950",
+                      receiptPaperSize === 'ticket'
+                        ? "border-blue-600 bg-blue-50/20 dark:bg-blue-900/10 shadow-sm"
+                        : "border-slate-200 dark:border-slate-800 hover:border-slate-300"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5",
+                      receiptPaperSize === 'ticket' ? "border-blue-600 bg-blue-600" : "border-slate-300"
+                    )}>
+                      {receiptPaperSize === 'ticket' && <div className="w-2 h-2 rounded-full bg-white" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-900 dark:text-white">🧾 Ticket Térmico (80mm)</span>
+                      </div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        Formato compacto para impresoras térmicas de mostrador (rollos de 80mm). Incluye resumen de venta, paciente, receta condensada y señas.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
