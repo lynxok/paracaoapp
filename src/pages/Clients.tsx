@@ -11,10 +11,46 @@ import { Client } from "../types";
 export function Clients() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { clients, addClient, updateClient, deleteClient, getClientOrders, getClientTransactions, payOrderBalance } = useClients();
+  const { clients, orders, addClient, updateClient, deleteClient, getClientOrders, getClientTransactions, payOrderBalance } = useClients();
   const { insurances, opticaLogo, opticaName, opticaPhone, opticaAddress } = useSettings();
   const { boxes, addTransaction, voidTransaction, transactions } = useFinance();
   const { jobs } = useLabs();
+
+  // Helper para buscar la receta más reciente del cliente si la orden no la tiene directamente
+  const getClientFallbackRx = React.useCallback((clientName?: string, clientDni?: string, clientId?: string) => {
+    if (!clientName && !clientDni && !clientId) return undefined;
+    const cleanName = (clientName || '').trim().toLowerCase();
+    const cleanDni = (clientDni || '').trim();
+    const cleanId = String(clientId || '').trim();
+
+    // 1. Buscar en jobs con prescripción válida
+    const jobWithRx = jobs.find(j => {
+      if (!j.prescription) return false;
+      const p = j.prescription;
+      const hasVals = !!(p.lejosOD?.esf || p.lejosOI?.esf || p.cercaOD?.esf || p.cercaOI?.esf || (p as any)?.lejosOD?.esfera || (p as any)?.lejosOI?.esfera);
+      if (!hasVals) return false;
+
+      const nameMatch = cleanName && j.clientName && j.clientName.trim().toLowerCase() === cleanName;
+      const dniMatch = cleanDni && j.clientDni && j.clientDni.trim() === cleanDni;
+      return nameMatch || dniMatch;
+    });
+    if (jobWithRx?.prescription) return jobWithRx.prescription;
+
+    // 2. Buscar en orders con prescriptionDetails válida
+    const orderWithRx = (orders || []).find(o => {
+      if (!o.prescriptionDetails) return false;
+      const p = o.prescriptionDetails;
+      const hasVals = !!(p.lejosOD?.esf || p.lejosOI?.esf || p.cercaOD?.esf || p.cercaOI?.esf || p.lejosOD?.esfera || p.lejosOI?.esfera);
+      if (!hasVals) return false;
+
+      const nameMatch = cleanName && o.clientName && o.clientName.trim().toLowerCase() === cleanName;
+      const idMatch = cleanId && o.clientId && String(o.clientId).trim() === cleanId;
+      return nameMatch || idMatch;
+    });
+    if (orderWithRx?.prescriptionDetails) return orderWithRx.prescriptionDetails;
+
+    return undefined;
+  }, [jobs, orders]);
 
   // Selected Order Detail Modal state
   const [selectedOrderDetail, setSelectedOrderDetail] = useState<any | null>(null);
@@ -79,10 +115,11 @@ export function Clients() {
             const targetOrd = clientOrders.find(o => o.id.trim().toLowerCase() === openOrderId.trim().toLowerCase());
             if (targetOrd) {
               const linkedJob = jobs.find(j => j.orderId && j.orderId.trim().toLowerCase() === targetOrd.id.trim().toLowerCase());
+              const resolvedRx = linkedJob?.prescription || targetOrd.prescriptionDetails || getClientFallbackRx(found.name, found.dni, found.id);
               setSelectedOrderDetail({
                 ...targetOrd,
                 job: linkedJob || null,
-                prescription: linkedJob?.prescription || targetOrd.prescriptionDetails || null,
+                prescription: resolvedRx || null,
                 crystalDetails: linkedJob?.crystalDetails || targetOrd.prescriptionDetails?.selectedCrystalItem || null,
                 treatments: linkedJob?.treatments || targetOrd.prescriptionDetails?.selectedTreatments || [],
                 frame: targetOrd.prescriptionDetails?.selectedFrame || null,
@@ -100,7 +137,7 @@ export function Clients() {
         }
       }
     }
-  }, [location, clients, jobs]);
+  }, [location, clients, jobs, getClientFallbackRx]);
 
   const userRole = "superadmin"; // Simulated role
 
@@ -197,6 +234,28 @@ export function Clients() {
     const cd = order.crystalDetails || {};
     const trts = Array.isArray(order.treatments) ? order.treatments.map((t: any) => typeof t === 'string' ? t : t.name).join(', ') : '';
 
+    const lejosOD = rx.lejosOD || (rx as any).lejosOd;
+    const lejosOI = rx.lejosOI || (rx as any).lejosOi;
+    const cercaOD = rx.cercaOD || (rx as any).cercaOd;
+    const cercaOI = rx.cercaOI || (rx as any).cercaOi;
+
+    const esfOD = lejosOD?.esf ?? lejosOD?.esfera ?? cercaOD?.esf ?? cercaOD?.esfera ?? '';
+    const cilOD = lejosOD?.cil ?? lejosOD?.cilindro ?? cercaOD?.cil ?? cercaOD?.cilindro ?? '';
+    const ejeOD = lejosOD?.eje ?? cercaOD?.eje ?? '';
+
+    const esfOI = lejosOI?.esf ?? lejosOI?.esfera ?? cercaOI?.esf ?? cercaOI?.esfera ?? '';
+    const cilOI = lejosOI?.cil ?? lejosOI?.cilindro ?? cercaOI?.cil ?? cercaOI?.cilindro ?? '';
+    const ejeOI = lejosOI?.eje ?? cercaOI?.eje ?? '';
+
+    const addOD = rx.adicionOD ?? (rx as any).adicionOd ?? (rx as any).adicion ?? '';
+    const addOI = rx.adicionOI ?? (rx as any).adicionOi ?? (rx as any).adicion ?? '';
+    const altOD = rx.alturaOD ?? (rx as any).alturaOd ?? (rx as any).altura ?? '';
+    const altOI = rx.alturaOI ?? (rx as any).alturaOi ?? (rx as any).altura ?? '';
+    const diOD = rx.diOD ?? (rx as any).diOd ?? (rx as any).di ?? '';
+    const diOI = rx.diOI ?? (rx as any).diOi ?? (rx as any).di ?? '';
+
+    const hasRx = !!(esfOD || cilOD || ejeOD || esfOI || cilOI || ejeOI || addOD || addOI);
+
     win.document.write(`
       <!DOCTYPE html>
       <html lang="es">
@@ -258,7 +317,7 @@ export function Clients() {
           </div>
         </div>
 
-        ${(rx.lejosOD || rx.lejosOI || rx.cercaOD || rx.cercaOI) ? `
+        ${hasRx ? `
         <div class="section">
           <div class="section-title">Graduación Oftálmica (${rx.type || order.type})</div>
           <table>
@@ -276,21 +335,21 @@ export function Clients() {
             <tbody>
               <tr>
                 <td style="text-align: left; font-weight: 700; background: #f8fafc;">Derecho (OD)</td>
-                <td>${rx.lejosOD?.esf || rx.cercaOD?.esf || '—'}</td>
-                <td>${rx.lejosOD?.cil || rx.cercaOD?.cil || '—'}</td>
-                <td>${rx.lejosOD?.eje || rx.cercaOD?.eje ? `${rx.lejosOD?.eje || rx.cercaOD?.eje}°` : '—'}</td>
-                <td>${rx.adicionOD ? `+${rx.adicionOD}` : '—'}</td>
-                <td>${rx.alturaOD ? `${rx.alturaOD} mm` : '—'}</td>
-                <td>${rx.diOD ? `${rx.diOD} mm` : '—'}</td>
+                <td><strong>${esfOD || '—'}</strong></td>
+                <td><strong>${cilOD || '—'}</strong></td>
+                <td>${ejeOD ? `${ejeOD}°` : '—'}</td>
+                <td>${addOD ? `+${addOD}` : '—'}</td>
+                <td>${altOD ? `${altOD} mm` : '—'}</td>
+                <td>${diOD ? `${diOD} mm` : '—'}</td>
               </tr>
               <tr>
                 <td style="text-align: left; font-weight: 700; background: #f8fafc;">Izquierdo (OI)</td>
-                <td>${rx.lejosOI?.esf || rx.cercaOI?.esf || '—'}</td>
-                <td>${rx.lejosOI?.cil || rx.cercaOI?.cil || '—'}</td>
-                <td>${rx.lejosOI?.eje || rx.cercaOI?.eje ? `${rx.lejosOI?.eje || rx.cercaOI?.eje}°` : '—'}</td>
-                <td>${rx.adicionOI ? `+${rx.adicionOI}` : '—'}</td>
-                <td>${rx.alturaOI ? `${rx.alturaOI} mm` : '—'}</td>
-                <td>${rx.diOI ? `${rx.diOI} mm` : '—'}</td>
+                <td><strong>${esfOI || '—'}</strong></td>
+                <td><strong>${cilOI || '—'}</strong></td>
+                <td>${ejeOI ? `${ejeOI}°` : '—'}</td>
+                <td>${addOI ? `+${addOI}` : '—'}</td>
+                <td>${altOI ? `${altOI} mm` : '—'}</td>
+                <td>${diOI ? `${diOI} mm` : '—'}</td>
               </tr>
             </tbody>
           </table>
@@ -1091,10 +1150,11 @@ export function Clients() {
                                   onClick={() => {
                                     // Match order with corresponding LabJob or prescriptionDetails
                                     const linkedJob = jobs.find(j => j.orderId && j.orderId.trim().toLowerCase() === order.id.trim().toLowerCase());
+                                    const resolvedRx = linkedJob?.prescription || order.prescriptionDetails || getClientFallbackRx(order.clientName || contextItem?.name, contextItem?.dni, order.clientId);
                                     setSelectedOrderDetail({
                                       ...order,
                                       job: linkedJob || null,
-                                      prescription: linkedJob?.prescription || order.prescriptionDetails || null,
+                                      prescription: resolvedRx || null,
                                       crystalDetails: linkedJob?.crystalDetails || order.prescriptionDetails?.selectedCrystalItem || null,
                                       treatments: linkedJob?.treatments || order.prescriptionDetails?.selectedTreatments || [],
                                       frame: order.prescriptionDetails?.selectedFrame || null,
@@ -1220,11 +1280,15 @@ export function Clients() {
                         {['Derecho (OD)', 'Izquierdo (OI)'].map((label, idx) => {
                           const isOD = idx === 0;
                           const p = selectedOrderDetail.prescription;
-                          const lejos = isOD ? p.lejosOD : p.lejosOI;
-                          const cerca = isOD ? p.cercaOD : p.cercaOI;
-                          const add = isOD ? p.adicionOD : p.adicionOI;
-                          const alt = isOD ? p.alturaOD : p.alturaOI;
-                          const dip = isOD ? p.diOD : p.diOI;
+                          const lejos = isOD ? (p?.lejosOD || p?.lejosOd) : (p?.lejosOI || p?.lejosOi);
+                          const cerca = isOD ? (p?.cercaOD || p?.cercaOd) : (p?.cercaOI || p?.cercaOi);
+                          const add = isOD ? (p?.adicionOD ?? p?.adicionOd ?? p?.adicion) : (p?.adicionOI ?? p?.adicionOi ?? p?.adicion);
+                          const alt = isOD ? (p?.alturaOD ?? p?.alturaOd ?? p?.altura) : (p?.alturaOI ?? p?.alturaOi ?? p?.altura);
+                          const dip = isOD ? (p?.diOD ?? p?.diOd ?? p?.di) : (p?.diOI ?? p?.diOi ?? p?.di);
+
+                          const esfVal = lejos?.esf ?? lejos?.esfera ?? cerca?.esf ?? cerca?.esfera ?? '';
+                          const cilVal = lejos?.cil ?? lejos?.cilindro ?? cerca?.cil ?? cerca?.cilindro ?? '';
+                          const ejeVal = lejos?.eje ?? cerca?.eje ?? '';
 
                           return (
                             <tr key={label} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 font-medium">
@@ -1232,13 +1296,13 @@ export function Clients() {
                                 {label}
                               </td>
                               <td className="p-2.5 border-r border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-slate-200">
-                                {lejos?.esf || cerca?.esf || '—'}
+                                {esfVal || '—'}
                               </td>
                               <td className="p-2.5 border-r border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-slate-200">
-                                {lejos?.cil || cerca?.cil || '—'}
+                                {cilVal || '—'}
                               </td>
                               <td className="p-2.5 border-r border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-slate-200">
-                                {lejos?.eje || cerca?.eje ? `${lejos?.eje || cerca?.eje}°` : '—'}
+                                {ejeVal ? `${ejeVal}°` : '—'}
                               </td>
                               <td className="p-2.5 border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400">
                                 {add ? `+${add}` : '—'}

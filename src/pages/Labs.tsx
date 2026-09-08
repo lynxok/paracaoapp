@@ -17,6 +17,42 @@ export function Labs() {
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
   const [activeJobDetails, setActiveJobDetails] = useState<(LabJob & { order?: any; doctor?: string; branch?: string }) | null>(null);
 
+  // Helper para buscar la receta más reciente del cliente si la orden no la tiene directamente
+  const getClientFallbackRx = React.useCallback((clientName?: string, clientDni?: string, clientId?: string) => {
+    if (!clientName && !clientDni && !clientId) return undefined;
+    const cleanName = (clientName || '').trim().toLowerCase();
+    const cleanDni = (clientDni || '').trim();
+    const cleanId = String(clientId || '').trim();
+
+    // 1. Buscar en jobs con prescripción válida
+    const jobWithRx = jobs.find(j => {
+      if (!j.prescription) return false;
+      const p = j.prescription;
+      const hasVals = !!(p.lejosOD?.esf || p.lejosOI?.esf || p.cercaOD?.esf || p.cercaOI?.esf || (p as any)?.lejosOD?.esfera || (p as any)?.lejosOI?.esfera);
+      if (!hasVals) return false;
+
+      const nameMatch = cleanName && j.clientName && j.clientName.trim().toLowerCase() === cleanName;
+      const dniMatch = cleanDni && j.clientDni && j.clientDni.trim() === cleanDni;
+      return nameMatch || dniMatch;
+    });
+    if (jobWithRx?.prescription) return jobWithRx.prescription;
+
+    // 2. Buscar en orders con prescriptionDetails válida
+    const orderWithRx = orders.find(o => {
+      if (!o.prescriptionDetails) return false;
+      const p = o.prescriptionDetails;
+      const hasVals = !!(p.lejosOD?.esf || p.lejosOI?.esf || p.cercaOD?.esf || p.cercaOI?.esf || p.lejosOD?.esfera || p.lejosOI?.esfera);
+      if (!hasVals) return false;
+
+      const nameMatch = cleanName && o.clientName && o.clientName.trim().toLowerCase() === cleanName;
+      const idMatch = cleanId && o.clientId && String(o.clientId).trim() === cleanId;
+      return nameMatch || idMatch;
+    });
+    if (orderWithRx?.prescriptionDetails) return orderWithRx.prescriptionDetails;
+
+    return undefined;
+  }, [jobs, orders]);
+
   // Auto-open job details when navigated with orderId / jobId in state or query params
   useEffect(() => {
     const state = location.state as { openOrderId?: string; openJobId?: string } | null;
@@ -44,7 +80,7 @@ export function Labs() {
           (c.name && foundJob.clientName && c.name.trim().toLowerCase() === foundJob.clientName.trim().toLowerCase())
         );
 
-        const rx = matchedOrder?.prescriptionDetails;
+        const rx = matchedOrder?.prescriptionDetails || getClientFallbackRx(foundJob.clientName || clientObj?.name, foundJob.clientDni || clientObj?.dni, matchedOrder?.clientId);
 
         setActiveJobDetails({
           ...foundJob,
@@ -55,7 +91,7 @@ export function Labs() {
           doctor: matchedOrder?.medico || '',
           order: matchedOrder || undefined,
           prescription: foundJob.prescription || (rx ? {
-            type: rx.prescriptionType || matchedOrder?.type || 'monofocal',
+            type: rx.type || rx.prescriptionType || matchedOrder?.type || 'monofocal',
             lejosOD: rx.lejosOD,
             lejosOI: rx.lejosOI,
             cercaOD: rx.cercaOD,
@@ -101,7 +137,7 @@ export function Labs() {
             (c.dni && matchedOrder.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
             (c.name && matchedOrder.clientName && c.name.trim().toLowerCase() === matchedOrder.clientName.trim().toLowerCase())
           );
-          const rx = matchedOrder.prescriptionDetails;
+          const rx = matchedOrder.prescriptionDetails || getClientFallbackRx(matchedOrder.clientName || clientObj?.name, clientObj?.dni, matchedOrder.clientId);
           
           setActiveJobDetails({
             id: `temp-${matchedOrder.id}`,
@@ -119,7 +155,7 @@ export function Labs() {
             doctor: matchedOrder.medico || '',
             order: matchedOrder,
             prescription: rx ? {
-              type: rx.prescriptionType || matchedOrder.type,
+              type: rx.type || rx.prescriptionType || matchedOrder.type,
               lejosOD: rx.lejosOD,
               lejosOI: rx.lejosOI,
               cercaOD: rx.cercaOD,
@@ -152,7 +188,7 @@ export function Labs() {
         }
       }
     }
-  }, [location.state, location.search, jobs, orders, clients]);
+  }, [location.state, location.search, jobs, orders, clients, getClientFallbackRx]);
 
   const checkOrderPaymentStatus = (orderId: string): boolean => {
     const matchedOrder = orders.find(o => o.id.trim().toLowerCase() === orderId.trim().toLowerCase());
@@ -186,7 +222,7 @@ export function Labs() {
         (c.dni && matchedOrder?.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
         (c.name && job.clientName && c.name.trim().toLowerCase() === job.clientName.trim().toLowerCase())
       );
-      const rx = matchedOrder?.prescriptionDetails;
+      const rx = matchedOrder?.prescriptionDetails || getClientFallbackRx(job.clientName || clientObj?.name, job.clientDni || clientObj?.dni, matchedOrder?.clientId);
 
       return {
         ...job,
@@ -197,7 +233,7 @@ export function Labs() {
         doctor: matchedOrder?.medico || '',
         order: matchedOrder || undefined,
         prescription: job.prescription || (rx ? {
-          type: rx.prescriptionType || matchedOrder?.type || 'monofocal',
+          type: rx.type || rx.prescriptionType || matchedOrder?.type || 'monofocal',
           lejosOD: rx.lejosOD,
           lejosOI: rx.lejosOI,
           cercaOD: rx.cercaOD,
@@ -240,9 +276,9 @@ export function Labs() {
         const clientObj = clients.find(c => 
           (c.id && String(c.id) === String(order.clientId)) ||
           (c.dni && order.clientId && c.dni.trim() === String(order.clientId).trim()) ||
-          (c.name && order.clientName && c.name.trim().toLowerCase() === order.clientName.trim().toLowerCase())
+          (c.name && order.clientName && order.clientName.trim().toLowerCase() === order.clientName.trim().toLowerCase())
         );
-        const rx = order.prescriptionDetails;
+        const rx = order.prescriptionDetails || getClientFallbackRx(order.clientName || clientObj?.name, clientObj?.dni, order.clientId);
         const assignedLab = rx?.assignedLab;
 
         list.push({
@@ -262,7 +298,7 @@ export function Labs() {
           isInternalWorkshop: !assignedLab,
           order: order,
           prescription: rx ? {
-            type: rx.prescriptionType || order.type,
+            type: rx.type || rx.prescriptionType || order.type,
             lejosOD: rx.lejosOD,
             lejosOI: rx.lejosOI,
             cercaOD: rx.cercaOD,
@@ -290,13 +326,13 @@ export function Labs() {
             totalPrice: order.amount || 0
           } : undefined,
           treatments: rx?.selectedTreatments || [],
-          observaciones: rx?.observaciones || `Trabajo vinculado a la orden ${order.id}`
+          observaciones: rx?.observaciones || order.notes || undefined
         });
       }
     });
 
     return list;
-  }, [jobs, orders, clients]);
+  }, [jobs, orders, clients, getClientFallbackRx]);
 
   const filteredJobs = unifiedJobs.filter(j => {
     // Filter by Lab
@@ -345,7 +381,7 @@ export function Labs() {
       (c.dni && matchedOrder?.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
       (c.name && jobToPrint.clientName && c.name.trim().toLowerCase() === jobToPrint.clientName.trim().toLowerCase())
     );
-    const rx = jobToPrint.prescription || matchedOrder?.prescriptionDetails;
+    const rx = jobToPrint.prescription || matchedOrder?.prescriptionDetails || getClientFallbackRx(jobToPrint.clientName || clientObj?.name, jobToPrint.clientDni || clientObj?.dni, matchedOrder?.clientId);
     const cd = jobToPrint.crystalDetails || rx?.selectedCrystalItem;
     const clientName = jobToPrint.clientName || clientObj?.name || matchedOrder?.clientName || 'Cliente';
     const clientDni = jobToPrint.clientDni || clientObj?.dni || '';
@@ -369,11 +405,29 @@ export function Labs() {
       : `<div style="font-size:22px;font-weight:900;color:#1e3a8a;">${opticaName || 'Óptica'}</div>`;
     const infoLine = [opticaPhone, opticaAddress].filter(Boolean).join(' &nbsp;|&nbsp; ');
 
-    const lejosOD = rx?.lejosOD;
-    const lejosOI = rx?.lejosOI;
-    const cercaOD = rx?.cercaOD;
-    const cercaOI = rx?.cercaOI;
-    const hasRx = !!(lejosOD || lejosOI || cercaOD || cercaOI || rx?.adicionOD || rx?.adicionOI);
+    const lejosOD = rx?.lejosOD || (rx as any)?.lejosOd;
+    const lejosOI = rx?.lejosOI || (rx as any)?.lejosOi;
+    const cercaOD = rx?.cercaOD || (rx as any)?.cercaOd;
+    const cercaOI = rx?.cercaOI || (rx as any)?.cercaOi;
+
+    const esfOD = lejosOD?.esf ?? lejosOD?.esfera ?? cercaOD?.esf ?? cercaOD?.esfera ?? '';
+    const cilOD = lejosOD?.cil ?? lejosOD?.cilindro ?? cercaOD?.cil ?? cercaOD?.cilindro ?? '';
+    const ejeOD = lejosOD?.eje ?? cercaOD?.eje ?? '';
+
+    const esfOI = lejosOI?.esf ?? lejosOI?.esfera ?? cercaOI?.esf ?? cercaOI?.esfera ?? '';
+    const cilOI = lejosOI?.cil ?? lejosOI?.cilindro ?? cercaOI?.cil ?? cercaOI?.cilindro ?? '';
+    const ejeOI = lejosOI?.eje ?? cercaOI?.eje ?? '';
+
+    const addOD = rx?.adicionOD ?? (rx as any)?.adicionOd ?? (rx as any)?.adicion ?? '';
+    const addOI = rx?.adicionOI ?? (rx as any)?.adicionOi ?? (rx as any)?.adicion ?? '';
+    const altOD = rx?.alturaOD ?? (rx as any)?.alturaOd ?? (rx as any)?.altura ?? '';
+    const altOI = rx?.alturaOI ?? (rx as any)?.alturaOi ?? (rx as any)?.altura ?? '';
+    const diOD = rx?.diOD ?? (rx as any)?.diOd ?? (rx as any)?.di ?? '';
+    const diOI = rx?.diOI ?? (rx as any)?.diOi ?? (rx as any)?.di ?? '';
+    const apOD = rx?.apOD ?? (rx as any)?.apOd ?? (rx as any)?.ap ?? '';
+    const apOI = rx?.apOI ?? (rx as any)?.apOi ?? (rx as any)?.ap ?? '';
+
+    const hasRx = !!(esfOD || cilOD || ejeOD || esfOI || cilOI || ejeOI || addOD || addOI);
 
     win.document.write(`
       <!DOCTYPE html>
@@ -483,23 +537,23 @@ export function Labs() {
             <tbody>
               <tr>
                 <td>Derecho (OD)</td>
-                <td>${lejosOD?.esf || cercaOD?.esf || '—'}</td>
-                <td>${lejosOD?.cil || cercaOD?.cil || '—'}</td>
-                <td>${lejosOD?.eje || cercaOD?.eje ? `${lejosOD?.eje || cercaOD?.eje}°` : '—'}</td>
-                <td>${rx?.adicionOD ? `+${rx.adicionOD}` : '—'}</td>
-                <td>${rx?.alturaOD ? `${rx.alturaOD} mm` : '—'}</td>
-                <td>${rx?.diOD ? `${rx.diOD} mm` : '—'}</td>
-                <td>${rx?.apOD ? `${rx.apOD} mm` : '—'}</td>
+                <td><strong>${esfOD || '—'}</strong></td>
+                <td><strong>${cilOD || '—'}</strong></td>
+                <td>${ejeOD ? `${ejeOD}°` : '—'}</td>
+                <td>${addOD ? `+${addOD}` : '—'}</td>
+                <td>${altOD ? `${altOD} mm` : '—'}</td>
+                <td>${diOD ? `${diOD} mm` : '—'}</td>
+                <td>${apOD ? `${apOD} mm` : '—'}</td>
               </tr>
               <tr>
                 <td>Izquierdo (OI)</td>
-                <td>${lejosOI?.esf || cercaOI?.esf || '—'}</td>
-                <td>${lejosOI?.cil || cercaOI?.cil || '—'}</td>
-                <td>${lejosOI?.eje || cercaOI?.eje ? `${lejosOI?.eje || cercaOI?.eje}°` : '—'}</td>
-                <td>${rx?.adicionOI ? `+${rx.adicionOI}` : '—'}</td>
-                <td>${rx?.alturaOI ? `${rx.alturaOI} mm` : '—'}</td>
-                <td>${rx?.diOI ? `${rx.diOI} mm` : '—'}</td>
-                <td>${rx?.apOI ? `${rx.apOI} mm` : '—'}</td>
+                <td><strong>${esfOI || '—'}</strong></td>
+                <td><strong>${cilOI || '—'}</strong></td>
+                <td>${ejeOI ? `${ejeOI}°` : '—'}</td>
+                <td>${addOI ? `+${addOI}` : '—'}</td>
+                <td>${altOI ? `${altOI} mm` : '—'}</td>
+                <td>${diOI ? `${diOI} mm` : '—'}</td>
+                <td>${apOI ? `${apOI} mm` : '—'}</td>
               </tr>
             </tbody>
           </table>
@@ -1315,19 +1369,23 @@ export function Labs() {
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {['Derecho (OD)', 'Izquierdo (OI)'].map((label, idx) => {
                             const isOD = idx === 0;
-                            const lejos = isOD ? rx?.lejosOD : rx?.lejosOI;
-                            const cerca = isOD ? rx?.cercaOD : rx?.cercaOI;
-                            const add = isOD ? rx?.adicionOD : rx?.adicionOI;
-                            const alt = isOD ? rx?.alturaOD : rx?.alturaOI;
-                            const di = isOD ? rx?.diOD : rx?.diOI;
-                            const ap = isOD ? rx?.apOD : rx?.apOI;
+                            const lejos = isOD ? (rx?.lejosOD || (rx as any)?.lejosOd) : (rx?.lejosOI || (rx as any)?.lejosOi);
+                            const cerca = isOD ? (rx?.cercaOD || (rx as any)?.cercaOd) : (rx?.cercaOI || (rx as any)?.cercaOi);
+                            const add = isOD ? (rx?.adicionOD ?? (rx as any)?.adicionOd ?? (rx as any)?.adicion) : (rx?.adicionOI ?? (rx as any)?.adicionOi ?? (rx as any)?.adicion);
+                            const alt = isOD ? (rx?.alturaOD ?? (rx as any)?.alturaOd ?? (rx as any)?.altura) : (rx?.alturaOI ?? (rx as any)?.alturaOi ?? (rx as any)?.altura);
+                            const di = isOD ? (rx?.diOD ?? (rx as any)?.diOd ?? (rx as any)?.di) : (rx?.diOI ?? (rx as any)?.diOi ?? (rx as any)?.di);
+                            const ap = isOD ? (rx?.apOD ?? (rx as any)?.apOd ?? (rx as any)?.ap) : (rx?.apOI ?? (rx as any)?.apOi ?? (rx as any)?.ap);
+
+                            const esfVal = lejos?.esf ?? lejos?.esfera ?? cerca?.esf ?? cerca?.esfera ?? '';
+                            const cilVal = lejos?.cil ?? lejos?.cilindro ?? cerca?.cil ?? cerca?.cilindro ?? '';
+                            const ejeVal = lejos?.eje ?? cerca?.eje ?? '';
 
                             return (
                               <tr key={label} className="hover:bg-slate-50 dark:hover:bg-slate-800/10">
                                 <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 font-bold text-left">{label}</td>
-                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{lejos?.esf || cerca?.esf || '—'}</td>
-                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{lejos?.cil || cerca?.cil || '—'}</td>
-                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{lejos?.eje || cerca?.eje ? `${lejos?.eje || cerca?.eje}°` : '—'}</td>
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350 font-bold">{esfVal || '—'}</td>
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350 font-bold">{cilVal || '—'}</td>
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{ejeVal ? `${ejeVal}°` : '—'}</td>
                                 <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{add ? `+${add}` : '—'}</td>
                                 <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{alt ? `${alt} mm` : '—'}</td>
                                 <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{di ? `${di} mm` : '—'}</td>
