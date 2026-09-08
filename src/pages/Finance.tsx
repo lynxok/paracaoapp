@@ -198,7 +198,13 @@ export function Finance() {
 
   // Helper function to resolve box label reliably
   const getBoxName = (boxId?: string, method?: string) => {
-    if (!boxId && !method) return 'Caja General';
+    if (boxId === 'caja-efectivo' || method?.toLowerCase() === 'efectivo') {
+      const cashBox = boxes.find(b => b.id === 'caja-efectivo' || b.type === 'cash');
+      return cashBox?.name || 'Caja Efectivo';
+    }
+
+    if (!boxId && !method) return 'Caja Efectivo';
+
     const found = boxes.find(b => 
       b.id === boxId || 
       b.id === `bank-${boxId}` || 
@@ -206,7 +212,7 @@ export function Finance() {
       (method && b.name.toLowerCase() === method.toLowerCase())
     );
     if (found) return found.name;
-    if (method) return method;
+    if (method && method.trim() !== '') return method;
     return 'Caja General';
   };
 

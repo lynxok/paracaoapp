@@ -108,9 +108,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         const dynamicBankBoxes: CashBox[] = activeBanks.map(mapBankToCashBox);
 
-        // Prepend DEFAULT_CASH_BOX only if no cash box exists in database/local
-        const hasCashBox = dynamicBankBoxes.some(box => box.type === 'cash');
-        const initialBoxes = hasCashBox ? dynamicBankBoxes : [DEFAULT_CASH_BOX, ...dynamicBankBoxes];
+        // Always ensure DEFAULT_CASH_BOX exists so historical transactions with 'caja-efectivo' are never orphaned
+        const hasDefaultId = dynamicBankBoxes.some(box => box.id === DEFAULT_CASH_BOX.id);
+        const initialBoxes = hasDefaultId ? dynamicBankBoxes : [DEFAULT_CASH_BOX, ...dynamicBankBoxes];
 
         // 2. Fetch Transactions (ordered by date and time descending)
         const { data: dbTx } = await supabase
