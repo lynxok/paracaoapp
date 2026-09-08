@@ -1288,128 +1288,151 @@ export function Labs() {
                 </div>
               </div>
 
-              {/* Receta */}
-              {activeJobDetails.prescription ? (
-                <div className="space-y-3">
-                  <h4 className="font-black text-slate-850 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 uppercase tracking-wide">Receta Oftálmica ({activeJobDetails.prescription.type})</h4>
-                  <div className="overflow-x-auto">
-                    <table className="w-full border border-slate-150 dark:border-slate-800 text-center font-medium">
-                      <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-500 uppercase tracking-widest text-[9px]">
-                        <tr>
-                          <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800 text-left">Ojo</th>
-                          <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Esférico</th>
-                          <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Cilíndrico</th>
-                          <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Eje</th>
-                          <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Adición</th>
-                          <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Altura</th>
-                          <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">D. Interpupilar</th>
-                          <th className="px-2 py-1.5 border-b border-slate-200 dark:border-slate-800">A. Pupilar</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {['Derecho (OD)', 'Izquierdo (OI)'].map((label, idx) => {
-                          const isOD = idx === 0;
-                          const lejos = isOD ? activeJobDetails.prescription?.lejosOD : activeJobDetails.prescription?.lejosOI;
-                          const cerca = isOD ? activeJobDetails.prescription?.cercaOD : activeJobDetails.prescription?.cercaOI;
-                          const add = isOD ? activeJobDetails.prescription?.adicionOD : activeJobDetails.prescription?.adicionOI;
-                          const alt = isOD ? activeJobDetails.prescription?.alturaOD : activeJobDetails.prescription?.alturaOI;
-                          const di = isOD ? activeJobDetails.prescription?.diOD : activeJobDetails.prescription?.diOI;
-                          const ap = isOD ? activeJobDetails.prescription?.apOD : activeJobDetails.prescription?.apOI;
+              {/* Receta Oftálmica */}
+              {(() => {
+                const rx = activeJobDetails.prescription || activeJobDetails.order?.prescriptionDetails;
+                const rxType = (rx?.type || rx?.prescriptionType || activeJobDetails.order?.type || 'Receta Oftálmica').toUpperCase();
+                
+                return (
+                  <div className="space-y-3">
+                    <h4 className="font-black text-slate-850 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 uppercase tracking-wide">
+                      Receta Oftálmica ({rxType})
+                    </h4>
+                    <div className="overflow-x-auto">
+                      <table className="w-full border border-slate-150 dark:border-slate-800 text-center font-medium">
+                        <thead className="bg-slate-50 dark:bg-slate-800/40 text-slate-500 uppercase tracking-widest text-[9px]">
+                          <tr>
+                            <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800 text-left">Ojo</th>
+                            <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Esférico</th>
+                            <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Cilíndrico</th>
+                            <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Eje</th>
+                            <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Adición</th>
+                            <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">Altura</th>
+                            <th className="px-2 py-1.5 border-r border-b border-slate-200 dark:border-slate-800">D. Interpupilar</th>
+                            <th className="px-2 py-1.5 border-b border-slate-200 dark:border-slate-800">A. Pupilar</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                          {['Derecho (OD)', 'Izquierdo (OI)'].map((label, idx) => {
+                            const isOD = idx === 0;
+                            const lejos = isOD ? rx?.lejosOD : rx?.lejosOI;
+                            const cerca = isOD ? rx?.cercaOD : rx?.cercaOI;
+                            const add = isOD ? rx?.adicionOD : rx?.adicionOI;
+                            const alt = isOD ? rx?.alturaOD : rx?.alturaOI;
+                            const di = isOD ? rx?.diOD : rx?.diOI;
+                            const ap = isOD ? rx?.apOD : rx?.apOI;
 
-                          return (
-                            <tr key={label} className="hover:bg-slate-50 dark:hover:bg-slate-800/10">
-                              <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 font-bold text-left">{label}</td>
-                              <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{lejos?.esf || cerca?.esf || '—'}</td>
-                              <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{lejos?.cil || cerca?.cil || '—'}</td>
-                              <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{lejos?.eje || cerca?.eje || '—'}{lejos?.eje || cerca?.eje ? '°' : ''}</td>
-                              <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{add ? `+${add}` : '—'}</td>
-                              <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{alt ? `${alt} mm` : '—'}</td>
-                              <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{di ? `${di} mm` : '—'}</td>
-                              <td className="px-2 py-2 text-slate-850 dark:text-slate-350">{ap ? `${ap} mm` : '—'}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                            return (
+                              <tr key={label} className="hover:bg-slate-50 dark:hover:bg-slate-800/10">
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 font-bold text-left">{label}</td>
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{lejos?.esf || cerca?.esf || '—'}</td>
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{lejos?.cil || cerca?.cil || '—'}</td>
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{lejos?.eje || cerca?.eje ? `${lejos?.eje || cerca?.eje}°` : '—'}</td>
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{add ? `+${add}` : '—'}</td>
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{alt ? `${alt} mm` : '—'}</td>
+                                <td className="px-2 py-2 border-r border-slate-100 dark:border-slate-850 text-slate-850 dark:text-slate-350">{di ? `${di} mm` : '—'}</td>
+                                <td className="px-2 py-2 text-slate-850 dark:text-slate-350">{ap ? `${ap} mm` : '—'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              ) : (
+                );
+              })()}
+
+              {/* Detalles del Cristal y Tratamientos Cotizados */}
+              {(() => {
+                const rx = activeJobDetails.order?.prescriptionDetails;
+                const crystal = activeJobDetails.crystalDetails || (rx?.selectedCrystalItem ? {
+                  name: rx.selectedCrystalItem.name || activeJobDetails.order?.service || activeJobDetails.concept || 'Cristal Oftálmico',
+                  material: rx.selectedCrystalItem.material || 'Orgánico',
+                  index: rx.selectedCrystalItem.index || '1.49',
+                  eyes: rx.selectedOjos || rx.eyesCharged || 'ambos'
+                } : {
+                  name: activeJobDetails.order?.service || activeJobDetails.concept || 'Cristal Oftálmico',
+                  material: 'Orgánico',
+                  index: '1.49',
+                  eyes: 'ambos'
+                });
+
+                const treatmentsList = (activeJobDetails.treatments && activeJobDetails.treatments.length > 0)
+                  ? activeJobDetails.treatments
+                  : (rx?.selectedTreatments || []);
+
+                return (
+                  <div className="space-y-3">
+                    <h4 className="font-black text-slate-850 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 uppercase tracking-wide">
+                      Cristal y Tratamientos Cotizados
+                    </h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800 font-medium">
+                      <div>
+                        <span className="text-slate-400 block mb-0.5 font-bold">Cristal Seleccionado</span>
+                        <span className="text-slate-850 dark:text-white font-bold">{crystal.name}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block mb-0.5">Material</span>
+                        <span className="text-slate-855 dark:text-white font-bold">{crystal.material || 'Orgánico'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block mb-0.5">Índice</span>
+                        <span className="text-slate-855 dark:text-white font-bold">{crystal.index || '1.49'}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block mb-0.5">Ojos Cotizados</span>
+                        <span className="text-slate-855 dark:text-white font-bold uppercase">{crystal.eyes || 'AMBOS'}</span>
+                      </div>
+                    </div>
+                    
+                    {treatmentsList && treatmentsList.length > 0 && (
+                      <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-905 rounded-xl">
+                        <span className="font-bold text-[10px] text-emerald-800 dark:text-emerald-450 block uppercase mb-1">Tratamientos Aplicados</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {treatmentsList.map((t: any) => {
+                            const tName = typeof t === 'string' ? t : (t?.name || t?.title || String(t));
+                            return (
+                              <span key={tName} className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-bold shadow-sm">{tName}</span>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Información Adicional de la Orden Vinculada */}
+              {activeJobDetails.order && (
                 <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
-                  <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
-                    <Glasses className="w-4 h-4" />
-                    <span>Información de la Orden Vinculada</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
+                      <Glasses className="w-4 h-4" />
+                      <span>Información Comercial del Pedido</span>
+                    </div>
+                    <span className="text-[11px] font-bold uppercase text-slate-500 bg-slate-200/60 dark:bg-slate-800 px-2 py-0.5 rounded">
+                      Tipo: {activeJobDetails.order.type?.toUpperCase() || 'TRABAJO ÓPTICO'}
+                    </span>
                   </div>
-                  <p className="text-slate-600 dark:text-slate-400">
-                    Concepto de trabajo: <span className="font-bold text-slate-900 dark:text-white">{activeJobDetails.concept || 'Servicio de Taller'}</span>
-                  </p>
                   {activeJobDetails.doctor && (
                     <p className="text-slate-600 dark:text-slate-400">
                       Médico Oftalmólogo: <span className="font-bold text-slate-900 dark:text-white">{activeJobDetails.doctor}</span>
                     </p>
                   )}
-                  {activeJobDetails.order && (
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px]">
-                      <div>
-                        <span className="text-slate-400 block">Total Venta</span>
-                        <span className="font-bold text-slate-900 dark:text-white">${activeJobDetails.order.amount?.toLocaleString() || 0}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block">Abonado</span>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-450">${activeJobDetails.order.paid?.toLocaleString() || 0}</span>
-                      </div>
-                      <div>
-                        <span className="text-slate-400 block">Saldo Restante</span>
-                        <span className="font-bold text-amber-600 dark:text-amber-450">${((activeJobDetails.order.amount || 0) - (activeJobDetails.order.paid || 0)).toLocaleString()}</span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Detalles del Cristal */}
-              {activeJobDetails.crystalDetails ? (
-                <div className="space-y-3">
-                  <h4 className="font-black text-slate-850 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 uppercase tracking-wide">Cristal y Tratamientos Cotizados</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800 font-medium">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px]">
                     <div>
-                      <span className="text-slate-400 block mb-0.5 font-bold">Cristal Seleccionado</span>
-                      <span className="text-slate-850 dark:text-white font-bold">{activeJobDetails.crystalDetails.name}</span>
+                      <span className="text-slate-400 block">Total Venta</span>
+                      <span className="font-bold text-slate-900 dark:text-white">${activeJobDetails.order.amount?.toLocaleString() || 0}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block mb-0.5">Material</span>
-                      <span className="text-slate-855 dark:text-white font-bold">{activeJobDetails.crystalDetails.material}</span>
+                      <span className="text-slate-400 block">Abonado</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-450">${activeJobDetails.order.paid?.toLocaleString() || 0}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block mb-0.5">Índice</span>
-                      <span className="text-slate-855 dark:text-white font-bold">{activeJobDetails.crystalDetails.index}</span>
-                    </div>
-                    <div>
-                      <span className="text-slate-400 block mb-0.5">Ojos Cotizados</span>
-                      <span className="text-slate-855 dark:text-white font-bold uppercase">{activeJobDetails.crystalDetails.eyes}</span>
+                      <span className="text-slate-400 block">Saldo Restante</span>
+                      <span className="font-bold text-amber-600 dark:text-amber-450">${((activeJobDetails.order.amount || 0) - (activeJobDetails.order.paid || 0)).toLocaleString()}</span>
                     </div>
                   </div>
-                  
-                  {activeJobDetails.treatments && activeJobDetails.treatments.length > 0 && (
-                    <div className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-905 rounded-xl">
-                      <span className="font-bold text-[10px] text-emerald-800 dark:text-emerald-450 block uppercase mb-1">Tratamientos Aplicados</span>
-                      <div className="flex flex-wrap gap-1.5">
-                        {activeJobDetails.treatments.map(t => {
-                          const tName = typeof t === 'string' ? t : (t as any)?.name;
-                          return (
-                            <span key={tName} className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-bold shadow-sm">{tName}</span>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : activeJobDetails.order && (
-                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4 text-slate-400" />
-                    <span className="font-bold text-slate-800 dark:text-slate-200">Tipo de Pedido: {activeJobDetails.order.type?.toUpperCase() || 'TRABAJO ÓPTICO'}</span>
-                  </div>
-                  <span className="text-[11px] font-bold text-slate-500">{activeJobDetails.order.service}</span>
                 </div>
               )}
 
