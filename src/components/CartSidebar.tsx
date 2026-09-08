@@ -793,10 +793,9 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
                   <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Monto de Seña ($)</label>
                   <input 
                     type="number" 
-                    min="1"
-                    max={finalTotal}
+                    min="0"
                     placeholder="0"
-                    value={senaAmount === 0 ? '' : senaAmount} 
+                    value={senaAmount === '' ? '' : senaAmount} 
                     onFocus={(e) => e.target.select()}
                     onChange={e => {
                       const val = e.target.value;
@@ -805,20 +804,19 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
                         return;
                       }
                       const num = parseFloat(val);
-                      setSenaAmount(isNaN(num) ? '' : Math.min(finalTotal, num));
+                      setSenaAmount(isNaN(num) ? '' : num);
                     }}
                     onBlur={() => {
-                      const num = parseFloat(String(senaAmount)) || 0;
-                      if (num <= 0) {
-                        setSenaAmount(Math.min(finalTotal, Math.round(finalTotal / 2) || 1));
+                      if (senaAmount === '' || isNaN(Number(senaAmount))) {
+                        setSenaAmount(0);
                       } else {
-                        setSenaAmount(Math.min(finalTotal, Math.max(1, num)));
+                        setSenaAmount(Math.max(0, Number(senaAmount)));
                       }
                     }}
                     className="w-full h-8 px-2 rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs outline-none focus:ring-1 focus:ring-blue-600 text-slate-800 dark:text-slate-200"
                   />
                   <p className="text-[10px] font-medium text-slate-500 mt-1">
-                    Saldo restante: <span className="font-bold text-slate-800 dark:text-slate-200">${Math.max(0, finalTotal - (parseFloat(String(senaAmount)) || 0)).toLocaleString()}</span>
+                    Saldo restante: <span className="font-bold text-slate-800 dark:text-slate-200">${Math.max(0, finalTotal - (parseFloat(String(senaAmount)) || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                   </p>
                 </div>
                 

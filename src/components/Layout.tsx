@@ -541,8 +541,14 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
           <div className="relative -mb-2 mt-1 flex items-center justify-center">
             <div className="absolute inset-0 bg-white/40 blur-[30px] rounded-full scale-125 -z-10 hidden dark:block"></div>
             <img 
-              src={`${window.location.origin}/argoslogo.png`} 
+              src="/argoslogo.png" 
               alt="Argos" 
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                if (!target.src.endsWith('/argoslogo.png')) {
+                  target.src = '/argoslogo.png';
+                }
+              }}
               className={cn("w-auto object-contain drop-shadow-md transition-all duration-300", isSidebarCollapsed ? "h-14 max-w-[50px]" : "h-28")} 
             />
           </div>
