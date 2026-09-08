@@ -18,37 +18,52 @@ export function Labs() {
   const [activeJobDetails, setActiveJobDetails] = useState<(LabJob & { order?: any; doctor?: string; branch?: string }) | null>(null);
 
   // Helper para buscar la receta más reciente del cliente si la orden no la tiene directamente
-  const getClientFallbackRx = React.useCallback((clientName?: string, clientDni?: string, clientId?: string) => {
+  const getClientFallbackRx = React.useCallback((clientName?: string, clientDni?: string, clientId?: string, targetType?: string) => {
     if (!clientName && !clientDni && !clientId) return undefined;
     const cleanName = (clientName || '').trim().toLowerCase();
     const cleanDni = (clientDni || '').trim();
     const cleanId = String(clientId || '').trim();
+    const cleanType = (targetType || '').trim().toLowerCase();
 
-    // 1. Buscar en jobs con prescripción válida
-    const jobWithRx = jobs.find(j => {
+    // 1. Buscar en jobs con prescripción válida (priorizando mismo tipo si viene especificado)
+    const matchingJobs = jobs.filter(j => {
       if (!j.prescription) return false;
       const p = j.prescription;
-      const hasVals = !!(p.lejosOD?.esf || p.lejosOI?.esf || p.cercaOD?.esf || p.cercaOI?.esf || (p as any)?.lejosOD?.esfera || (p as any)?.lejosOI?.esfera);
+      const hasVals = !!(p.lejosOD?.esf || p.lejosOI?.esf || p.cercaOD?.esf || p.cercaOI?.esf || (p as any)?.lejosOD?.esfera || (p as any)?.lejosOI?.esfera || p.adicionOD || p.adicionOI);
       if (!hasVals) return false;
 
       const nameMatch = cleanName && j.clientName && j.clientName.trim().toLowerCase() === cleanName;
       const dniMatch = cleanDni && j.clientDni && j.clientDni.trim() === cleanDni;
       return nameMatch || dniMatch;
     });
-    if (jobWithRx?.prescription) return jobWithRx.prescription;
 
-    // 2. Buscar en orders con prescriptionDetails válida
-    const orderWithRx = orders.find(o => {
+    if (matchingJobs.length > 0) {
+      if (cleanType) {
+        const exactTypeJob = matchingJobs.find(j => (j.prescription?.type || '').trim().toLowerCase() === cleanType);
+        if (exactTypeJob?.prescription) return exactTypeJob.prescription;
+      }
+      return matchingJobs[0].prescription;
+    }
+
+    // 2. Buscar en orders con prescriptionDetails válida (priorizando mismo tipo)
+    const matchingOrders = orders.filter(o => {
       if (!o.prescriptionDetails) return false;
       const p = o.prescriptionDetails;
-      const hasVals = !!(p.lejosOD?.esf || p.lejosOI?.esf || p.cercaOD?.esf || p.cercaOI?.esf || p.lejosOD?.esfera || p.lejosOI?.esfera);
+      const hasVals = !!(p.lejosOD?.esf || p.lejosOI?.esf || p.cercaOD?.esf || p.cercaOI?.esf || p.lejosOD?.esfera || p.lejosOI?.esfera || p.adicionOD || p.adicionOI);
       if (!hasVals) return false;
 
       const nameMatch = cleanName && o.clientName && o.clientName.trim().toLowerCase() === cleanName;
       const idMatch = cleanId && o.clientId && String(o.clientId).trim() === cleanId;
       return nameMatch || idMatch;
     });
-    if (orderWithRx?.prescriptionDetails) return orderWithRx.prescriptionDetails;
+
+    if (matchingOrders.length > 0) {
+      if (cleanType) {
+        const exactTypeOrder = matchingOrders.find(o => (o.prescriptionDetails?.type || o.prescriptionDetails?.prescriptionType || o.type || '').trim().toLowerCase() === cleanType);
+        if (exactTypeOrder?.prescriptionDetails) return exactTypeOrder.prescriptionDetails;
+      }
+      return matchingOrders[0].prescriptionDetails;
+    }
 
     return undefined;
   }, [jobs, orders]);
@@ -137,7 +152,7 @@ export function Labs() {
             (c.dni && matchedOrder.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
             (c.name && matchedOrder.clientName && c.name.trim().toLowerCase() === matchedOrder.clientName.trim().toLowerCase())
           );
-          const rx = matchedOrder.prescriptionDetails || getClientFallbackRx(matchedOrder.clientName || clientObj?.name, clientObj?.dni, matchedOrder.clientId);
+          const rx = matchedOrder.prescriptionDetails || getClientFallbackRx(matchedOrder.clientName || clientObj?.name, clientObj?.dni, matchedOrder.clientId, matchedOrder.type);
           
           setActiveJobDetails({
             id: `temp-${matchedOrder.id}`,
@@ -222,7 +237,7 @@ export function Labs() {
         (c.dni && matchedOrder?.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
         (c.name && job.clientName && c.name.trim().toLowerCase() === job.clientName.trim().toLowerCase())
       );
-      const rx = matchedOrder?.prescriptionDetails || getClientFallbackRx(job.clientName || clientObj?.name, job.clientDni || clientObj?.dni, matchedOrder?.clientId);
+      const rx = matchedOrder?.prescriptionDetails || getClientFallbackRx(job.clientName || clientObj?.name, job.clientDni || clientObj?.dni, matchedOrder?.clientId, matchedOrder?.type || (job.prescription as any)?.type);
 
       return {
         ...job,
@@ -381,7 +396,8 @@ export function Labs() {
       (c.dni && matchedOrder?.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
       (c.name && jobToPrint.clientName && c.name.trim().toLowerCase() === jobToPrint.clientName.trim().toLowerCase())
     );
-    const rx = jobToPrint.prescription || matchedOrder?.prescriptionDetails || getClientFallbackRx(jobToPrint.clientName || clientObj?.name, jobToPrint.clientDni || clientObj?.dni, matchedOrder?.clientId);
+    const orderType = matchedOrder?.type || jobToPrint.concept;
+    const rx = jobToPrint.prescription || matchedOrder?.prescriptionDetails || getClientFallbackRx(jobToPrint.clientName || clientObj?.name, jobToPrint.clientDni || clientObj?.dni, matchedOrder?.clientId, orderType);
     const cd = jobToPrint.crystalDetails || rx?.selectedCrystalItem;
     const clientName = jobToPrint.clientName || clientObj?.name || matchedOrder?.clientName || 'Cliente';
     const clientDni = jobToPrint.clientDni || clientObj?.dni || '';
@@ -519,8 +535,8 @@ export function Labs() {
             </div>
           </div>
 
-          ${hasRx ? `
-          <div class="section-title">Graduación Oftálmica (${rx?.type || (rx as any)?.prescriptionType || 'Receta'})</div>
+          ${(hasRx || matchedOrder?.type !== 'producto') ? `
+          <div class="section-title">Graduación Oftálmica (${rx?.type || (rx as any)?.prescriptionType || matchedOrder?.type || 'Receta'})</div>
           <table class="presc-table">
             <thead>
               <tr>
