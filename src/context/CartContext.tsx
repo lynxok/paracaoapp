@@ -197,10 +197,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setCart(prev => prev.map(item => item.id === id ? updatedItem : item));
   };
 
-  const clearCart = () => {
+  const clearCart = (shouldClose = false) => {
     setCart([]);
     setSelectedClient(null);
-    setIsCartOpen(false);
+    if (shouldClose) {
+      setIsCartOpen(false);
+    }
   };
 
   const checkout = (paidAmount?: number, senaMethodId?: string, previstoMethodId?: string, discountPercent?: number) => {

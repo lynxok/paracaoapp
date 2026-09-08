@@ -525,19 +525,30 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
     }
   };
 
-  if (!isOpen) return null;
+  const handleCloseReceipt = () => {
+    setCompletedReceipt(null);
+    if (cart.length === 0) {
+      if (onClose) onClose();
+      else setIsCartOpen(false);
+    }
+  };
+
+  if (!isOpen && !completedReceipt) return null;
 
   return (
     <>
       {/* Mobile Backdrop Overlay */}
-      <div 
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 lg:hidden animate-in fade-in duration-200"
-        onClick={onClose || (() => setIsCartOpen(false))}
-      />
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 lg:hidden animate-in fade-in duration-200"
+          onClick={onClose || (() => setIsCartOpen(false))}
+        />
+      )}
 
-      <aside className={cn(
-        "fixed lg:static inset-y-0 right-0 z-50 w-full sm:max-w-md lg:w-[410px] h-full flex flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden shrink-0 transition-all duration-300 animate-in slide-in-from-right"
-      )}>
+      {isOpen && (
+        <aside className={cn(
+          "fixed lg:static inset-y-0 right-0 z-50 w-full sm:max-w-md lg:w-[410px] h-full flex flex-col border-l border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden shrink-0 transition-all duration-300 animate-in slide-in-from-right"
+        )}>
       {/* Header */}
       <div className="p-4 md:p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/30">
         <h2 className="font-black flex items-center gap-2 text-slate-900 dark:text-white text-base">
@@ -778,7 +789,7 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
                 onChange={(e) => {
                   setIsPartial(e.target.checked);
                   if (e.target.checked) {
-                    setSenaAmount(Math.round(finalTotal / 2));
+                    setSenaAmount('');
                     setPrevistoBoxId(boxes[0]?.id || '');
                   }
                 }}
@@ -790,11 +801,18 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
             {isPartial && (
               <div className="space-y-2.5 pt-1.5 border-t border-slate-200/50 dark:border-slate-800/50 animate-in slide-in-from-top-1">
                 <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Monto de Seña ($)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">Monto de Seña ($)</label>
+                    {finalTotal > 0 && (
+                      <span className="text-[10px] text-blue-600 dark:text-blue-400 font-semibold">
+                        Total: ${finalTotal.toLocaleString('es-AR')}
+                      </span>
+                    )}
+                  </div>
                   <input 
                     type="number" 
                     min="0"
-                    placeholder="0"
+                    placeholder="Ingresar monto..."
                     value={senaAmount === '' ? '' : senaAmount} 
                     onFocus={(e) => e.target.select()}
                     onChange={e => {
@@ -815,7 +833,41 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
                     }}
                     className="w-full h-8 px-2 rounded border border-slate-250 dark:border-slate-800 bg-white dark:bg-slate-900 font-bold text-xs outline-none focus:ring-1 focus:ring-blue-600 text-slate-800 dark:text-slate-200"
                   />
-                  <p className="text-[10px] font-medium text-slate-500 mt-1">
+
+                  {/* Atajos Rápidos */}
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSenaAmount(Math.round(finalTotal * 0.5))}
+                      className="flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-all text-center"
+                    >
+                      50%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSenaAmount(Math.round(finalTotal * 0.3))}
+                      className="flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-all text-center"
+                    >
+                      30%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSenaAmount(Math.round(finalTotal * 0.7))}
+                      className="flex-1 py-1 px-1.5 text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-blue-50 hover:border-blue-300 dark:hover:bg-blue-900/30 hover:text-blue-600 transition-all text-center"
+                    >
+                      70%
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSenaAmount('')}
+                      className="py-1 px-2 text-[10px] font-bold rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-800/60 text-slate-500 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-all"
+                      title="Limpiar campo"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+
+                  <p className="text-[10px] font-medium text-slate-500 mt-1.5">
                     Saldo restante: <span className="font-bold text-slate-800 dark:text-slate-200">${Math.max(0, finalTotal - (parseFloat(String(senaAmount)) || 0)).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>
                   </p>
                 </div>
@@ -1095,6 +1147,9 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
         </div>
       )}
 
+        </aside>
+      )}
+
       {/* Ticket Receipt Modal / Prompt Impresión */}
       {completedReceipt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in">
@@ -1112,7 +1167,7 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
                 </div>
               </div>
               <button 
-                onClick={() => setCompletedReceipt(null)}
+                onClick={handleCloseReceipt}
                 className="p-1 hover:bg-white/20 rounded-lg transition-colors text-white"
               >
                 <X className="w-5 h-5" />
@@ -1243,7 +1298,7 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
               </div>
 
               <button
-                onClick={() => setCompletedReceipt(null)}
+                onClick={handleCloseReceipt}
                 className="w-full bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 py-2.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
               >
                 <Check className="w-4 h-4" />
@@ -1253,7 +1308,6 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
           </div>
         </div>
       )}
-    </aside>
     </>
   );
 }
