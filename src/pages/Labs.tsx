@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
-import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench, AlertTriangle, ChevronDown } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench, AlertTriangle, ChevronDown, Package, ArrowRight, User } from "lucide-react";
 import { useLabs, LabJob } from "../context/LabContext";
 import { useSettings } from "../context/SettingsContext";
 import { useClients } from "../context/ClientContext";
@@ -8,13 +8,14 @@ import { cn } from "../lib/utils";
 
 export function Labs() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { labs, jobs, payments, addJob, updateJobStatus, updateJobEstimatedDelivery } = useLabs();
   const { lensTypes, materials, indices, brands, designs, colors, treatments } = useSettings();
-  const { orders } = useClients();
+  const { orders, clients } = useClients();
   
   const [selectedLabId, setSelectedLabId] = useState("all");
   const [period, setPeriod] = useState(new Date().toISOString().slice(0, 7));
-  const [activeJobDetails, setActiveJobDetails] = useState<LabJob | null>(null);
+  const [activeJobDetails, setActiveJobDetails] = useState<(LabJob & { order?: any; doctor?: string; branch?: string }) | null>(null);
 
   // Auto-open job details when navigated with orderId / jobId in state or query params
   useEffect(() => {
@@ -35,11 +36,27 @@ export function Labs() {
         if (foundJob.date) {
           setPeriod(foundJob.date.slice(0, 7));
         }
-        setActiveJobDetails(foundJob);
+        // Also enrich with client info if missing
+        const matchedOrder = orders.find(o => o.id && o.id.trim().toLowerCase() === (foundJob.orderId || '').trim().toLowerCase());
+        const clientObj = clients.find(c => 
+          (c.id && String(c.id) === String(matchedOrder?.clientId)) ||
+          (c.dni && matchedOrder?.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
+          (c.name && foundJob.clientName && c.name.trim().toLowerCase() === foundJob.clientName.trim().toLowerCase())
+        );
+
+        setActiveJobDetails({
+          ...foundJob,
+          clientDni: foundJob.clientDni || clientObj?.dni || '',
+          clientName: foundJob.clientName || clientObj?.name || matchedOrder?.clientName || 'Cliente',
+          sellerName: foundJob.sellerName || 'Sucursal Principal',
+          branchName: foundJob.branchName || (matchedOrder?.branchId === '1' ? 'Casa Central' : matchedOrder?.branchId ? `Sucursal ${matchedOrder.branchId}` : 'Casa Central'),
+          doctor: matchedOrder?.medico || '',
+          order: matchedOrder || undefined
+        });
         return;
       }
 
-      // 2. Fallback: match from orders if job list is still synchronizing
+      // 2. Fallback: match from orders and populate with all order & prescription details
       if (targetOrderId && orders.length > 0) {
         const matchedOrder = orders.find(o => o.id && o.id.trim().toLowerCase() === targetOrderId.trim().toLowerCase());
         if (matchedOrder) {
@@ -47,22 +64,63 @@ export function Labs() {
           if (matchedOrder.date) {
             setPeriod(matchedOrder.date.slice(0, 7));
           }
+          const clientObj = clients.find(c => 
+            (c.id && String(c.id) === String(matchedOrder.clientId)) ||
+            (c.dni && matchedOrder.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
+            (c.name && matchedOrder.clientName && c.name.trim().toLowerCase() === matchedOrder.clientName.trim().toLowerCase())
+          );
+          const rx = matchedOrder.prescriptionDetails;
+          
           setActiveJobDetails({
             id: `temp-${matchedOrder.id}`,
             labId: 'all',
-            labName: 'Laboratorio / Taller',
+            labName: rx?.assignedLab?.name || 'Taller Interno / Laboratorio',
             date: matchedOrder.date || new Date().toISOString().split('T')[0],
             orderId: matchedOrder.id,
             concept: matchedOrder.service || 'Trabajo Recetado',
             cost: matchedOrder.amount || 0,
             status: (matchedOrder.status as any) || 'En Taller',
-            clientName: matchedOrder.clientName,
-            observaciones: 'Trabajo vinculado desde registro de pedidos'
+            clientName: matchedOrder.clientName || clientObj?.name || 'Cliente',
+            clientDni: clientObj?.dni || '',
+            sellerName: 'Sucursal Principal',
+            branchName: matchedOrder.branchId === '1' ? 'Casa Central' : matchedOrder.branchId ? `Sucursal ${matchedOrder.branchId}` : 'Casa Central',
+            doctor: matchedOrder.medico || '',
+            order: matchedOrder,
+            prescription: rx ? {
+              type: rx.prescriptionType || matchedOrder.type,
+              lejosOD: rx.lejosOD,
+              lejosOI: rx.lejosOI,
+              cercaOD: rx.cercaOD,
+              cercaOI: rx.cercaOI,
+              adicionOD: rx.adicionOD,
+              adicionOI: rx.adicionOI,
+              alturaOD: rx.alturaOD,
+              alturaOI: rx.alturaOI,
+              diOD: rx.diOD,
+              diOI: rx.diOI,
+              apOD: rx.apOD,
+              apOI: rx.apOI,
+            } : undefined,
+            crystalDetails: rx?.selectedCrystalItem ? {
+              id: rx.selectedCrystalItem.id || '',
+              name: rx.selectedCrystalItem.name || matchedOrder.service,
+              type: rx.selectedCrystalItem.type || matchedOrder.type,
+              material: rx.selectedCrystalItem.material || 'Orgánico',
+              index: rx.selectedCrystalItem.index || '1.49',
+              brand: rx.selectedCrystalItem.brand || 'Genérico',
+              design: rx.selectedCrystalItem.design || 'Esférico',
+              color: rx.selectedCrystalItem.color || 'Blanco',
+              eyes: rx.selectedOjos || rx.eyesCharged || 'ambos',
+              basePrice: matchedOrder.amount || 0,
+              totalPrice: matchedOrder.amount || 0
+            } : undefined,
+            treatments: rx?.selectedTreatments || [],
+            observaciones: rx?.observaciones || `Trabajo vinculado a la orden de venta ${matchedOrder.id} - ${matchedOrder.service}`
           });
         }
       }
     }
-  }, [location.state, location.search, jobs, orders]);
+  }, [location.state, location.search, jobs, orders, clients]);
 
   const checkOrderPaymentStatus = (orderId: string): boolean => {
     const matchedOrder = orders.find(o => o.id.trim().toLowerCase() === orderId.trim().toLowerCase());
@@ -720,7 +778,7 @@ export function Labs() {
               </div>
 
               {/* Receta */}
-              {activeJobDetails.prescription && (
+              {activeJobDetails.prescription ? (
                 <div className="space-y-3">
                   <h4 className="font-black text-slate-850 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 uppercase tracking-wide">Receta Oftálmica ({activeJobDetails.prescription.type})</h4>
                   <div className="overflow-x-auto">
@@ -764,10 +822,41 @@ export function Labs() {
                     </table>
                   </div>
                 </div>
+              ) : (
+                <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold">
+                    <Glasses className="w-4 h-4" />
+                    <span>Información de la Orden Vinculada</span>
+                  </div>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Concepto de trabajo: <span className="font-bold text-slate-900 dark:text-white">{activeJobDetails.concept || 'Servicio de Taller'}</span>
+                  </p>
+                  {activeJobDetails.doctor && (
+                    <p className="text-slate-600 dark:text-slate-400">
+                      Médico Oftalmólogo: <span className="font-bold text-slate-900 dark:text-white">{activeJobDetails.doctor}</span>
+                    </p>
+                  )}
+                  {activeJobDetails.order && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 dark:border-slate-800/60 text-[11px]">
+                      <div>
+                        <span className="text-slate-400 block">Total Venta</span>
+                        <span className="font-bold text-slate-900 dark:text-white">${activeJobDetails.order.amount?.toLocaleString() || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Abonado</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-450">${activeJobDetails.order.paid?.toLocaleString() || 0}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block">Saldo Restante</span>
+                        <span className="font-bold text-amber-600 dark:text-amber-450">${((activeJobDetails.order.amount || 0) - (activeJobDetails.order.paid || 0)).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Detalles del Cristal */}
-              {activeJobDetails.crystalDetails && (
+              {activeJobDetails.crystalDetails ? (
                 <div className="space-y-3">
                   <h4 className="font-black text-slate-850 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 uppercase tracking-wide">Cristal y Tratamientos Cotizados</h4>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800 font-medium">
@@ -802,6 +891,14 @@ export function Labs() {
                       </div>
                     </div>
                   )}
+                </div>
+              ) : activeJobDetails.order && (
+                <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className="w-4 h-4 text-slate-400" />
+                    <span className="font-bold text-slate-800 dark:text-slate-200">Tipo de Pedido: {activeJobDetails.order.type?.toUpperCase() || 'TRABAJO ÓPTICO'}</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-500">{activeJobDetails.order.service}</span>
                 </div>
               )}
 
@@ -838,7 +935,29 @@ export function Labs() {
               </div>
             </div>
 
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 flex justify-end bg-slate-50 dark:bg-slate-900/50">
+            <div className="p-5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
+              {activeJobDetails.order ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ord = activeJobDetails.order;
+                    setActiveJobDetails(null);
+                    navigate('/clients', {
+                      state: {
+                        clientId: ord.clientId,
+                        clientName: ord.clientName,
+                        openModal: 'orders',
+                        openOrderId: ord.id
+                      }
+                    });
+                  }}
+                  className="px-4 py-2 bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>Ver en Historial del Cliente</span>
+                </button>
+              ) : <div />}
+
               <button 
                 onClick={() => setActiveJobDetails(null)} 
                 className="px-6 py-2.5 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-lg font-bold shadow-sm hover:opacity-90 transition-opacity text-xs"

@@ -73,6 +73,24 @@ export function Clients() {
 
         if (targetModal === 'orders') {
           setIsOrdersModalOpen(true);
+          const openOrderId = (state as any)?.openOrderId;
+          if (openOrderId) {
+            const clientOrders = getClientOrders(found.id);
+            const targetOrd = clientOrders.find(o => o.id.trim().toLowerCase() === openOrderId.trim().toLowerCase());
+            if (targetOrd) {
+              const linkedJob = jobs.find(j => j.orderId && j.orderId.trim().toLowerCase() === targetOrd.id.trim().toLowerCase());
+              setSelectedOrderDetail({
+                ...targetOrd,
+                job: linkedJob || null,
+                prescription: linkedJob?.prescription || targetOrd.prescriptionDetails || null,
+                crystalDetails: linkedJob?.crystalDetails || targetOrd.prescriptionDetails?.selectedCrystalItem || null,
+                treatments: linkedJob?.treatments || targetOrd.prescriptionDetails?.selectedTreatments || [],
+                frame: targetOrd.prescriptionDetails?.selectedFrame || null,
+                observations: linkedJob?.observaciones || targetOrd.prescriptionDetails?.observaciones || ''
+              });
+              setIsOrderDetailModalOpen(true);
+            }
+          }
         } else if (targetModal === 'profile' || targetModal === 'edit') {
           setIsModalOpen(true);
         } else if (targetModal === 'cc') {
@@ -82,7 +100,7 @@ export function Clients() {
         }
       }
     }
-  }, [location, clients]);
+  }, [location, clients, jobs]);
 
   const userRole = "superadmin"; // Simulated role
 
