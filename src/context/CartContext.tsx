@@ -254,6 +254,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           paid: itemPaid,
           medico: details.medico,
           branchId: currentBranch?.id || undefined,
+          prescriptionDetails: details,
           senaMethodId: senaMethodId,
           previstoMethodId: previstoMethodId
         });

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Search, Plus, X, Edit2, History, UserPlus, Eye, ShoppingCart, Trash2, Receipt, Package, ArrowRight, Printer, CheckCircle } from "lucide-react";
+import { Search, Plus, X, Edit2, History, UserPlus, Eye, ShoppingCart, Trash2, Receipt, Package, ArrowRight, Printer, CheckCircle, Glasses, FileText, Calendar, FlaskConical } from "lucide-react";
 import { useClients } from "../context/ClientContext";
 import { useSettings } from "../context/SettingsContext";
 import { useFinance } from "../context/FinanceContext";
+import { useLabs } from "../context/LabContext";
 import { cn } from "../lib/utils";
 import { Client } from "../types";
 
@@ -11,8 +12,13 @@ export function Clients() {
   const navigate = useNavigate();
   const location = useLocation();
   const { clients, addClient, updateClient, deleteClient, getClientOrders, getClientTransactions, payOrderBalance } = useClients();
-  const { insurances } = useSettings();
+  const { insurances, opticaLogo, opticaName, opticaPhone, opticaAddress } = useSettings();
   const { boxes, addTransaction, voidTransaction, transactions } = useFinance();
+  const { jobs } = useLabs();
+
+  // Selected Order Detail Modal state
+  const [selectedOrderDetail, setSelectedOrderDetail] = useState<any | null>(null);
+  const [isOrderDetailModalOpen, setIsOrderDetailModalOpen] = useState(false);
 
   // Pay balance states
   const [payingOrder, setPayingOrder] = useState<any | null>(null);
@@ -46,6 +52,13 @@ export function Clients() {
     const targetClientId = state?.clientId || searchParams.get('clientId');
     const targetClientName = state?.clientName || searchParams.get('clientName');
     const targetModal = state?.openModal || searchParams.get('modal') || 'orders';
+
+    if (location.pathname === '/clients/new') {
+      setContextItem(null);
+      setFormData({});
+      setIsModalOpen(true);
+      return;
+    }
 
     if ((targetClientId || targetClientName) && clients.length > 0) {
       const found = clients.find(c => 
@@ -145,6 +158,179 @@ export function Clients() {
 
         <div class="no-print">
           <button class="btn btn-primary" onclick="window.print()">Imprimir</button>
+          <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+  };
+
+  const handlePrintOrderDetail = (order: any) => {
+    const win = window.open('', '_blank', 'width=850,height=750');
+    if (!win) return;
+    const logoHtml = opticaLogo
+      ? `<img src="${opticaLogo}" alt="Logo" style="max-height:50px;max-width:140px;object-fit:contain;" />`
+      : `<div style="font-size:20px;font-weight:900;color:#1e3a8a;">${opticaName || 'Óptica Paracao'}</div>`;
+    const infoLine = [opticaPhone, opticaAddress].filter(Boolean).join(' &nbsp;|&nbsp; ');
+
+    const rx = order.prescription || {};
+    const cd = order.crystalDetails || {};
+    const trts = Array.isArray(order.treatments) ? order.treatments.map((t: any) => typeof t === 'string' ? t : t.name).join(', ') : '';
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Ficha de Pedido ${order.id}</title>
+        <style>
+          @page { size: A4; margin: 15mm; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; font-size: 12px; color: #0f172a; padding: 20px; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0284c7; padding-bottom: 12px; margin-bottom: 16px; }
+          .title { font-size: 20px; font-weight: 900; color: #0369a1; }
+          .meta { font-size: 11px; color: #64748b; margin-top: 4px; }
+          .badge { display: inline-block; padding: 4px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; background: #e0f2fe; color: #0369a1; }
+          .section { margin-bottom: 16px; }
+          .section-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #475569; border-bottom: 1px solid #cbd5e1; padding-bottom: 4px; margin-bottom: 8px; }
+          .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+          .card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
+          .card-label { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 2px; }
+          .card-val { font-size: 13px; font-weight: 700; color: #0f172a; }
+          table { width: 100%; border-collapse: collapse; margin-top: 4px; text-align: center; }
+          th { background: #f1f5f9; font-size: 10px; text-transform: uppercase; padding: 6px; border: 1px solid #cbd5e1; color: #475569; }
+          td { border: 1px solid #cbd5e1; padding: 6px; font-size: 12px; font-weight: 600; }
+          .no-print { margin-top: 20px; display: flex; gap: 10px; }
+          .btn { padding: 8px 16px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; border: none; }
+          .btn-primary { background: #0284c7; color: #fff; }
+          .btn-secondary { background: #e2e8f0; color: #334155; }
+          @media print { .no-print { display: none !important; } body { padding: 0; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            ${logoHtml}
+            <div class="meta">${infoLine || 'Óptica Paracao'}</div>
+          </div>
+          <div style="text-align: right;">
+            <div class="title">${order.id}</div>
+            <div class="meta">Fecha: ${order.date || new Date().toLocaleDateString('es-AR')}</div>
+            <div style="margin-top: 4px;"><span class="badge">${order.status}</span></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-title">Datos del Paciente y Servicio</div>
+          <div class="grid">
+            <div class="card">
+              <div class="card-label">Paciente</div>
+              <div class="card-val">${order.clientName || 'Cliente Mostrador'}</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Servicio</div>
+              <div class="card-val">${order.service}</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Médico Prescriptor</div>
+              <div class="card-val">${order.medico || 'No especificado'}</div>
+            </div>
+          </div>
+        </div>
+
+        ${(rx.lejosOD || rx.lejosOI || rx.cercaOD || rx.cercaOI) ? `
+        <div class="section">
+          <div class="section-title">Graduación Oftálmica (${rx.type || order.type})</div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align: left;">Ojo</th>
+                <th>Esférico</th>
+                <th>Cilíndrico</th>
+                <th>Eje</th>
+                <th>Adición</th>
+                <th>Altura</th>
+                <th>D. Interpupilar</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="text-align: left; font-weight: 700; background: #f8fafc;">Derecho (OD)</td>
+                <td>${rx.lejosOD?.esf || rx.cercaOD?.esf || '—'}</td>
+                <td>${rx.lejosOD?.cil || rx.cercaOD?.cil || '—'}</td>
+                <td>${rx.lejosOD?.eje || rx.cercaOD?.eje ? `${rx.lejosOD?.eje || rx.cercaOD?.eje}°` : '—'}</td>
+                <td>${rx.adicionOD ? `+${rx.adicionOD}` : '—'}</td>
+                <td>${rx.alturaOD ? `${rx.alturaOD} mm` : '—'}</td>
+                <td>${rx.diOD ? `${rx.diOD} mm` : '—'}</td>
+              </tr>
+              <tr>
+                <td style="text-align: left; font-weight: 700; background: #f8fafc;">Izquierdo (OI)</td>
+                <td>${rx.lejosOI?.esf || rx.cercaOI?.esf || '—'}</td>
+                <td>${rx.lejosOI?.cil || rx.cercaOI?.cil || '—'}</td>
+                <td>${rx.lejosOI?.eje || rx.cercaOI?.eje ? `${rx.lejosOI?.eje || rx.cercaOI?.eje}°` : '—'}</td>
+                <td>${rx.adicionOI ? `+${rx.adicionOI}` : '—'}</td>
+                <td>${rx.alturaOI ? `${rx.alturaOI} mm` : '—'}</td>
+                <td>${rx.diOI ? `${rx.diOI} mm` : '—'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        ` : ''}
+
+        <div class="section">
+          <div class="section-title">Especificación Técnica del Cristal y Armazón</div>
+          <div class="grid">
+            <div class="card">
+              <div class="card-label">Cristal</div>
+              <div class="card-val">${cd.name || cd.type || 'Monofocal Orgánico'}</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Material / Índice</div>
+              <div class="card-val">${cd.material || 'Orgánico'} ${cd.index ? `(Índice ${cd.index})` : ''}</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Tratamientos</div>
+              <div class="card-val">${trts || 'Estándar'}</div>
+            </div>
+          </div>
+          ${order.frame ? `
+          <div class="card" style="margin-top: 8px;">
+            <div class="card-label">Armazón / Montura</div>
+            <div class="card-val">${order.frame.name || order.frame.model || 'Armazón asignado'} ${order.frame.sku ? `(SKU: ${order.frame.sku})` : ''}</div>
+          </div>
+          ` : ''}
+          ${order.observations ? `
+          <div class="card" style="margin-top: 8px;">
+            <div class="card-label">Observaciones de Taller</div>
+            <div class="card-val" style="font-weight: 500; font-style: italic;">${order.observations}</div>
+          </div>
+          ` : ''}
+        </div>
+
+        <div class="section">
+          <div class="section-title">Balance Financiero</div>
+          <div class="grid">
+            <div class="card">
+              <div class="card-label">Total Orden</div>
+              <div class="card-val">$${(order.amount || 0).toLocaleString('es-AR')}</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Abonado</div>
+              <div class="card-val" style="color: #059669;">$${(order.paid || 0).toLocaleString('es-AR')}</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Saldo Restante</div>
+              <div class="card-val" style="color: ${(order.amount - order.paid) > 0 ? '#d97706' : '#64748b'};">
+                $${((order.amount || 0) - (order.paid || 0)).toLocaleString('es-AR')}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="no-print">
+          <button class="btn btn-primary" onclick="window.print()">Imprimir Ficha</button>
           <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
         </div>
       </body>
@@ -882,9 +1068,26 @@ export function Clients() {
                                 </button>
                               )}
                               {order.type !== 'producto' && (
-                                <Link to={`/orders/new/${order.type}`} className="flex items-center gap-1 text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:translate-x-1 transition-transform">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    // Match order with corresponding LabJob or prescriptionDetails
+                                    const linkedJob = jobs.find(j => j.orderId && j.orderId.trim().toLowerCase() === order.id.trim().toLowerCase());
+                                    setSelectedOrderDetail({
+                                      ...order,
+                                      job: linkedJob || null,
+                                      prescription: linkedJob?.prescription || order.prescriptionDetails || null,
+                                      crystalDetails: linkedJob?.crystalDetails || order.prescriptionDetails?.selectedCrystalItem || null,
+                                      treatments: linkedJob?.treatments || order.prescriptionDetails?.selectedTreatments || [],
+                                      frame: order.prescriptionDetails?.selectedFrame || null,
+                                      observations: linkedJob?.observaciones || order.prescriptionDetails?.observaciones || ''
+                                    });
+                                    setIsOrderDetailModalOpen(true);
+                                  }}
+                                  className="flex items-center gap-1 text-[10px] font-black text-indigo-600 uppercase tracking-widest hover:translate-x-1 transition-transform cursor-pointer"
+                                >
                                   Ver Detalle <ArrowRight className="w-3 h-3" />
-                                </Link>
+                                </button>
                               )}
                             </div>
                           </div>
@@ -899,6 +1102,231 @@ export function Clients() {
             <div className="p-6 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800">
               <button onClick={() => setIsOrdersModalOpen(false)} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 py-3 rounded-xl font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-all">
                 Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Detail Modal (Opción 1: Receta completa y Ficha de Pedido) */}
+      {isOrderDetailModalOpen && selectedOrderDetail && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 bg-indigo-50/50 dark:bg-indigo-950/20 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-600 text-white rounded-2xl shadow-md shadow-indigo-500/20">
+                  <Eye className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">{selectedOrderDetail.id}</span>
+                    <span className="text-xs text-slate-400 font-bold">· {selectedOrderDetail.date}</span>
+                  </div>
+                  <h3 className="text-lg font-black text-slate-900 dark:text-white mt-0.5">{selectedOrderDetail.service}</h3>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintOrderDetail(selectedOrderDetail)}
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5"
+                  title="Imprimir Ficha Técnica / Receta"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimir</span>
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => { setIsOrderDetailModalOpen(false); setSelectedOrderDetail(null); }}
+                  className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 p-2 rounded-full hover:bg-white dark:hover:bg-slate-800 shadow-sm border border-transparent hover:border-slate-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content Scrollable */}
+            <div className="p-6 overflow-y-auto custom-scrollbar space-y-5 text-xs">
+              {/* Paciente y Médico */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">Paciente</span>
+                  <span className="font-bold text-slate-900 dark:text-white text-sm">{selectedOrderDetail.clientName || 'Cliente Mostrador'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">Médico Oftalmólogo</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedOrderDetail.medico || 'No registrado'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-0.5">Estado del Pedido</span>
+                  <span className={cn(
+                    "inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border mt-0.5",
+                    (selectedOrderDetail.status === 'Completado' || selectedOrderDetail.status === 'Entregado') 
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                      : (selectedOrderDetail.status === 'Para Retirar' || selectedOrderDetail.status === 'Recibido')
+                      ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                      : selectedOrderDetail.status === 'Demorado'
+                      ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 border-red-200 dark:border-red-800 font-black'
+                      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border-amber-200 dark:border-amber-800'
+                  )}>
+                    {selectedOrderDetail.status}
+                  </span>
+                </div>
+              </div>
+
+              {/* Receta Oftálmica (Graduación) */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide text-[11px] flex items-center gap-1.5">
+                    <Glasses className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    Graduación Oftálmica ({selectedOrderDetail.prescription?.type || selectedOrderDetail.type})
+                  </h4>
+                </div>
+
+                {selectedOrderDetail.prescription ? (
+                  <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+                    <table className="w-full text-center border-collapse">
+                      <thead className="bg-slate-50 dark:bg-slate-800/60 text-[9px] uppercase font-black text-slate-500 tracking-wider">
+                        <tr>
+                          <th className="p-2.5 text-left border-r border-b border-slate-200 dark:border-slate-800">Ojo</th>
+                          <th className="p-2.5 border-r border-b border-slate-200 dark:border-slate-800">Esférico</th>
+                          <th className="p-2.5 border-r border-b border-slate-200 dark:border-slate-800">Cilíndrico</th>
+                          <th className="p-2.5 border-r border-b border-slate-200 dark:border-slate-800">Eje</th>
+                          <th className="p-2.5 border-r border-b border-slate-200 dark:border-slate-800">Adición</th>
+                          <th className="p-2.5 border-r border-b border-slate-200 dark:border-slate-800">Altura</th>
+                          <th className="p-2.5 border-b border-slate-200 dark:border-slate-800">D.I.P.</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {['Derecho (OD)', 'Izquierdo (OI)'].map((label, idx) => {
+                          const isOD = idx === 0;
+                          const p = selectedOrderDetail.prescription;
+                          const lejos = isOD ? p.lejosOD : p.lejosOI;
+                          const cerca = isOD ? p.cercaOD : p.cercaOI;
+                          const add = isOD ? p.adicionOD : p.adicionOI;
+                          const alt = isOD ? p.alturaOD : p.alturaOI;
+                          const dip = isOD ? p.diOD : p.diOI;
+
+                          return (
+                            <tr key={label} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 font-medium">
+                              <td className="p-2.5 text-left font-black border-r border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 text-slate-900 dark:text-white">
+                                {label}
+                              </td>
+                              <td className="p-2.5 border-r border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-slate-200">
+                                {lejos?.esf || cerca?.esf || '—'}
+                              </td>
+                              <td className="p-2.5 border-r border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-slate-200">
+                                {lejos?.cil || cerca?.cil || '—'}
+                              </td>
+                              <td className="p-2.5 border-r border-slate-100 dark:border-slate-800 font-bold text-slate-800 dark:text-slate-200">
+                                {lejos?.eje || cerca?.eje ? `${lejos?.eje || cerca?.eje}°` : '—'}
+                              </td>
+                              <td className="p-2.5 border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                                {add ? `+${add}` : '—'}
+                              </td>
+                              <td className="p-2.5 border-r border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-400">
+                                {alt ? `${alt} mm` : '—'}
+                              </td>
+                              <td className="p-2.5 text-slate-600 dark:text-slate-400">
+                                {dip ? `${dip} mm` : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-500 italic text-center">
+                    No se registraron dioptrías específicas para este pedido.
+                  </div>
+                )}
+              </div>
+
+              {/* Especificaciones Técnicas del Cristal y Montura */}
+              <div className="space-y-2">
+                <h4 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide text-[11px] flex items-center gap-1.5">
+                  <Package className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                  Cristales y Montura
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Cristal</span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {selectedOrderDetail.crystalDetails?.name || selectedOrderDetail.service}
+                    </span>
+                  </div>
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Material / Índice</span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {selectedOrderDetail.crystalDetails?.material || 'Orgánico'} {selectedOrderDetail.crystalDetails?.index ? `(${selectedOrderDetail.crystalDetails.index})` : ''}
+                    </span>
+                  </div>
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Tratamientos</span>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {Array.isArray(selectedOrderDetail.treatments) && selectedOrderDetail.treatments.length > 0 
+                        ? selectedOrderDetail.treatments.map((t: any) => typeof t === 'string' ? t : t.name).join(', ')
+                        : 'Estándar'}
+                    </span>
+                  </div>
+                </div>
+
+                {selectedOrderDetail.frame && (
+                  <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block">Armazón Asignado</span>
+                      <span className="font-bold text-slate-900 dark:text-white">{selectedOrderDetail.frame.name || selectedOrderDetail.frame.model}</span>
+                    </div>
+                    {selectedOrderDetail.frame.sku && (
+                      <span className="text-xs font-mono font-bold bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300">
+                        SKU: {selectedOrderDetail.frame.sku}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {selectedOrderDetail.observations && (
+                  <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Observaciones de la Orden</span>
+                    <p className="text-slate-700 dark:text-slate-300 font-medium italic">{selectedOrderDetail.observations}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Resumen Financiero */}
+              <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800">
+                <h4 className="font-black text-slate-800 dark:text-slate-200 uppercase tracking-wide text-[11px] mb-3">
+                  Detalle Financiero
+                </h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Total Orden</span>
+                    <span className="text-base font-black text-slate-900 dark:text-white">${selectedOrderDetail.amount.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Abonado</span>
+                    <span className="text-base font-black text-emerald-600 dark:text-emerald-450">${selectedOrderDetail.paid.toLocaleString()}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">Saldo Pendiente</span>
+                    <span className={cn("text-base font-black", (selectedOrderDetail.amount - selectedOrderDetail.paid) > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-500")}>
+                      ${(selectedOrderDetail.amount - selectedOrderDetail.paid).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => { setIsOrderDetailModalOpen(false); setSelectedOrderDetail(null); }}
+                className="px-6 py-2.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-xl font-bold hover:bg-slate-800 dark:hover:bg-slate-100 transition-all text-xs shadow-sm"
+              >
+                Cerrar Detalle
               </button>
             </div>
           </div>

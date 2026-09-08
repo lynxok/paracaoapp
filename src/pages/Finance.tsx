@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { 
   Calculator, 
   DollarSign, 
@@ -174,7 +175,18 @@ export function Finance() {
   const [reconcileAmount, setReconcileAmount] = useState<string>("");
   const [reconcileTarget, setReconcileTarget] = useState<string>("");
   const [reconcileSource, setReconcileSource] = useState<string>("");
-  const [todayInsuranceClaims, setTodayInsuranceClaims] = useState<number>(0);
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.pathname === '/finance/closing') {
+      setActiveTab('cajas');
+      // Auto-select the first physical cash box to show the physical counting (Recuento Físico / Arqueo)
+      const cashBox = boxes.find(b => b.type === 'cash' || b.id === 'caja-efectivo');
+      if (cashBox) {
+        setSelectedBoxId(cashBox.id);
+      }
+    }
+  }, [location.pathname, boxes]);
 
   useEffect(() => {
     async function loadTodayClaims() {

@@ -191,6 +191,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     paid: Number(o.paid) || 0,
     medico: o.medico || '',
     branchId: o.branch_id || o.branchId || '',
+    prescriptionDetails: o.prescription_details || o.prescriptionDetails || null,
     senaMethodId: o.sena_method_id || '',
     previstoMethodId: o.previsto_method_id || ''
   });
@@ -208,6 +209,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     paid: o.paid,
     medico: o.medico,
     branch_id: o.branchId,
+    prescription_details: o.prescriptionDetails || null,
     sena_method_id: o.senaMethodId || null,
     previsto_method_id: o.previstoMethodId || null
   });

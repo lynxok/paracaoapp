@@ -62,6 +62,7 @@ function AppContent() {
       <Route path="/inventory/reception" element={<Layout title="Recepción de Mercadería" subtitle="Actualización de stock"><Inventory /></Layout>} />
       <Route path="/suppliers" element={<Layout title="Proveedores" subtitle="Directorio de proveedores"><Suppliers /></Layout>} />
       <Route path="/lab-management" element={<Layout title="Liquidación de Laboratorios" subtitle="Gestión de pagos externos"><Labs /></Layout>} />
+      <Route path="/labs" element={<Layout title="Liquidación de Laboratorios" subtitle="Gestión de pagos externos"><Labs /></Layout>} />
       <Route path="/finance" element={<Layout title="Arqueo de Caja" subtitle="Caja Principal #01 - 24 Oct 2023"><Finance /></Layout>} />
       <Route path="/finance/closing" element={<Layout title="Arqueo de Caja" subtitle="Cierre de caja diario"><Finance /></Layout>} />
       <Route path="/insurance-claims" element={<Layout title="Gestión de Reintegros" subtitle="Control de reintegros de obras sociales"><InsuranceClaims /></Layout>} />

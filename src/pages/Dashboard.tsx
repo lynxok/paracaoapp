@@ -282,7 +282,7 @@ export function Dashboard() {
                       <tr 
                         key={row.id} 
                         onClick={() => {
-                          navigate('/labs', { state: { openOrderId: row.id } });
+                          navigate('/lab-management', { state: { openOrderId: row.id } });
                         }}
                         className="bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
                         title="Clic para abrir trabajo y Ficha Técnica en Laboratorio"
@@ -723,7 +723,7 @@ export function Dashboard() {
                                 <button
                                   onClick={() => {
                                     setIsAllOrdersModalOpen(false);
-                                    navigate('/labs', { state: { openOrderId: order.id } });
+                                    navigate('/lab-management', { state: { openOrderId: order.id } });
                                   }}
                                   className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline inline-flex items-center gap-1.5 cursor-pointer font-mono font-bold text-left"
                                   title="Ver trabajo en Taller y Ficha Técnica"
@@ -771,7 +771,7 @@ export function Dashboard() {
                                   <button
                                     onClick={() => {
                                       setIsAllOrdersModalOpen(false);
-                                      navigate('/labs', { state: { openOrderId: order.id } });
+                                      navigate('/lab-management', { state: { openOrderId: order.id } });
                                     }}
                                     className="px-2.5 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors inline-flex items-center gap-1 cursor-pointer"
                                     title={`Abrir ficha técnica de taller para ${order.id}`}
