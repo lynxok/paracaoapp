@@ -112,8 +112,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const hasCashBox = dynamicBankBoxes.some(box => box.type === 'cash');
         const initialBoxes = hasCashBox ? dynamicBankBoxes : [DEFAULT_CASH_BOX, ...dynamicBankBoxes];
 
-        // 2. Fetch Transactions
-        const { data: dbTx } = await supabase.from('transactions').select('*');
+        // 2. Fetch Transactions (ordered by date and time descending)
+        const { data: dbTx } = await supabase
+          .from('transactions')
+          .select('*')
+          .order('date', { ascending: false })
+          .order('time', { ascending: false });
+
         let loadedTx: Transaction[] = [];
         if (dbTx && dbTx.length > 0) {
           loadedTx = dbTx.map((t: any) => ({
@@ -130,6 +135,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             clientName: t.client_name,
             reconciled: t.reconciled
           }));
+          // Extra defensiveness: guarantee newest first
+          loadedTx.sort((a, b) => {
+            const timeA = `${a.date || ''} ${a.time || '00:00:00'}`;
+            const timeB = `${b.date || ''} ${b.time || '00:00:00'}`;
+            return timeB.localeCompare(timeA);
+          });
           setTransactions(loadedTx);
         }
 

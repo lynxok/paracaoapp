@@ -23,9 +23,11 @@ import {
   CheckCircle2,
   Clock,
   Shield,
-  FileText,
   X,
-  ChevronDown
+  ChevronDown,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
@@ -160,6 +162,10 @@ export function Finance() {
   }, [cheques, chequeStatusFilter, chequeSearch]);
 
   const [selectedBoxId, setSelectedBoxId] = useState<string>('consolidated');
+  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
+  const [minAmount, setMinAmount] = useState<string>('');
+  const [maxAmount, setMaxAmount] = useState<string>('');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [denominations, setDenominations] = useState<Denomination[]>(INITIAL_DENOMINATIONS);
   const [showAddBox, setShowAddBox] = useState(false);
   const [showAddDenom, setShowAddDenom] = useState(false);
@@ -190,10 +196,60 @@ export function Finance() {
     boxes.find(b => b.id === selectedBoxId)
   , [boxes, selectedBoxId]);
 
+  // Helper function to resolve box label reliably
+  const getBoxName = (boxId?: string, method?: string) => {
+    if (!boxId && !method) return 'Caja General';
+    const found = boxes.find(b => 
+      b.id === boxId || 
+      b.id === `bank-${boxId}` || 
+      (boxId && b.id.replace('bank-', '') === boxId.replace('bank-', '')) ||
+      (method && b.name.toLowerCase() === method.toLowerCase())
+    );
+    if (found) return found.name;
+    if (method) return method;
+    return 'Caja General';
+  };
+
+  // Filtered and sorted transactions for consolidated view
+  const processedTransactions = useMemo(() => {
+    let list = [...transactions];
+
+    if (minAmount.trim() !== '') {
+      const min = parseFloat(minAmount);
+      if (!isNaN(min)) {
+        list = list.filter(tx => Math.abs(tx.amount) >= min);
+      }
+    }
+
+    if (maxAmount.trim() !== '') {
+      const max = parseFloat(maxAmount);
+      if (!isNaN(max)) {
+        list = list.filter(tx => Math.abs(tx.amount) <= max);
+      }
+    }
+
+    list.sort((a, b) => {
+      const timeA = `${a.date || ''} ${a.time || '00:00:00'}`;
+      const timeB = `${b.date || ''} ${b.time || '00:00:00'}`;
+      const cmp = timeB.localeCompare(timeA);
+      return sortOrder === 'desc' ? cmp : -cmp;
+    });
+
+    return list;
+  }, [transactions, sortOrder, minAmount, maxAmount]);
+
   const boxTransactions = useMemo(() => {
-    if (selectedBoxId === 'consolidated') return transactions;
-    return transactions.filter(t => t.boxId === selectedBoxId);
-  }, [transactions, selectedBoxId]);
+    let list = selectedBoxId === 'consolidated' 
+      ? transactions 
+      : transactions.filter(t => t.boxId === selectedBoxId || t.boxId === `bank-${selectedBoxId}` || (t.method && boxes.find(b => b.id === selectedBoxId)?.name.toLowerCase() === t.method.toLowerCase()));
+    
+    list.sort((a, b) => {
+      const timeA = `${a.date || ''} ${a.time || '00:00:00'}`;
+      const timeB = `${b.date || ''} ${b.time || '00:00:00'}`;
+      return timeB.localeCompare(timeA); // Most recent first
+    });
+    return list;
+  }, [transactions, selectedBoxId, boxes]);
 
   const consolidatedStats = useMemo(() => {
     return boxes.reduce((acc, box) => ({
@@ -569,57 +625,160 @@ export function Finance() {
                 </div>
 
                 <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm">
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white flex justify-between items-center">
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 font-bold text-slate-900 dark:text-white flex flex-wrap justify-between items-center gap-3">
                     <div className="flex items-center gap-2">
                       <History className="w-4 h-4 text-slate-400" />
                       <span>Últimos Movimientos Consolidados</span>
+                      <span className="text-xs font-normal text-slate-500 dark:text-slate-400">
+                        ({processedTransactions.length} registros)
+                      </span>
                     </div>
-                    <button className="text-xs text-blue-600 font-black uppercase tracking-widest flex items-center gap-1 hover:underline">
-                      <Filter className="w-3 h-3" /> Filtrar
-                    </button>
+
+                    <div className="flex items-center gap-2">
+                      <button 
+                        onClick={() => setIsFilterOpen(!isFilterOpen)}
+                        className={cn(
+                          "text-xs px-3 py-1.5 rounded-xl font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors border",
+                          isFilterOpen || minAmount || maxAmount || sortOrder !== 'desc'
+                            ? "bg-blue-50 dark:bg-blue-900/30 text-blue-600 border-blue-200 dark:border-blue-800"
+                            : "bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100"
+                        )}
+                      >
+                        <Filter className="w-3.5 h-3.5" />
+                        <span>Filtrar / Ordenar</span>
+                        {(minAmount || maxAmount || sortOrder !== 'desc') && (
+                          <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                        )}
+                        <ChevronDown className={cn("w-3.5 h-3.5 transition-transform", isFilterOpen && "rotate-180")} />
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Panel interactivo de Filtrar / Ordenar */}
+                  {isFilterOpen && (
+                    <div className="p-4 bg-slate-50/80 dark:bg-slate-800/30 border-b border-slate-200 dark:border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-4 animate-in fade-in duration-200">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex items-center gap-1">
+                          <ArrowUpDown className="w-3 h-3 text-slate-400" /> Orden Cronológico
+                        </label>
+                        <div className="flex rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 p-1 gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setSortOrder('desc')}
+                            className={cn(
+                              "flex-1 py-1 px-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-colors",
+                              sortOrder === 'desc'
+                                ? "bg-blue-600 text-white shadow-sm"
+                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            )}
+                          >
+                            <ArrowDown className="w-3 h-3" /> Más recientes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSortOrder('asc')}
+                            className={cn(
+                              "flex-1 py-1 px-2 text-xs font-bold rounded-lg flex items-center justify-center gap-1 transition-colors",
+                              sortOrder === 'asc'
+                                ? "bg-blue-600 text-white shadow-sm"
+                                : "text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                            )}
+                          >
+                            <ArrowUp className="w-3 h-3" /> Más antiguos
+                          </button>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5">
+                          Monto Mínimo ($)
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Ej: 5000"
+                          value={minAmount}
+                          onChange={(e) => setMinAmount(e.target.value)}
+                          className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 flex justify-between items-center">
+                          <span>Monto Máximo ($)</span>
+                          {(minAmount || maxAmount || sortOrder !== 'desc') && (
+                            <button
+                              onClick={() => {
+                                setMinAmount('');
+                                setMaxAmount('');
+                                setSortOrder('desc');
+                              }}
+                              className="text-[10px] text-rose-500 hover:underline font-bold"
+                            >
+                              Limpiar filtros
+                            </button>
+                          )}
+                        </label>
+                        <input
+                          type="number"
+                          placeholder="Ej: 50000"
+                          value={maxAmount}
+                          onChange={(e) => setMaxAmount(e.target.value)}
+                          className="w-full px-3 py-1.5 text-xs bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead className="bg-slate-50 dark:bg-slate-800/30 text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-widest">
                         <tr>
                           <th className="px-6 py-3 font-black">Fecha/Hora</th>
-                          <th className="px-6 py-3 font-black">Caja</th>
+                          <th className="px-6 py-3 font-black">Caja / Medio</th>
                           <th className="px-6 py-3 font-black">Concepto</th>
                           <th className="px-6 py-3 font-black">Categoría</th>
                           <th className="px-6 py-3 font-black text-right">Monto</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                        {transactions.map(tx => (
-                          <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="text-slate-900 dark:text-white font-medium">{tx.date}</span>
-                                <span className="text-[10px] text-slate-400">{tx.time}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className="text-xs font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
-                                {boxes.find(b => b.id === tx.boxId)?.name || 'Desconocida'}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex flex-col">
-                                <span className="font-bold text-slate-900 dark:text-white">{tx.concept}</span>
-                                {tx.clientName && <span className="text-[10px] text-blue-500">Cliente: {tx.clientName}</span>}
-                              </div>
-                            </td>
-                            <td className="px-6 py-4 text-xs font-bold text-slate-500 capitalize">
-                              {FINANCE_CATEGORIES.find(c => c.id === tx.category)?.name || tx.category}
-                            </td>
-                            <td className={cn(
-                              "px-6 py-4 text-right font-black",
-                              tx.type === 'income' ? "text-emerald-600" : "text-rose-600"
-                            )}>
-                              {tx.type === 'income' ? '+' : '-'}${tx.amount.toLocaleString()}
+                        {processedTransactions.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
+                              No se encontraron transacciones que coincidan con los criterios.
                             </td>
                           </tr>
-                        ))}
+                        ) : (
+                          processedTransactions.map(tx => (
+                            <tr key={tx.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col">
+                                  <span className="text-slate-900 dark:text-white font-medium">{tx.date}</span>
+                                  <span className="text-[10px] text-slate-400">{tx.time}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                  {getBoxName(tx.boxId, tx.method)}
+                                </span>
+                              </td>
+                              <td className="px-6 py-4">
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-slate-900 dark:text-white">{tx.concept}</span>
+                                  {tx.clientName && <span className="text-[10px] text-blue-500 font-medium">Cliente: {tx.clientName}</span>}
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-xs font-bold text-slate-500 capitalize">
+                                {FINANCE_CATEGORIES.find(c => c.id === tx.category)?.name || tx.category}
+                              </td>
+                              <td className={cn(
+                                "px-6 py-4 text-right font-black",
+                                tx.type === 'income' ? "text-emerald-600" : "text-rose-600"
+                              )}>
+                                {tx.type === 'income' ? '+' : '-'}${tx.amount.toLocaleString()}
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>

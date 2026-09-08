@@ -1999,6 +1999,7 @@ export function NewOrder() {
               </button>
               <button
                 onClick={() => {
+                  resetForm('all');
                   setShowSuccessModal(false);
                 }}
                 className="w-full h-11 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-850 font-bold text-sm transition-all active:scale-[0.98]"
