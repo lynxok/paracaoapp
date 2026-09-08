@@ -36,13 +36,15 @@ export function Labs() {
         if (foundJob.date) {
           setPeriod(foundJob.date.slice(0, 7));
         }
-        // Also enrich with client info if missing
+        // Also enrich with client info and prescription details if missing in lab job
         const matchedOrder = orders.find(o => o.id && o.id.trim().toLowerCase() === (foundJob.orderId || '').trim().toLowerCase());
         const clientObj = clients.find(c => 
           (c.id && String(c.id) === String(matchedOrder?.clientId)) ||
           (c.dni && matchedOrder?.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
           (c.name && foundJob.clientName && c.name.trim().toLowerCase() === foundJob.clientName.trim().toLowerCase())
         );
+
+        const rx = matchedOrder?.prescriptionDetails;
 
         setActiveJobDetails({
           ...foundJob,
@@ -51,7 +53,37 @@ export function Labs() {
           sellerName: foundJob.sellerName || 'Sucursal Principal',
           branchName: foundJob.branchName || (matchedOrder?.branchId === '1' ? 'Casa Central' : matchedOrder?.branchId ? `Sucursal ${matchedOrder.branchId}` : 'Casa Central'),
           doctor: matchedOrder?.medico || '',
-          order: matchedOrder || undefined
+          order: matchedOrder || undefined,
+          prescription: foundJob.prescription || (rx ? {
+            type: rx.prescriptionType || matchedOrder?.type || 'monofocal',
+            lejosOD: rx.lejosOD,
+            lejosOI: rx.lejosOI,
+            cercaOD: rx.cercaOD,
+            cercaOI: rx.cercaOI,
+            adicionOD: rx.adicionOD,
+            adicionOI: rx.adicionOI,
+            alturaOD: rx.alturaOD,
+            alturaOI: rx.alturaOI,
+            diOD: rx.diOD,
+            diOI: rx.diOI,
+            apOD: rx.apOD,
+            apOI: rx.apOI,
+          } : undefined),
+          crystalDetails: foundJob.crystalDetails || (rx?.selectedCrystalItem ? {
+            id: rx.selectedCrystalItem.id || '',
+            name: rx.selectedCrystalItem.name || matchedOrder?.service || 'Cristal Óptico',
+            type: rx.selectedCrystalItem.type || matchedOrder?.type || 'monofocal',
+            material: rx.selectedCrystalItem.material || 'Orgánico',
+            index: rx.selectedCrystalItem.index || '1.49',
+            brand: rx.selectedCrystalItem.brand || 'Genérico',
+            design: rx.selectedCrystalItem.design || 'Esférico',
+            color: rx.selectedCrystalItem.color || 'Blanco',
+            eyes: rx.selectedOjos || rx.eyesCharged || 'ambos',
+            basePrice: matchedOrder?.amount || 0,
+            totalPrice: matchedOrder?.amount || 0
+          } : undefined),
+          treatments: (foundJob.treatments && foundJob.treatments.length > 0) ? foundJob.treatments : (rx?.selectedTreatments || []),
+          observaciones: foundJob.observaciones || rx?.observaciones || matchedOrder?.notes || undefined
         });
         return;
       }
@@ -141,13 +173,119 @@ export function Labs() {
     return true;
   };
 
-  const filteredJobs = jobs.filter(j => (selectedLabId === 'all' || !selectedLabId || j.labId === selectedLabId) && (!period || j.date.startsWith(period)));
-  const filteredPayments = payments.filter(p => (selectedLabId === 'all' || !selectedLabId || p.labId === selectedLabId) && (!period || p.date.startsWith(period)));
+  const [activeStatusFilter, setActiveStatusFilter] = useState<'all' | 'pendientes' | 'demorados' | 'para_retirar' | 'entregados'>('all');
+  const [filterByPeriod, setFilterByPeriod] = useState<boolean>(false);
+
+  // Combine jobs with prescription orders that might not be in lab_jobs yet (Taller Propio / Sin Laboratorio asignado)
+  const unifiedJobs: (LabJob & { order?: any; doctor?: string; isInternalWorkshop?: boolean })[] = React.useMemo(() => {
+    const list: (LabJob & { order?: any; doctor?: string; isInternalWorkshop?: boolean })[] = [...jobs];
+    const registeredOrderIds = new Set(jobs.map(j => (j.orderId || '').trim().toLowerCase()));
+
+    orders.forEach(order => {
+      // If it's a prescription order or workshop service and NOT yet registered in jobs
+      const isRx = order.type === 'monofocal' || order.type === 'multifocal' || order.type === 'ocupacional' || order.type === 'bifocal' || order.type === 'contacto';
+      const orderIdLower = (order.id || '').trim().toLowerCase();
+      
+      if (isRx && !registeredOrderIds.has(orderIdLower)) {
+        const clientObj = clients.find(c => 
+          (c.id && String(c.id) === String(order.clientId)) ||
+          (c.dni && order.clientId && c.dni.trim() === String(order.clientId).trim()) ||
+          (c.name && order.clientName && c.name.trim().toLowerCase() === order.clientName.trim().toLowerCase())
+        );
+        const rx = order.prescriptionDetails;
+        const assignedLab = rx?.assignedLab;
+
+        list.push({
+          id: `order-job-${order.id}`,
+          labId: assignedLab?.id || 'taller-propio',
+          labName: assignedLab?.name || 'Taller Propio (Interno)',
+          date: order.date || new Date().toISOString().split('T')[0],
+          orderId: order.id,
+          concept: order.service || 'Trabajo Recetado',
+          cost: order.amount || 0,
+          status: (order.status as any) || 'En Taller',
+          clientName: order.clientName || clientObj?.name || 'Cliente',
+          clientDni: clientObj?.dni || '',
+          sellerName: 'Sucursal Principal',
+          branchName: order.branchId === '1' ? 'Casa Central' : order.branchId ? `Sucursal ${order.branchId}` : 'Casa Central',
+          doctor: order.medico || '',
+          isInternalWorkshop: !assignedLab,
+          order: order,
+          prescription: rx ? {
+            type: rx.prescriptionType || order.type,
+            lejosOD: rx.lejosOD,
+            lejosOI: rx.lejosOI,
+            cercaOD: rx.cercaOD,
+            cercaOI: rx.cercaOI,
+            adicionOD: rx.adicionOD,
+            adicionOI: rx.adicionOI,
+            alturaOD: rx.alturaOD,
+            alturaOI: rx.alturaOI,
+            diOD: rx.diOD,
+            diOI: rx.diOI,
+            apOD: rx.apOD,
+            apOI: rx.apOI,
+          } : undefined,
+          crystalDetails: rx?.selectedCrystalItem ? {
+            id: rx.selectedCrystalItem.id || '',
+            name: rx.selectedCrystalItem.name || order.service,
+            type: rx.selectedCrystalItem.type || order.type,
+            material: rx.selectedCrystalItem.material || 'Orgánico',
+            index: rx.selectedCrystalItem.index || '1.49',
+            brand: rx.selectedCrystalItem.brand || 'Genérico',
+            design: rx.selectedCrystalItem.design || 'Esférico',
+            color: rx.selectedCrystalItem.color || 'Blanco',
+            eyes: rx.selectedOjos || rx.eyesCharged || 'ambos',
+            basePrice: order.amount || 0,
+            totalPrice: order.amount || 0
+          } : undefined,
+          treatments: rx?.selectedTreatments || [],
+          observaciones: rx?.observaciones || `Trabajo vinculado a la orden ${order.id}`
+        });
+      }
+    });
+
+    return list;
+  }, [jobs, orders, clients]);
+
+  const filteredJobs = unifiedJobs.filter(j => {
+    // Filter by Lab
+    if (selectedLabId === 'taller-propio') {
+      if (j.labId !== 'taller-propio' && !j.isInternalWorkshop && j.labName !== 'Taller Propio (Interno)') return false;
+    } else if (selectedLabId && selectedLabId !== 'all') {
+      if (j.labId !== selectedLabId) return false;
+    }
+
+    // Filter by Status Tab
+    if (activeStatusFilter === 'pendientes') {
+      if (j.status !== 'En Taller' && j.status !== 'Demorado') return false;
+    } else if (activeStatusFilter === 'demorados') {
+      if (j.status !== 'Demorado') return false;
+    } else if (activeStatusFilter === 'para_retirar') {
+      if (j.status !== 'Para Retirar' && (j.status as any) !== 'Recibido') return false;
+    } else if (activeStatusFilter === 'entregados') {
+      if (j.status !== 'Entregado' && (j.status as any) !== 'Completado') return false;
+    }
+
+    // Filter by Period (Only if filterByPeriod is active, or if viewing 'entregados' history)
+    if (filterByPeriod && period) {
+      if (!j.date.startsWith(period)) return false;
+    }
+
+    return true;
+  });
+
+  const filteredPayments = payments.filter(p => (selectedLabId === 'all' || !selectedLabId || p.labId === selectedLabId) && (!filterByPeriod || !period || p.date.startsWith(period)));
 
   const totalJobs = filteredJobs.length;
   const subtotal = filteredJobs.reduce((sum, j) => sum + j.cost, 0);
   const pagos = filteredPayments.reduce((sum, p) => sum + p.amount, 0);
   const saldo = subtotal - pagos;
+
+  // Counts for status tabs
+  const pendingCount = unifiedJobs.filter(j => (selectedLabId === 'all' || !selectedLabId || j.labId === selectedLabId) && (j.status === 'En Taller' || j.status === 'Demorado')).length;
+  const readyCount = unifiedJobs.filter(j => (selectedLabId === 'all' || !selectedLabId || j.labId === selectedLabId) && (j.status === 'Para Retirar' || (j.status as any) === 'Recibido')).length;
+  const deliveredCount = unifiedJobs.filter(j => (selectedLabId === 'all' || !selectedLabId || j.labId === selectedLabId) && (j.status === 'Entregado' || (j.status as any) === 'Completado')).length;
 
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'crystal' | 'service'>('crystal');
@@ -308,36 +446,127 @@ export function Labs() {
   return (
     <div className="space-y-8">
       {/* Top Header Filters */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 flex flex-wrap gap-6 items-end">
-        <div className="flex-1 min-w-[240px]">
-          <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
-            <FlaskConical className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Laboratorio
-          </label>
-          <select 
-            className="w-full h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-bold"
-            value={selectedLabId}
-            onChange={(e) => setSelectedLabId(e.target.value)}
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+        <div className="flex flex-wrap gap-6 items-end">
+          <div className="flex-1 min-w-[240px]">
+            <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
+              <FlaskConical className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Laboratorio Asignado
+            </label>
+            <select 
+              className="w-full h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-bold"
+              value={selectedLabId}
+              onChange={(e) => setSelectedLabId(e.target.value)}
+            >
+              <option value="all">🌐 Todos los Laboratorios y Talleres</option>
+              <option value="taller-propio">🏠 Taller Propio / Sin Laboratorio asignado</option>
+              {labs.map(lab => (
+                <option key={lab.id} value={lab.id}>🔬 {lab.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex-1 min-w-[220px]">
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Filtrar por Mes
+              </label>
+              <button 
+                type="button"
+                onClick={() => setFilterByPeriod(!filterByPeriod)}
+                className={cn(
+                  "text-[10px] font-black uppercase px-2 py-0.5 rounded transition-all cursor-pointer",
+                  filterByPeriod 
+                    ? "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700"
+                )}
+              >
+                {filterByPeriod ? "✓ Mes Activo" : "Ver Histórico Completo"}
+              </button>
+            </div>
+            <input 
+              className={cn(
+                "w-full h-11 px-3 rounded-lg border bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none transition-all",
+                filterByPeriod 
+                  ? "border-blue-300 dark:border-blue-700 text-slate-900 dark:text-white" 
+                  : "border-slate-200 dark:border-slate-800 text-slate-400 opacity-60"
+              )} 
+              type="month" 
+              value={period}
+              disabled={!filterByPeriod}
+              onChange={(e) => {
+                setPeriod(e.target.value);
+                setFilterByPeriod(true);
+              }}
+            />
+          </div>
+
+          <button 
+            type="button"
+            onClick={() => setFilterByPeriod(true)}
+            className="h-11 px-6 bg-blue-600 text-white font-bold rounded-lg shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2 cursor-pointer"
           >
-            <option value="all">Todos los Laboratorios</option>
-            {labs.map(lab => (
-              <option key={lab.id} value={lab.id}>{lab.name}</option>
-            ))}
-          </select>
+            <Search className="w-4 h-4" /> Aplicar Filtro
+          </button>
         </div>
-        <div className="flex-1 min-w-[200px]">
-          <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-blue-600 dark:text-blue-400" /> Periodo
-          </label>
-          <input 
-            className="w-full h-11 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" 
-            type="month" 
-            value={period}
-            onChange={(e) => setPeriod(e.target.value)}
-          />
+
+        {/* Status Quick Filter Tabs */}
+        <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-2 items-center text-xs">
+          <span className="text-[11px] font-black text-slate-400 uppercase mr-1">Estado de Trabajos:</span>
+          <button
+            onClick={() => setActiveStatusFilter('all')}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              activeStatusFilter === 'all'
+                ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
+                : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-750"
+            )}
+          >
+            <span>Todos</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-200 dark:bg-slate-700 text-current">{unifiedJobs.length}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveStatusFilter('pendientes')}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              activeStatusFilter === 'pendientes'
+                ? "bg-amber-500 text-white shadow-sm"
+                : "bg-amber-50 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 hover:bg-amber-100 border border-amber-200 dark:border-amber-900/60"
+            )}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>En Taller / Producción</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">{pendingCount}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveStatusFilter('para_retirar')}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              activeStatusFilter === 'para_retirar'
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-blue-50 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 hover:bg-blue-100 border border-blue-200 dark:border-blue-900/60"
+            )}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Listos para Retirar</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-blue-200 dark:bg-blue-900/60 text-blue-900 dark:text-blue-200">{readyCount}</span>
+          </button>
+
+          <button
+            onClick={() => setActiveStatusFilter('entregados')}
+            className={cn(
+              "px-3 py-1.5 rounded-lg font-bold transition-all flex items-center gap-1.5 cursor-pointer",
+              activeStatusFilter === 'entregados'
+                ? "bg-emerald-600 text-white shadow-sm"
+                : "bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 hover:bg-emerald-100 border border-emerald-200 dark:border-emerald-900/60"
+            )}
+          >
+            <CheckCircle className="w-3.5 h-3.5" />
+            <span>Entregados</span>
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-200 dark:bg-emerald-900/60 text-emerald-900 dark:text-emerald-200">{deliveredCount}</span>
+          </button>
         </div>
-        <button className="h-11 px-6 bg-blue-600 text-white font-bold rounded-lg shadow-sm hover:bg-blue-700 transition-colors flex items-center gap-2">
-          <Search className="w-4 h-4" /> Consultar
-        </button>
       </div>
 
       {/* Stats Cards */}
