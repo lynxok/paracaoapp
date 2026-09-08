@@ -178,7 +178,57 @@ export function Labs() {
 
   // Combine jobs with prescription orders that might not be in lab_jobs yet (Taller Propio / Sin Laboratorio asignado)
   const unifiedJobs: (LabJob & { order?: any; doctor?: string; isInternalWorkshop?: boolean })[] = React.useMemo(() => {
-    const list: (LabJob & { order?: any; doctor?: string; isInternalWorkshop?: boolean })[] = [...jobs];
+    // 1. First enrich all existing jobs with corresponding order details if available
+    const list: (LabJob & { order?: any; doctor?: string; isInternalWorkshop?: boolean })[] = jobs.map(job => {
+      const matchedOrder = orders.find(o => o.id && (o.id.trim().toLowerCase() === (job.orderId || '').trim().toLowerCase()));
+      const clientObj = clients.find(c => 
+        (c.id && String(c.id) === String(matchedOrder?.clientId)) ||
+        (c.dni && matchedOrder?.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
+        (c.name && job.clientName && c.name.trim().toLowerCase() === job.clientName.trim().toLowerCase())
+      );
+      const rx = matchedOrder?.prescriptionDetails;
+
+      return {
+        ...job,
+        clientDni: job.clientDni || clientObj?.dni || '',
+        clientName: job.clientName || clientObj?.name || matchedOrder?.clientName || 'Cliente',
+        sellerName: job.sellerName || 'Sucursal Principal',
+        branchName: job.branchName || (matchedOrder?.branchId === '1' ? 'Casa Central' : matchedOrder?.branchId ? `Sucursal ${matchedOrder.branchId}` : 'Casa Central'),
+        doctor: matchedOrder?.medico || '',
+        order: matchedOrder || undefined,
+        prescription: job.prescription || (rx ? {
+          type: rx.prescriptionType || matchedOrder?.type || 'monofocal',
+          lejosOD: rx.lejosOD,
+          lejosOI: rx.lejosOI,
+          cercaOD: rx.cercaOD,
+          cercaOI: rx.cercaOI,
+          adicionOD: rx.adicionOD,
+          adicionOI: rx.adicionOI,
+          alturaOD: rx.alturaOD,
+          alturaOI: rx.alturaOI,
+          diOD: rx.diOD,
+          diOI: rx.diOI,
+          apOD: rx.apOD,
+          apOI: rx.apOI,
+        } : undefined),
+        crystalDetails: job.crystalDetails || (rx?.selectedCrystalItem ? {
+          id: rx.selectedCrystalItem.id || '',
+          name: rx.selectedCrystalItem.name || matchedOrder?.service || 'Cristal Óptico',
+          type: rx.selectedCrystalItem.type || matchedOrder?.type || 'monofocal',
+          material: rx.selectedCrystalItem.material || 'Orgánico',
+          index: rx.selectedCrystalItem.index || '1.49',
+          brand: rx.selectedCrystalItem.brand || 'Genérico',
+          design: rx.selectedCrystalItem.design || 'Esférico',
+          color: rx.selectedCrystalItem.color || 'Blanco',
+          eyes: rx.selectedOjos || rx.eyesCharged || 'ambos',
+          basePrice: matchedOrder?.amount || 0,
+          totalPrice: matchedOrder?.amount || 0
+        } : undefined),
+        treatments: (job.treatments && job.treatments.length > 0) ? job.treatments : (rx?.selectedTreatments || []),
+        observaciones: job.observaciones || rx?.observaciones || matchedOrder?.notes || undefined
+      };
+    });
+
     const registeredOrderIds = new Set(jobs.map(j => (j.orderId || '').trim().toLowerCase()));
 
     orders.forEach(order => {

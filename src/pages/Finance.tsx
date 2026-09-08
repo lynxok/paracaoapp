@@ -28,7 +28,8 @@ import {
   ChevronDown,
   ArrowUpDown,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  FileText
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
