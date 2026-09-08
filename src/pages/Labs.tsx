@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench, AlertTriangle, ChevronDown, Package, ArrowRight, User } from "lucide-react";
+import { FlaskConical, Calendar, Search, FileText, CheckCircle2, Clock, Plus, X, Eye, CheckCircle, Glasses, Wrench, AlertTriangle, ChevronDown, Package, ArrowRight, User, Printer } from "lucide-react";
 import { useLabs, LabJob } from "../context/LabContext";
 import { useSettings } from "../context/SettingsContext";
 import { useClients } from "../context/ClientContext";
@@ -10,7 +10,7 @@ export function Labs() {
   const location = useLocation();
   const navigate = useNavigate();
   const { labs, jobs, payments, addJob, updateJobStatus, updateJobEstimatedDelivery } = useLabs();
-  const { lensTypes, materials, indices, brands, designs, colors, treatments } = useSettings();
+  const { lensTypes, materials, indices, brands, designs, colors, treatments, opticaLogo, opticaName, opticaPhone, opticaAddress } = useSettings();
   const { orders, clients } = useClients();
   
   const [selectedLabId, setSelectedLabId] = useState("all");
@@ -286,6 +286,229 @@ export function Labs() {
   const pendingCount = unifiedJobs.filter(j => (selectedLabId === 'all' || !selectedLabId || j.labId === selectedLabId) && (j.status === 'En Taller' || j.status === 'Demorado')).length;
   const readyCount = unifiedJobs.filter(j => (selectedLabId === 'all' || !selectedLabId || j.labId === selectedLabId) && (j.status === 'Para Retirar' || (j.status as any) === 'Recibido')).length;
   const deliveredCount = unifiedJobs.filter(j => (selectedLabId === 'all' || !selectedLabId || j.labId === selectedLabId) && (j.status === 'Entregado' || (j.status as any) === 'Completado')).length;
+
+  const handlePrintJob = (jobToPrint: (LabJob & { order?: any; doctor?: string; branch?: string; isInternalWorkshop?: boolean })) => {
+    // Si el trabajo no tiene todos los campos de cliente o receta resueltos, los buscamos de la orden
+    const matchedOrder = jobToPrint.order || orders.find(o => o.id && o.id.trim().toLowerCase() === (jobToPrint.orderId || '').trim().toLowerCase());
+    const clientObj = clients.find(c => 
+      (c.id && String(c.id) === String(matchedOrder?.clientId)) ||
+      (c.dni && matchedOrder?.clientId && c.dni.trim() === String(matchedOrder.clientId).trim()) ||
+      (c.name && jobToPrint.clientName && c.name.trim().toLowerCase() === jobToPrint.clientName.trim().toLowerCase())
+    );
+    const rx = jobToPrint.prescription || matchedOrder?.prescriptionDetails;
+    const cd = jobToPrint.crystalDetails || rx?.selectedCrystalItem;
+    const clientName = jobToPrint.clientName || clientObj?.name || matchedOrder?.clientName || 'Cliente';
+    const clientDni = jobToPrint.clientDni || clientObj?.dni || '';
+    const doctor = jobToPrint.doctor || matchedOrder?.medico || 'No especificado';
+    const labName = jobToPrint.labName || rx?.assignedLab?.name || 'Laboratorio Externo / Taller';
+    const deliveryDateStr = jobToPrint.estimatedLabDeliveryDate || (matchedOrder?.prescriptionDetails as any)?.deliveryDate || (matchedOrder as any)?.deliveryDate || '';
+    
+    // Tratamientos
+    let trts = '';
+    if (jobToPrint.treatments && jobToPrint.treatments.length > 0) {
+      trts = jobToPrint.treatments.map(t => typeof t === 'string' ? t : (t as any)?.name).filter(Boolean).join(', ');
+    } else if (rx?.selectedTreatments && rx.selectedTreatments.length > 0) {
+      trts = rx.selectedTreatments.map((t: any) => typeof t === 'string' ? t : t?.name).filter(Boolean).join(', ');
+    }
+
+    const win = window.open('', '_blank', 'width=900,height=750');
+    if (!win) return;
+
+    const logoHtml = opticaLogo
+      ? `<img src="${opticaLogo}" alt="Logo" style="max-height:60px;max-width:160px;object-fit:contain;" />`
+      : `<div style="font-size:22px;font-weight:900;color:#1e3a8a;">${opticaName || 'Óptica'}</div>`;
+    const infoLine = [opticaPhone, opticaAddress].filter(Boolean).join(' &nbsp;|&nbsp; ');
+
+    const lejosOD = rx?.lejosOD;
+    const lejosOI = rx?.lejosOI;
+    const cercaOD = rx?.cercaOD;
+    const cercaOI = rx?.cercaOI;
+    const hasRx = !!(lejosOD || lejosOI || cercaOD || cercaOI || rx?.adicionOD || rx?.adicionOI);
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>Orden de Laboratorio - ${jobToPrint.orderId || jobToPrint.id}</title>
+        <style>
+          @page { size: A4; margin: 15mm 18mm; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; color: #111; background: #fff; padding: 20px; }
+          .page { width: 100%; max-width: 820px; margin: 0 auto; }
+          
+          /* Encabezado */
+          .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e3a8a; padding-bottom: 12px; margin-bottom: 16px; }
+          .header-left .info-line { font-size: 10px; color: #555; margin-top: 4px; }
+          .header-right { text-align: right; }
+          .order-num { font-size: 24px; font-weight: 900; color: #1e3a8a; line-height: 1; }
+          .order-type { font-size: 12px; font-weight: 700; color: #334155; margin-top: 2px; }
+          .order-dates { font-size: 10px; color: #555; margin-top: 4px; line-height: 1.5; }
+          .delivery-badge { background: #dcfce7; color: #166534; font-weight: 800; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-top: 4px; }
+          
+          /* Barra de datos principales */
+          .patient-bar { background: #f0fdf4; border-left: 4px solid #16a34a; padding: 10px 14px; border-radius: 0 6px 6px 0; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+          .patient-name { font-size: 16px; font-weight: 900; color: #0f172a; }
+          .patient-label { font-size: 9px; text-transform: uppercase; font-weight: 700; color: #64748b; letter-spacing: 0.06em; margin-bottom: 2px; }
+          .lab-badge { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 800; }
+          
+          /* Grillas y Secciones */
+          .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #1e3a8a; border-bottom: 1.5px solid #1e3a8a; padding-bottom: 3px; margin-bottom: 8px; margin-top: 14px; }
+          .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+          .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+          .info-card { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; padding: 8px 10px; }
+          .info-card .label { font-size: 9px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-bottom: 2px; }
+          .info-card .val { font-size: 12px; font-weight: 700; color: #1e293b; }
+          
+          /* Tabla de Receta */
+          .presc-table { width: 100%; border-collapse: collapse; margin-top: 6px; margin-bottom: 14px; }
+          .presc-table th { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #475569; background: #f1f5f9; padding: 6px 4px; border: 1px solid #cbd5e1; text-align: center; }
+          .presc-table th:first-child { text-align: left; padding-left: 8px; }
+          .presc-table td { text-align: center; padding: 6px 4px; font-size: 12px; font-weight: 600; border: 1px solid #cbd5e1; }
+          .presc-table td:first-child { text-align: left; font-weight: 700; background: #f8fafc; padding-left: 8px; }
+          
+          /* Observaciones */
+          .obs-box { border: 1.5px dashed #94a3b8; border-radius: 6px; padding: 10px 12px; margin-top: 14px; background: #fcfcfc; }
+          
+          /* Firmas */
+          .footer { margin-top: 36px; padding-top: 14px; border-top: 1px dashed #cbd5e1; display: flex; justify-content: space-between; align-items: flex-end; }
+          .sign-block { text-align: center; }
+          .sign-line { border-top: 1px solid #000; width: 180px; padding-top: 4px; font-size: 9px; color: #475569; margin-top: 40px; }
+          
+          .no-print { margin-top: 24px; text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; }
+          .btn { padding: 8px 24px; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; }
+          .btn-print { background: #1e3a8a; color: #fff; margin-right: 10px; }
+          .btn-close { background: #e2e8f0; color: #334155; }
+          @media print {
+            .no-print { display: none !important; }
+            body { padding: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <div class="header">
+            <div class="header-left">
+              ${logoHtml}
+              ${infoLine ? `<div class="info-line">${infoLine}</div>` : '<div class="info-line">Óptica Paracao · Laboratorio de Calibrado y Taller</div>'}
+            </div>
+            <div class="header-right">
+              <div class="order-num">${jobToPrint.orderId || jobToPrint.id}</div>
+              <div class="order-type">ORDEN DE TRABAJO A LABORATORIO</div>
+              <div class="order-dates">
+                Fecha emisión: ${new Date(jobToPrint.date + 'T12:00:00').toLocaleDateString('es-AR')}<br/>
+                ${deliveryDateStr ? `<span class="delivery-badge">⏰ Entrega: ${new Date(deliveryDateStr + 'T12:00:00').toLocaleDateString('es-AR')}</span>` : ''}
+              </div>
+            </div>
+          </div>
+
+          <div class="patient-bar">
+            <div>
+              <div class="patient-label">Paciente / Cliente</div>
+              <div class="patient-name">${clientName} ${clientDni ? `(DNI: ${clientDni})` : ''}</div>
+              <div style="font-size: 11px; color: #475569; margin-top: 2px;">Médico Prescriptor: <strong>${doctor}</strong></div>
+            </div>
+            <div style="text-align: right;">
+              <div class="patient-label">Laboratorio Destino</div>
+              <div class="lab-badge">🔬 ${labName}</div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 4px;">Estado: <strong>${jobToPrint.status}</strong></div>
+            </div>
+          </div>
+
+          ${hasRx ? `
+          <div class="section-title">Graduación Oftálmica (${rx?.type || (rx as any)?.prescriptionType || 'Receta'})</div>
+          <table class="presc-table">
+            <thead>
+              <tr>
+                <th style="width: 140px;">Ojo</th>
+                <th>Esférico</th>
+                <th>Cilíndrico</th>
+                <th>Eje</th>
+                <th>Adición</th>
+                <th>Altura</th>
+                <th>D.I.P.</th>
+                <th>A.P.</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Derecho (OD)</td>
+                <td>${lejosOD?.esf || cercaOD?.esf || '—'}</td>
+                <td>${lejosOD?.cil || cercaOD?.cil || '—'}</td>
+                <td>${lejosOD?.eje || cercaOD?.eje ? `${lejosOD?.eje || cercaOD?.eje}°` : '—'}</td>
+                <td>${rx?.adicionOD ? `+${rx.adicionOD}` : '—'}</td>
+                <td>${rx?.alturaOD ? `${rx.alturaOD} mm` : '—'}</td>
+                <td>${rx?.diOD ? `${rx.diOD} mm` : '—'}</td>
+                <td>${rx?.apOD ? `${rx.apOD} mm` : '—'}</td>
+              </tr>
+              <tr>
+                <td>Izquierdo (OI)</td>
+                <td>${lejosOI?.esf || cercaOI?.esf || '—'}</td>
+                <td>${lejosOI?.cil || cercaOI?.cil || '—'}</td>
+                <td>${lejosOI?.eje || cercaOI?.eje ? `${lejosOI?.eje || cercaOI?.eje}°` : '—'}</td>
+                <td>${rx?.adicionOI ? `+${rx.adicionOI}` : '—'}</td>
+                <td>${rx?.alturaOI ? `${rx.alturaOI} mm` : '—'}</td>
+                <td>${rx?.diOI ? `${rx.diOI} mm` : '—'}</td>
+                <td>${rx?.apOI ? `${rx.apOI} mm` : '—'}</td>
+              </tr>
+            </tbody>
+          </table>
+          ` : ''}
+
+          <div class="section-title">Especificaciones Técnicas del Trabajo</div>
+          <div class="grid-3">
+            <div class="info-card">
+              <div class="label">Cristal / Servicio</div>
+              <div class="val">${cd?.name || jobToPrint.concept || 'Cristal Óptico'}</div>
+            </div>
+            <div class="info-card">
+              <div class="label">Material / Índice</div>
+              <div class="val">${cd?.material || 'Orgánico'} ${cd?.index ? `(Índice ${cd.index})` : ''}</div>
+            </div>
+            <div class="info-card">
+              <div class="label">Ojos Cotizados</div>
+              <div class="val" style="text-transform: uppercase;">${cd?.eyes || 'Ambos'}</div>
+            </div>
+          </div>
+
+          <div class="grid-2">
+            <div class="info-card">
+              <div class="label">Tratamientos Especiales</div>
+              <div class="val">${trts || 'Ninguno / Estándar'}</div>
+            </div>
+            <div class="info-card">
+              <div class="label">Armazón / Montura</div>
+              <div class="val">${matchedOrder?.frame?.name || matchedOrder?.frame?.model || 'Armazón del cliente / en taller'}</div>
+            </div>
+          </div>
+
+          ${(jobToPrint.observaciones || (matchedOrder as any)?.notes) ? `
+          <div class="obs-box">
+            <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #475569; margin-bottom: 4px;">Observaciones Técnicas / Biselado</div>
+            <div style="font-size: 11px; font-style: italic; color: #1e293b;">${jobToPrint.observaciones || (matchedOrder as any)?.notes}</div>
+          </div>
+          ` : ''}
+
+          <div class="footer">
+            <div class="sign-block">
+              <div class="sign-line">Firma y Sello Óptica</div>
+            </div>
+            <div class="sign-block">
+              <div class="sign-line">Recibido en Laboratorio (Firma/Fecha)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="no-print">
+          <button class="btn btn-print" onclick="window.print()">🖨️ Imprimir Pedido</button>
+          <button class="btn btn-close" onclick="window.close()">Cerrar</button>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
+    win.focus();
+  };
 
   const [isJobModalOpen, setIsJobModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'crystal' | 'service'>('crystal');
@@ -686,12 +909,21 @@ export function Labs() {
                       />
                     </td>
                     <td className="px-6 py-4 text-center">
-                      <button
-                        onClick={() => setActiveJobDetails(job)}
-                        className="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1"
-                      >
-                        <Eye className="w-3.5 h-3.5" /> Ficha Técnica
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => handlePrintJob(job)}
+                          title="Imprimir Pedido a Laboratorio"
+                          className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors inline-flex items-center"
+                        >
+                          <Printer className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                        </button>
+                        <button
+                          onClick={() => setActiveJobDetails(job)}
+                          className="px-2.5 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-400 rounded-lg text-xs font-bold transition-colors inline-flex items-center gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Ficha Técnica
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -1187,12 +1419,23 @@ export function Labs() {
                 </button>
               ) : <div />}
 
-              <button 
-                onClick={() => setActiveJobDetails(null)} 
-                className="px-6 py-2.5 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-lg font-bold shadow-sm hover:opacity-90 transition-opacity text-xs"
-              >
-                Cerrar Ficha
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => handlePrintJob(activeJobDetails)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-colors shadow-sm shadow-blue-500/20 cursor-pointer"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Imprimir Ficha para Laboratorio</span>
+                </button>
+
+                <button 
+                  onClick={() => setActiveJobDetails(null)} 
+                  className="px-6 py-2.5 bg-slate-900 text-white dark:bg-white dark:text-slate-900 rounded-lg font-bold shadow-sm hover:opacity-90 transition-opacity text-xs"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>
