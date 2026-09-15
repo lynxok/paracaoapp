@@ -27,6 +27,7 @@ export function NewOrder() {
   const [searchParams] = useSearchParams();
   const { type, cartItemId } = useParams<{ type?: string; cartItemId?: string }>();
   const isEditMode = !!cartItemId;
+  const editingItem = isEditMode ? cart.find(item => item.id === cartItemId) : null;
   const isMultifocalRoute = type === 'multifocal' || editingItem?.details?.prescriptionType === 'multifocal' || editingItem?.details?.prescriptionType === 'bifocal';
   const isOccupational = type === 'ocupacional' || editingItem?.details?.prescriptionType === 'ocupacional';
   const isContact = type === 'contact' || editingItem?.details?.prescriptionType === 'contact';
