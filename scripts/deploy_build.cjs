@@ -36,6 +36,8 @@ execSync('npx vite build --emptyOutDir', { stdio: 'inherit', cwd: rootDir });
 
 console.log('Copying production bundle to root for Hostinger Git deployment...');
 fs.cpSync(path.join(rootDir, 'dist', 'assets'), path.join(rootDir, 'assets'), { recursive: true });
-fs.copyFileSync(path.join(rootDir, 'dist', 'index.html'), path.join(rootDir, 'index.html'));
+let builtHtml = fs.readFileSync(path.join(rootDir, 'dist', 'index.html'), 'utf8');
+builtHtml = builtHtml.replace('href="./argoslogo.png"', 'href="/argoslogo.png"');
+fs.writeFileSync(path.join(rootDir, 'index.html'), builtHtml, 'utf8');
 
 console.log('Build and deployment preparation completed successfully!');
