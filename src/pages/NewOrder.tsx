@@ -495,15 +495,31 @@ export function NewOrder() {
   };
 
   const handleSelectPreset = (preset: { id: string; name: string; defaultCost?: string }) => {
-    // Si ya tiene una descripción, podemos anexar o reemplazar
-    setInternalLabDescription(prev => {
-      const trimmed = prev.trim();
-      if (!trimmed) return preset.name;
-      if (trimmed.toLowerCase().includes(preset.name.toLowerCase())) return prev;
-      return `${trimmed}, ${preset.name}`;
-    });
-    if (preset.defaultCost && (!internalLabCost || internalLabCost === '0')) {
-      setInternalLabCost(preset.defaultCost);
+    // Si ya está seleccionado, lo deseleccionamos
+    const isCurrentlySelected = internalLabDescription.toLowerCase().includes(preset.name.toLowerCase());
+
+    if (isCurrentlySelected) {
+      // Remover del texto de descripción
+      setInternalLabDescription(prev => {
+        const parts = prev.split(',').map(p => p.trim()).filter(Boolean);
+        const filtered = parts.filter(p => p.toLowerCase() !== preset.name.toLowerCase());
+        return filtered.join(', ');
+      });
+
+      // Si el costo actual coincide con el defaultCost del preset que estamos deseleccionando, podemos resetearlo
+      if (preset.defaultCost && internalLabCost === preset.defaultCost) {
+        setInternalLabCost('');
+      }
+    } else {
+      // Agregar a la descripción
+      setInternalLabDescription(prev => {
+        const trimmed = prev.trim();
+        if (!trimmed) return preset.name;
+        return `${trimmed}, ${preset.name}`;
+      });
+      if (preset.defaultCost && (!internalLabCost || internalLabCost === '0')) {
+        setInternalLabCost(preset.defaultCost);
+      }
     }
   };
 
