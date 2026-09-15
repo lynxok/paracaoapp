@@ -35,8 +35,8 @@ export function Orders() {
           <Glasses className="w-7 h-7" />
         </div>
         <div>
-          <h3 className="text-lg font-bold dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Multifocales</h3>
-          <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs leading-relaxed">Lentes progresivos o con segmento. Para presbicia y visión combinada.</p>
+          <h3 className="text-lg font-bold dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Multifocales / Bifocales</h3>
+          <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs leading-relaxed">Lentes progresivos o con segmento bifocal. Para presbicia y visión combinada.</p>
         </div>
       </Link>
       

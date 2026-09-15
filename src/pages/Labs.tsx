@@ -602,6 +602,16 @@ export function Labs() {
             </div>
           </div>
 
+          ${(rx?.internalLabDescription || rx?.internalLabCost) ? `
+          <div style="margin-top: 10px; background: #fff7ed; border: 1px solid #fdba74; padding: 8px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #c2410c;">🔧 Trabajo de Taller / Laboratorio Interno</div>
+              <div style="font-size: 11px; font-weight: 700; color: #7c2d12; margin-top: 2px;">${rx.internalLabDescription || 'Servicio de Taller'}</div>
+            </div>
+            ${parseFloat(rx.internalLabCost) > 0 ? `<div style="font-size: 12px; font-weight: 800; color: #c2410c;">$${parseFloat(rx.internalLabCost).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</div>` : ''}
+          </div>
+          ` : ''}
+
           ${(jobToPrint.observaciones || (matchedOrder as any)?.notes) ? `
           <div class="obs-box">
             <div style="font-size: 10px; font-weight: 800; text-transform: uppercase; color: #475569; margin-bottom: 4px;">Observaciones Técnicas / Biselado</div>
@@ -1509,6 +1519,29 @@ export function Labs() {
                   </div>
                 </div>
               )}
+
+              {/* Trabajo de Laboratorio Interno */}
+              {(() => {
+                const rx = activeJobDetails.order?.prescriptionDetails;
+                if (!rx?.internalLabDescription && !rx?.internalLabCost) return null;
+                return (
+                  <div className="p-4 bg-orange-50/50 dark:bg-orange-950/20 rounded-xl border border-orange-200 dark:border-orange-900/60 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-xs uppercase text-orange-800 dark:text-orange-400">
+                        🔧 Trabajo de Taller Interno
+                      </span>
+                      {parseFloat(rx.internalLabCost) > 0 && (
+                        <span className="font-extrabold text-xs text-orange-700 dark:text-orange-300">
+                          ${parseFloat(rx.internalLabCost).toLocaleString('es-AR', { minimumFractionDigits: 2 })}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      {rx.internalLabDescription || 'Servicio de taller interno'}
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Observaciones */}
               {activeJobDetails.observaciones && (

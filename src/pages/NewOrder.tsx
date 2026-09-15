@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays, AlertTriangle, UserPlus, ShieldCheck } from "lucide-react";
+import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ChevronUp, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays, AlertTriangle, UserPlus, ShieldCheck, Settings, Edit2, Trash2, RotateCcw, Wrench } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useFinance } from "../context/FinanceContext";
 import { useClients } from "../context/ClientContext";
@@ -27,12 +27,25 @@ export function NewOrder() {
   const [searchParams] = useSearchParams();
   const { type, cartItemId } = useParams<{ type?: string; cartItemId?: string }>();
   const isEditMode = !!cartItemId;
-  const editingItem = isEditMode ? cart.find(item => item.id === cartItemId) : null;
-
-  const isMultifocal = type === 'multifocal' || editingItem?.details?.prescriptionType === 'multifocal';
+  const isMultifocalRoute = type === 'multifocal' || editingItem?.details?.prescriptionType === 'multifocal' || editingItem?.details?.prescriptionType === 'bifocal';
   const isOccupational = type === 'ocupacional' || editingItem?.details?.prescriptionType === 'ocupacional';
   const isContact = type === 'contact' || editingItem?.details?.prescriptionType === 'contact';
-  const title = isContact ? "Lentes de Contacto" : isMultifocal ? "Multifocales / Bifocales" : isOccupational ? "Ocupacionales" : "Monofocales";
+  
+  const [multifocalSubType, setMultifocalSubType] = useState<'multifocal' | 'bifocal'>(() => {
+    if (editingItem?.details?.prescriptionType === 'bifocal' || editingItem?.details?.multifocalSubType === 'bifocal') {
+      return 'bifocal';
+    }
+    return 'multifocal';
+  });
+
+  const isMultifocal = isMultifocalRoute;
+  const title = isContact 
+    ? "Lentes de Contacto" 
+    : isMultifocalRoute 
+      ? (multifocalSubType === 'bifocal' ? "Bifocales" : "Multifocales") 
+      : isOccupational 
+        ? "Ocupacionales" 
+        : "Monofocales";
   const printRef = useRef<HTMLDivElement>(null);
 
   // Client state
@@ -85,6 +98,7 @@ export function NewOrder() {
     setSelColor("");
     setSelectedTreatmentNames([]);
     setInternalLabCost('');
+    setInternalLabDescription('');
     setSelectedOjos('ambos');
     
     if (mode === 'all') {
@@ -118,6 +132,12 @@ export function NewOrder() {
       if (details.observaciones) setObservaciones(details.observaciones);
       if (details.lensColor) setLensColor(details.lensColor);
       if (details.internalLabCost) setInternalLabCost(String(details.internalLabCost));
+      if (details.internalLabDescription) setInternalLabDescription(String(details.internalLabDescription));
+      if (details.prescriptionType === 'bifocal' || details.multifocalSubType === 'bifocal') {
+        setMultifocalSubType('bifocal');
+      } else if (details.prescriptionType === 'multifocal' || details.multifocalSubType === 'multifocal') {
+        setMultifocalSubType('multifocal');
+      }
       
       // Load new crystal refactored states
       if (details.selectedOjos) setSelectedOjos(details.selectedOjos);
@@ -249,6 +269,101 @@ export function NewOrder() {
   const [alturaOI, setAlturaOI] = useState("");
   const [medico, setMedico] = useState("");
   
+  // Utilidades para graduación técnica (pasos de 0.25)
+  const formatDiopter = (raw: string): string => {
+    const trimmed = raw.trim();
+    if (!trimmed) return "";
+    const clean = trimmed.replace(',', '.');
+    const num = parseFloat(clean);
+    if (isNaN(num)) return raw;
+    const rounded = Math.round(num * 4) / 4;
+    return `${rounded > 0 ? '+' : ''}${rounded.toFixed(2)}`;
+  };
+
+  const isValidQuarterStep = (raw: string): boolean => {
+    const trimmed = raw.trim();
+    if (!trimmed) return true;
+    const clean = trimmed.replace(',', '.');
+    const num = parseFloat(clean);
+    if (isNaN(num)) return false;
+    const cents = Math.round(Math.abs(num) * 100);
+    return cents % 25 === 0;
+  };
+
+  const stepDiopter = (currentVal: string, delta: number, allowNegative: boolean = true): string => {
+    const clean = (currentVal || "0").trim().replace(',', '.');
+    let num = parseFloat(clean);
+    if (isNaN(num)) num = 0;
+    let next = Math.round((num + delta) * 4) / 4;
+    if (!allowNegative && next < 0) next = 0;
+    if (next === 0) return "0.00";
+    return `${next > 0 ? '+' : ''}${next.toFixed(2)}`;
+  };
+
+  const DiopterStepperInput = ({
+    value,
+    onChange,
+    disabled = false,
+    placeholder = "0.00",
+    allowNegative = true,
+    className
+  }: {
+    value: string;
+    onChange: (val: string) => void;
+    disabled?: boolean;
+    placeholder?: string;
+    allowNegative?: boolean;
+    className?: string;
+  }) => {
+    const isInvalid = value.trim() !== "" && !isValidQuarterStep(value);
+    return (
+      <div className="relative flex items-center w-full">
+        <input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          onBlur={() => {
+            if (value.trim()) {
+              onChange(formatDiopter(value));
+            }
+          }}
+          disabled={disabled}
+          placeholder={placeholder}
+          className={cn(
+            "h-11 px-3 pr-8 w-full rounded-lg bg-white dark:bg-slate-950 text-center font-medium outline-none border transition-all focus:ring-2",
+            isInvalid
+              ? "border-amber-500 text-amber-600 dark:text-amber-400 focus:ring-amber-500 bg-amber-50/20"
+              : "border-slate-200 dark:border-slate-800 focus:ring-blue-600",
+            disabled && "opacity-55 bg-slate-100 dark:bg-slate-900",
+            className
+          )}
+        />
+        {!disabled && (
+          <div className="absolute right-1 inset-y-1 flex flex-col justify-center gap-0.5 border-l border-slate-200 dark:border-slate-800 pl-1 pr-0.5">
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => onChange(stepDiopter(value, 0.25, allowNegative))}
+              title="Aumentar +0.25"
+              className="p-0.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              tabIndex={-1}
+              onClick={() => onChange(stepDiopter(value, -0.25, allowNegative))}
+              title="Disminuir -0.25"
+              className="p-0.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+  
   // Doctor Database State & Handlers
   const [doctors, setDoctors] = useState<any[]>(() => {
     const saved = localStorage.getItem('optica_doctors');
@@ -341,8 +456,56 @@ export function NewOrder() {
   const [manualFrameCoverage, setManualFrameCoverage] = useState<string>('');
   const [manualCrystalCoverage, setManualCrystalCoverage] = useState<string>('');
 
-  // Internal lab cost (when no external lab used)
+  // Internal lab cost and description (when no external lab used)
   const [internalLabCost, setInternalLabCost] = useState('');
+  const [internalLabDescription, setInternalLabDescription] = useState('');
+
+  // Presets configurables de trabajo de laboratorio interno
+  const DEFAULT_INTERNAL_LAB_PRESETS = [
+    { id: 'plaquetas', name: 'Cambio de plaquetas', defaultCost: '' },
+    { id: 'flex', name: 'Arreglo de flex', defaultCost: '' },
+    { id: 'tenido', name: 'Teñido de cristales', defaultCost: '' },
+    { id: 'soldadura', name: 'Soldadura / Reparación', defaultCost: '' },
+    { id: 'calibrado', name: 'Calibrado y ajuste', defaultCost: '' },
+  ];
+
+  const [internalLabPresets, setInternalLabPresets] = useState<Array<{ id: string; name: string; defaultCost?: string }>>(() => {
+    try {
+      const saved = localStorage.getItem('optica_internal_lab_presets');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return DEFAULT_INTERNAL_LAB_PRESETS;
+  });
+
+  const [isManagePresetsModalOpen, setIsManagePresetsModalOpen] = useState(false);
+  const [editingPreset, setEditingPreset] = useState<{ id: string; name: string; defaultCost?: string } | null>(null);
+  const [newPresetName, setNewPresetName] = useState('');
+  const [newPresetCost, setNewPresetCost] = useState('');
+
+  const savePresets = (updated: Array<{ id: string; name: string; defaultCost?: string }>) => {
+    setInternalLabPresets(updated);
+    try {
+      localStorage.setItem('optica_internal_lab_presets', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleSelectPreset = (preset: { id: string; name: string; defaultCost?: string }) => {
+    // Si ya tiene una descripción, podemos anexar o reemplazar
+    setInternalLabDescription(prev => {
+      const trimmed = prev.trim();
+      if (!trimmed) return preset.name;
+      if (trimmed.toLowerCase().includes(preset.name.toLowerCase())) return prev;
+      return `${trimmed}, ${preset.name}`;
+    });
+    if (preset.defaultCost && (!internalLabCost || internalLabCost === '0')) {
+      setInternalLabCost(preset.defaultCost);
+    }
+  };
+
 
   // Detectar si hay receta cargada para lejos y/o cerca
   const hasLejosCharged = !!(enableLejos && (lejosOD.esf || lejosOD.cil || lejosOI.esf || lejosOI.cil));
@@ -430,6 +593,40 @@ export function NewOrder() {
   // Live Prescription Validation
   useEffect(() => {
     const errors: string[] = [];
+
+    // Validar pasos de 0.25 y rangos de eje en las prescripciones ingresadas
+    const checkStepAndAxis = (label: string, esf: string, cil: string, eje: string) => {
+      if (esf.trim() && !isValidQuarterStep(esf)) {
+        errors.push(`${label}: El valor Esférico (${esf}) debe ser en pasos de 0.25 (ej: 0.25, 0.50, 0.75, 1.00...).`);
+      }
+      if (cil.trim() && !isValidQuarterStep(cil)) {
+        errors.push(`${label}: El valor Cilíndrico (${cil}) debe ser en pasos de 0.25 (ej: -0.25, -0.50, 0.75...).`);
+      }
+      if (eje.trim()) {
+        const ejeNum = parseFloat(eje);
+        if (isNaN(ejeNum) || ejeNum < 0 || ejeNum > 180) {
+          errors.push(`${label}: El Eje (${eje}) debe estar entre 0° y 180°.`);
+        }
+      }
+    };
+
+    if (enableLejos) {
+      if (lejosOD.esf || lejosOD.cil || lejosOD.eje) checkStepAndAxis("Lejos Ojo Derecho", lejosOD.esf, lejosOD.cil, lejosOD.eje);
+      if (lejosOI.esf || lejosOI.cil || lejosOI.eje) checkStepAndAxis("Lejos Ojo Izquierdo", lejosOI.esf, lejosOI.cil, lejosOI.eje);
+    }
+    if (enableCerca) {
+      if (cercaOD.esf || cercaOD.cil || cercaOD.eje) checkStepAndAxis("Cerca Ojo Derecho", cercaOD.esf, cercaOD.cil, cercaOD.eje);
+      if (cercaOI.esf || cercaOI.cil || cercaOI.eje) checkStepAndAxis("Cerca Ojo Izquierdo", cercaOI.esf, cercaOI.cil, cercaOI.eje);
+    }
+    if (isMultifocal || isOccupational) {
+      if (adicionOD.trim() && !isValidQuarterStep(adicionOD)) {
+        errors.push(`Ojo Derecho: La ${isOccupational ? 'Degresión' : 'Adición'} (${adicionOD}) debe ser en pasos de 0.25.`);
+      }
+      if (adicionOI.trim() && !isValidQuarterStep(adicionOI)) {
+        errors.push(`Ojo Izquierdo: La ${isOccupational ? 'Degresión' : 'Adición'} (${adicionOI}) debe ser en pasos de 0.25.`);
+      }
+    }
+
     if (selectedCrystal) {
       const validateEye = (eyeName: string, esfVal: string, cilVal: string, addVal: string) => {
         const esf = parseFloat(esfVal) || 0;
@@ -485,7 +682,7 @@ export function NewOrder() {
       }
     }
     setValidationErrors(errors);
-  }, [selectedCrystal, lejosOD, lejosOI, cercaOD, cercaOI, adicionOD, adicionOI, selectedOjos]);
+  }, [selectedCrystal, lejosOD, lejosOI, cercaOD, cercaOI, adicionOD, adicionOI, selectedOjos, enableLejos, enableCerca, isMultifocal, isOccupational]);
 
   const handleConfirm = () => {
     handleConfirmWithLab();
@@ -535,7 +732,8 @@ export function NewOrder() {
       quantity: 1,
       details: {
         client: selectedClient,
-        prescriptionType: type || editingItem?.details?.prescriptionType || 'monofocal',
+        prescriptionType: isMultifocalRoute ? multifocalSubType : (type || editingItem?.details?.prescriptionType || 'monofocal'),
+        multifocalSubType: isMultifocalRoute ? multifocalSubType : undefined,
         enableLejos,
         enableCerca,
         lejosOD,
@@ -554,6 +752,7 @@ export function NewOrder() {
         observaciones,
         lensColor,
         selectedOjos,
+        selectedCrystal: selectedCrystal,
         selectedCrystalItem: selectedCrystal,
         selectedTreatments: selectedTreatmentNames,
         selectedFrame,
@@ -566,6 +765,7 @@ export function NewOrder() {
         subtotal,
         totalCoverage,
         internalLabCost,
+        internalLabDescription,
         labCost: internalLabCost ? parseFloat(internalLabCost) || 0 : 0
       }
     };
@@ -1029,7 +1229,11 @@ export function NewOrder() {
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
                   <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '10px' }}>
                     <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: '#555', marginBottom: '4px' }}>Marco / Armazón</div>
-                    <div style={{ fontWeight: '700' }}>{selectedFrame ? `${selectedFrame.name} (${selectedFrame.sku})` : '(sin especificar)'}</div>
+                    <div style={{ fontWeight: '700' }}>
+                      {selectedFrame 
+                        ? (selectedFrame.isOwn ? 'PROPIO (Armazón del Cliente)' : `${selectedFrame.name} (${selectedFrame.sku || 'Stock'})`)
+                        : '(sin especificar)'}
+                    </div>
                   </div>
                   <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '10px' }}>
                     <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: '#555', marginBottom: '4px' }}>Color del Cristal</div>
@@ -1298,31 +1502,44 @@ export function NewOrder() {
                           <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="relative">
                               <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Esférico</label>
-                              <input 
+                              <DiopterStepperInput
                                 value={stateVal.esf}
-                                onChange={e => setVal({ ...stateVal, esf: e.target.value })}
+                                onChange={val => setVal({ ...stateVal, esf: val })}
                                 disabled={type === 'monofocal' && !enableLejos}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
-                                placeholder="0.00" 
+                                placeholder="0.00"
                               />
                             </div>
                             <div className="relative">
                               <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Cilíndrico</label>
-                              <input 
+                              <DiopterStepperInput
                                 value={stateVal.cil}
-                                onChange={e => setVal({ ...stateVal, cil: e.target.value })}
+                                onChange={val => setVal({ ...stateVal, cil: val })}
                                 disabled={type === 'monofocal' && !enableLejos}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
-                                placeholder="0.00" 
+                                placeholder="0.00"
                               />
                             </div>
                             <div className="relative">
                               <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Eje</label>
                               <input 
                                 value={stateVal.eje}
-                                onChange={e => setVal({ ...stateVal, eje: e.target.value })}
+                                onChange={e => {
+                                  const rawVal = e.target.value.replace(/[^0-9]/g, '');
+                                  if (rawVal === '') {
+                                    setVal({ ...stateVal, eje: '' });
+                                  } else {
+                                    const n = parseInt(rawVal, 10);
+                                    if (n <= 180) {
+                                      setVal({ ...stateVal, eje: `${n}°` });
+                                    }
+                                  }
+                                }}
                                 disabled={type === 'monofocal' && !enableLejos}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
+                                className={cn(
+                                  "h-11 px-3 w-full rounded-lg border bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900",
+                                  stateVal.eje && (parseFloat(stateVal.eje) < 0 || parseFloat(stateVal.eje) > 180)
+                                    ? "border-red-500 text-red-600"
+                                    : "border-slate-200 dark:border-slate-800"
+                                )}
                                 placeholder="0°" 
                               />
                             </div>
@@ -1376,31 +1593,44 @@ export function NewOrder() {
                           <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div className="relative">
                               <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Esférico</label>
-                              <input 
+                              <DiopterStepperInput
                                 value={stateVal.esf}
-                                onChange={e => setVal({ ...stateVal, esf: e.target.value })}
+                                onChange={val => setVal({ ...stateVal, esf: val })}
                                 disabled={type === 'monofocal' && !enableCerca}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
-                                placeholder="0.00" 
+                                placeholder="0.00"
                               />
                             </div>
                             <div className="relative">
                               <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Cilíndrico</label>
-                              <input 
+                              <DiopterStepperInput
                                 value={stateVal.cil}
-                                onChange={e => setVal({ ...stateVal, cil: e.target.value })}
+                                onChange={val => setVal({ ...stateVal, cil: val })}
                                 disabled={type === 'monofocal' && !enableCerca}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
-                                placeholder="0.00" 
+                                placeholder="0.00"
                               />
                             </div>
                             <div className="relative">
                               <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">Eje</label>
                               <input 
                                 value={stateVal.eje}
-                                onChange={e => setVal({ ...stateVal, eje: e.target.value })}
+                                onChange={e => {
+                                  const rawVal = e.target.value.replace(/[^0-9]/g, '');
+                                  if (rawVal === '') {
+                                    setVal({ ...stateVal, eje: '' });
+                                  } else {
+                                    const n = parseInt(rawVal, 10);
+                                    if (n <= 180) {
+                                      setVal({ ...stateVal, eje: `${n}°` });
+                                    }
+                                  }
+                                }}
                                 disabled={type === 'monofocal' && !enableCerca}
-                                className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900" 
+                                className={cn(
+                                  "h-11 px-3 w-full rounded-lg border bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-blue-600 outline-none disabled:opacity-55 disabled:bg-slate-100 dark:disabled:bg-slate-900",
+                                  stateVal.eje && (parseFloat(stateVal.eje) < 0 || parseFloat(stateVal.eje) > 180)
+                                    ? "border-red-500 text-red-600"
+                                    : "border-slate-200 dark:border-slate-800"
+                                )}
                                 placeholder="0°" 
                               />
                             </div>
@@ -1481,9 +1711,40 @@ export function NewOrder() {
                       ? "bg-violet-50/50 dark:bg-violet-950/20 border-violet-100 dark:border-violet-800/30"
                       : "bg-indigo-50/50 dark:bg-indigo-900/10 border-indigo-100 dark:border-indigo-800/30"
                   )}>
-                    <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                      <Plus className={cn("w-5 h-5", isOccupational ? "text-violet-500" : "text-indigo-500")} /> {isOccupational ? "Especificaciones Ocupacionales" : "Especificaciones Multifocales"}
-                    </h4>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                      <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                        <Plus className={cn("w-5 h-5", isOccupational ? "text-violet-500" : "text-indigo-500")} /> 
+                        {isOccupational ? "Especificaciones Ocupacionales" : `Especificaciones ${multifocalSubType === 'bifocal' ? 'Bifocales' : 'Multifocales'}`}
+                      </h4>
+                      {isMultifocalRoute && (
+                        <div className="flex items-center gap-1 bg-white dark:bg-slate-950 p-1 rounded-lg border border-indigo-200 dark:border-indigo-900/50 self-start sm:self-auto">
+                          <button
+                            type="button"
+                            onClick={() => setMultifocalSubType('multifocal')}
+                            className={cn(
+                              "px-3 py-1 rounded-md text-xs font-bold transition-colors",
+                              multifocalSubType === 'multifocal'
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                            )}
+                          >
+                            Multifocal
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMultifocalSubType('bifocal')}
+                            className={cn(
+                              "px-3 py-1 rounded-md text-xs font-bold transition-colors",
+                              multifocalSubType === 'bifocal'
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-indigo-600"
+                            )}
+                          >
+                            Bifocal
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     
                     {/* Desktop Headers */}
                     <div className="hidden sm:grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3 px-2">
@@ -1503,16 +1764,12 @@ export function NewOrder() {
                             <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <div className="relative">
                                 <label className="text-[10px] font-bold text-slate-500 uppercase block sm:hidden mb-1">{isOccupational ? "Degresión" : "Adición"}</label>
-                                <input 
+                                <DiopterStepperInput
                                   value={isOD ? adicionOD : adicionOI}
-                                  onChange={e => isOD ? setAdicionOD(e.target.value) : setAdicionOI(e.target.value)}
-                                  className={cn(
-                                    "h-11 px-3 w-full rounded-lg bg-white dark:bg-slate-950 text-center font-medium outline-none border transition-all focus:ring-2",
-                                    isOccupational 
-                                      ? "border-violet-200 dark:border-violet-800 focus:ring-violet-600" 
-                                      : "border-indigo-200 dark:border-indigo-800 focus:ring-indigo-600"
-                                  )}
-                                  placeholder="+0.00" 
+                                  onChange={val => isOD ? setAdicionOD(val) : setAdicionOI(val)}
+                                  placeholder="+0.00"
+                                  allowNegative={false}
+                                  className={isOccupational ? "focus:ring-violet-600 border-violet-200 dark:border-violet-800" : "focus:ring-indigo-600 border-indigo-200 dark:border-indigo-800"}
                                 />
                               </div>
                               <div className="relative">
@@ -1544,8 +1801,8 @@ export function NewOrder() {
                     <h4 className="text-base font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
                       <Eye className="w-5 h-5 text-emerald-500" /> Ojo {eye === 'OD' ? 'Derecho' : 'Izquierdo'}
                     </h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                      <div className="relative">
+                    <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
+                      <div className="relative col-span-1">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Esférico (ESF)</label>
                         <input 
                           value={eye === 'OD' ? lejosOD.esf : lejosOI.esf}
@@ -1558,15 +1815,41 @@ export function NewOrder() {
                           placeholder="0.00" 
                         />
                       </div>
-                      <div className="relative">
+                      <div className="relative col-span-1">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Cilíndrico (CIL)</label>
+                        <input 
+                          value={eye === 'OD' ? lejosOD.cil : lejosOI.cil}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (eye === 'OD') setLejosOD({ ...lejosOD, cil: val });
+                            else setLejosOI({ ...lejosOI, cil: val });
+                          }}
+                          className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-emerald-600 outline-none" 
+                          placeholder="0.00" 
+                        />
+                      </div>
+                      <div className="relative col-span-1">
+                        <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Eje (°)</label>
+                        <input 
+                          value={eye === 'OD' ? lejosOD.eje : lejosOI.eje}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (eye === 'OD') setLejosOD({ ...lejosOD, eje: val });
+                            else setLejosOI({ ...lejosOI, eje: val });
+                          }}
+                          className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-emerald-600 outline-none" 
+                          placeholder="0°" 
+                        />
+                      </div>
+                      <div className="relative col-span-1">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Curvatura (BC)</label>
                         <input className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-emerald-600 outline-none" placeholder="8.6" />
                       </div>
-                      <div className="relative">
+                      <div className="relative col-span-1">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Diámetro (DIA)</label>
                         <input className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-center font-medium focus:ring-2 focus:ring-emerald-600 outline-none" placeholder="14.2" />
                       </div>
-                      <div className="relative">
+                      <div className="relative col-span-1">
                         <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1 block">Color</label>
                         <select className="h-11 px-3 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 focus:ring-2 focus:ring-emerald-600 outline-none text-slate-900 dark:text-white appearance-none font-medium">
                           {contactLensColors.map(c => (
@@ -1826,44 +2109,134 @@ export function NewOrder() {
 
               {/* Frame */}
               {!isContact && (
-                <div className="flex items-center justify-between py-2 border-b border-slate-100 dark:border-slate-800">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-0.5">Marco / Armazón</p>
-                    {selectedFrame ? (
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-800 dark:text-white truncate">{selectedFrame.name}</span>
-                        <button onClick={() => setSelectedFrame(null)} className="text-slate-400 hover:text-red-500 flex-shrink-0"><X className="w-3 h-3" /></button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setIsFrameModalOpen(true)} className="text-xs font-bold text-purple-600 hover:text-purple-700 flex items-center gap-1">
-                        <Plus className="w-3 h-3" /> Agregar marco del stock
-                      </button>
-                    )}
+                <div className="py-2 border-b border-slate-100 dark:border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Marco / Armazón</p>
+                    <span className="font-bold text-slate-900 dark:text-white">
+                      {selectedFrame?.isOwn ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">$0.00 (Propio)</span>
+                      ) : framePrice > 0 ? (
+                        `$${framePrice.toFixed(2)}`
+                      ) : (
+                        <span className="text-slate-400 text-sm font-normal">-</span>
+                      )}
+                    </span>
                   </div>
-                  <span className="font-bold text-slate-900 dark:text-white ml-3 flex-shrink-0">
-                    {framePrice > 0 ? `$${framePrice.toFixed(2)}` : <span className="text-slate-400 text-sm font-normal">-</span>}
-                  </span>
+
+                  {selectedFrame ? (
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-850 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {selectedFrame.isOwn ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                            Armazón Propio
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                            {selectedFrame.name} {selectedFrame.sku ? `(${selectedFrame.sku})` : ''}
+                          </span>
+                        )}
+                      </div>
+                      <button 
+                        type="button" 
+                        onClick={() => setSelectedFrame(null)} 
+                        className="text-slate-400 hover:text-red-500 p-1 transition-colors"
+                        title="Quitar marco"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedFrame({ name: 'PROPIO (Del Cliente)', isOwn: true, numericPrice: 0 })}
+                        className="flex-1 h-8 rounded-lg text-xs font-bold border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+                      >
+                        <Check className="w-3.5 h-3.5" /> Marco Propio
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setIsFrameModalOpen(true)} 
+                        className="flex-1 h-8 rounded-lg text-xs font-bold border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+                      >
+                        <Plus className="w-3.5 h-3.5" /> Del Stock
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* Internal Lab Cost — only if no external lab assigned */}
+              {/* Internal Lab Cost & Description — only if no external lab assigned */}
               {!assignedLab && (
-                <div className="py-2 border-b border-slate-100 dark:border-slate-800">
-                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">Trabajo de Laboratorio Interno</p>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-slate-500 font-bold">$</span>
+                <div className="py-2.5 border-b border-slate-100 dark:border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                      Trabajo de Laboratorio Interno
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsManagePresetsModalOpen(true)}
+                      className="text-[11px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 flex items-center gap-1 hover:underline cursor-pointer"
+                      title="Administrar o agregar botones de trabajo"
+                    >
+                      <Settings className="w-3 h-3" />
+                      Gestionar Botones
+                    </button>
+                  </div>
+
+                  {/* Fila de Chips / Botones Rápidos */}
+                  {internalLabPresets.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {internalLabPresets.map(preset => {
+                        const isSelected = internalLabDescription.toLowerCase().includes(preset.name.toLowerCase());
+                        return (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => handleSelectPreset(preset)}
+                            className={cn(
+                              "px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-150 border text-left",
+                              isSelected
+                                ? "bg-orange-500 text-white border-orange-500 shadow-sm"
+                                : "bg-slate-50 dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-orange-50 hover:border-orange-300 dark:hover:bg-orange-950/40"
+                            )}
+                          >
+                            + {preset.name}
+                            {preset.defaultCost ? ` ($${preset.defaultCost})` : ''}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Campo de Monto */}
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-slate-500 font-bold">$</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        value={internalLabCost}
+                        onChange={e => setInternalLabCost(e.target.value)}
+                        placeholder="0.00"
+                        className="flex-1 h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none"
+                      />
+                      {labIntCost > 0 && (
+                        <span className="text-sm font-bold text-orange-600 flex-shrink-0">${labIntCost.toFixed(2)}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Campo de Descripción o Detalle Técnico del Trabajo */}
+                  <div>
                     <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      value={internalLabCost}
-                      onChange={e => setInternalLabCost(e.target.value)}
-                      placeholder="0.00"
-                      className="flex-1 h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none"
+                      type="text"
+                      value={internalLabDescription}
+                      onChange={e => setInternalLabDescription(e.target.value)}
+                      placeholder="Detalle del trabajo (ej: cambio de plaquetas, arreglo de patilla flex)..."
+                      className="w-full h-8 px-2.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs placeholder:text-slate-400 focus:bg-white dark:focus:bg-slate-950 focus:ring-2 focus:ring-orange-500 outline-none transition-all"
                     />
-                    {labIntCost > 0 && (
-                      <span className="text-sm font-bold text-orange-600 flex-shrink-0">${labIntCost.toFixed(2)}</span>
-                    )}
                   </div>
                 </div>
               )}
@@ -2005,6 +2378,200 @@ export function NewOrder() {
                 className="w-full h-11 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-850 font-bold text-sm transition-all active:scale-[0.98]"
               >
                 Cerrar e ir al Carrito
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Gestión de Botones / Presets de Laboratorio Interno */}
+      {isManagePresetsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div className="flex items-center gap-2 text-slate-900 dark:text-white">
+                <div className="p-2 bg-orange-100 dark:bg-orange-950/50 text-orange-600 dark:text-orange-400 rounded-lg">
+                  <Wrench className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm">Gestionar Botones Rápidos</h3>
+                  <p className="text-[11px] text-slate-500">Agregá, editá o eliminá trabajos de laboratorio interno</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManagePresetsModalOpen(false);
+                  setEditingPreset(null);
+                  setNewPresetName('');
+                  setNewPresetCost('');
+                }}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4 flex-1">
+              {/* Formulario para agregar / editar preset */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 space-y-3">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
+                  {editingPreset ? 'Editar Trabajo' : 'Nuevo Trabajo Rápido'}
+                </span>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newPresetName}
+                    onChange={e => setNewPresetName(e.target.value)}
+                    placeholder="Nombre (ej: Cambio de tornillos)..."
+                    className="w-full h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 font-bold">$</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={newPresetCost}
+                      onChange={e => setNewPresetCost(e.target.value)}
+                      placeholder="Precio sugerido opcional (ej: 5000)..."
+                      className="flex-1 h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-orange-500"
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newPresetName.trim()) return;
+                      if (editingPreset) {
+                        const updated = internalLabPresets.map(p =>
+                          p.id === editingPreset.id
+                            ? { ...p, name: newPresetName.trim(), defaultCost: newPresetCost.trim() }
+                            : p
+                        );
+                        savePresets(updated);
+                        setEditingPreset(null);
+                      } else {
+                        const newP = {
+                          id: `preset_${Date.now()}`,
+                          name: newPresetName.trim(),
+                          defaultCost: newPresetCost.trim()
+                        };
+                        savePresets([...internalLabPresets, newP]);
+                      }
+                      setNewPresetName('');
+                      setNewPresetCost('');
+                    }}
+                    disabled={!newPresetName.trim()}
+                    className="flex-1 h-8 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center justify-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    {editingPreset ? 'Guardar Cambios' : 'Agregar Botón'}
+                  </button>
+                  {editingPreset && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingPreset(null);
+                        setNewPresetName('');
+                        setNewPresetCost('');
+                      }}
+                      className="px-3 h-8 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Lista actual de presets */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                    Botones Activos ({internalLabPresets.length})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('¿Deseas restaurar la lista de botones a los valores iniciales?')) {
+                        savePresets(DEFAULT_INTERNAL_LAB_PRESETS);
+                      }
+                    }}
+                    className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 flex items-center gap-1"
+                    title="Restablecer predeterminados"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    Restablecer
+                  </button>
+                </div>
+
+                {internalLabPresets.length === 0 ? (
+                  <p className="text-xs text-slate-400 text-center py-4">No hay botones creados todavía.</p>
+                ) : (
+                  <div className="divide-y divide-slate-100 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                    {internalLabPresets.map(preset => (
+                      <div
+                        key={preset.id}
+                        className="p-2.5 bg-white dark:bg-slate-900 flex items-center justify-between gap-2 hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{preset.name}</p>
+                          {preset.defaultCost && (
+                            <span className="text-[10px] text-orange-600 dark:text-orange-400 font-semibold">
+                              Sugerido: ${preset.defaultCost}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingPreset(preset);
+                              setNewPresetName(preset.name);
+                              setNewPresetCost(preset.defaultCost || '');
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 rounded-md"
+                            title="Editar botón"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const filtered = internalLabPresets.filter(p => p.id !== preset.id);
+                              savePresets(filtered);
+                              if (editingPreset?.id === preset.id) {
+                                setEditingPreset(null);
+                                setNewPresetName('');
+                                setNewPresetCost('');
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-md"
+                            title="Eliminar botón"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 dark:bg-slate-950 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsManagePresetsModalOpen(false);
+                  setEditingPreset(null);
+                  setNewPresetName('');
+                  setNewPresetCost('');
+                }}
+                className="w-full h-9 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition-colors"
+              >
+                Listo / Cerrar
               </button>
             </div>
           </div>

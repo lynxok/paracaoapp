@@ -86,6 +86,26 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
     const businessAddress = opticaAddress || "Paraná, Entre Ríos";
     const businessPhone = opticaPhone || "";
 
+    // Formatear fecha en DD/MM/YYYY si viene en ISO
+    let receiptDisplayDate = receipt.date || '';
+    if (receiptDisplayDate.includes('-')) {
+      const parts = receiptDisplayDate.split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        receiptDisplayDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+    }
+
+    // Formatear dirección en caso de objeto
+    let receiptDisplayAddress = receipt.clientAddress || '';
+    if (typeof receiptDisplayAddress === 'object') {
+      const a = receiptDisplayAddress as any;
+      receiptDisplayAddress = [
+        [a.street, a.number].filter(Boolean).join(' '),
+        a.floor ? `Piso ${a.floor}` : '',
+        a.apartment ? `Dpto ${a.apartment}` : ''
+      ].filter(Boolean).join(', ');
+    }
+
     // Prescription Items
     const prescriptionItems = receipt.items.filter((item: any) => item.type === 'prescription');
     const hasPrescription = prescriptionItems.length > 0;
@@ -108,14 +128,40 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
       // Build prescription technical blocks for A4
       const prescriptionBlocksA4 = prescriptionItems.map((item: any, pIdx: number) => {
         const details = item.prescriptionDetails || {};
-        const client = details.client;
         const frame = details.selectedFrame;
-        const crystal = details.selectedCrystal;
+        const crystal = details.selectedCrystalItem || details.selectedCrystal;
 
-        // Measures
-        const od = parseFloat(details.diOD) || 0;
-        const oi = parseFloat(details.diOI) || 0;
-        const totalDi = od + oi;
+        // Formatear valores de receta con fallback limpio
+        const odEsf = details.lejosOD?.esf || details.lejosOD?.esfera || details.cercaOD?.esf || details.cercaOD?.esfera || '-';
+        const odCil = details.lejosOD?.cil || details.lejosOD?.cilindro || details.cercaOD?.cil || details.cercaOD?.cilindro || '-';
+        const odEje = details.lejosOD?.eje || details.cercaOD?.eje;
+        const odAdd = details.adicionOD || '-';
+
+        const oiEsf = details.lejosOI?.esf || details.lejosOI?.esfera || details.cercaOI?.esf || details.cercaOI?.esfera || '-';
+        const oiCil = details.lejosOI?.cil || details.lejosOI?.cilindro || details.cercaOI?.cil || details.cercaOI?.cilindro || '-';
+        const oiEje = details.lejosOI?.eje || details.cercaOI?.eje;
+        const oiAdd = details.adicionOI || '-';
+
+        const crystalName = crystal?.name 
+          ? crystal.name 
+          : (details.multifocalSubType === 'bifocal' || details.prescriptionType === 'bifocal' 
+              ? 'Bifocal' 
+              : details.prescriptionType === 'multifocal' 
+                ? 'Multifocal' 
+                : (details.prescriptionType || 'Monofocal'));
+
+        const treatmentsList = Array.isArray(details.selectedTreatments) && details.selectedTreatments.length > 0
+          ? details.selectedTreatments.join(', ')
+          : (Array.isArray(crystal?.treatments) && crystal.treatments.length > 0 ? crystal.treatments.join(', ') : '');
+
+        const crystalDetailsLine = [
+          crystal?.brand ? `Marca: ${crystal.brand}` : '',
+          (crystal?.material || details.material) ? `Mat: ${crystal?.material || details.material}` : '',
+          (crystal?.index || details.index) ? `Índice: ${crystal?.index || details.index}` : '',
+          (crystal?.design || details.diseno) ? `Diseño: ${crystal?.design || details.diseno}` : '',
+          (crystal?.color || details.lensColor) ? `Color: ${crystal?.color || details.lensColor}` : '',
+          treatmentsList ? `Tratamientos: ${treatmentsList}` : ''
+        ].filter(Boolean).join(' | ');
 
         return `
           <div style="margin-top: 18px; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 14px 16px; background: #fafafa; break-inside: avoid;">
@@ -141,20 +187,20 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
               <tbody>
                 <tr style="border-bottom: 1px solid #e2e8f0; text-align: center;">
                   <td style="padding: 7px 8px; text-align: left; font-weight: 700; color: #1e3a8a; background: #f1f5f9;">OJO DERECHO (OD)</td>
-                  <td style="padding: 7px 8px; font-weight: 700;">${details.lejosOD?.esfera || details.cercaOD?.esfera || '-'}</td>
-                  <td style="padding: 7px 8px; font-weight: 700;">${details.lejosOD?.cilindro || details.cercaOD?.cilindro || '-'}</td>
-                  <td style="padding: 7px 8px; font-weight: 700;">${details.lejosOD?.eje || details.cercaOD?.eje || '-'}°</td>
-                  <td style="padding: 7px 8px; font-weight: 700;">${details.adicionOD || '-'}</td>
+                  <td style="padding: 7px 8px; font-weight: 700;">${odEsf}</td>
+                  <td style="padding: 7px 8px; font-weight: 700;">${odCil}</td>
+                  <td style="padding: 7px 8px; font-weight: 700;">${odEje ? `${odEje}°` : '-'}</td>
+                  <td style="padding: 7px 8px; font-weight: 700;">${odAdd}</td>
                   <td style="padding: 7px 8px; font-weight: 600; color: #334155;">
                     DI: ${details.diOD || '-'} mm ${details.apOD ? `| AP: ${details.apOD} mm` : ''}
                   </td>
                 </tr>
                 <tr style="border-bottom: 1px solid #e2e8f0; text-align: center;">
                   <td style="padding: 7px 8px; text-align: left; font-weight: 700; color: #1e3a8a; background: #f1f5f9;">OJO IZQUIERDO (OI)</td>
-                  <td style="padding: 7px 8px; font-weight: 700;">${details.lejosOI?.esfera || details.cercaOI?.esfera || '-'}</td>
-                  <td style="padding: 7px 8px; font-weight: 700;">${details.lejosOI?.cilindro || details.cercaOI?.cilindro || '-'}</td>
-                  <td style="padding: 7px 8px; font-weight: 700;">${details.lejosOI?.eje || details.cercaOI?.eje || '-'}°</td>
-                  <td style="padding: 7px 8px; font-weight: 700;">${details.adicionOI || '-'}</td>
+                  <td style="padding: 7px 8px; font-weight: 700;">${oiEsf}</td>
+                  <td style="padding: 7px 8px; font-weight: 700;">${oiCil}</td>
+                  <td style="padding: 7px 8px; font-weight: 700;">${oiEje ? `${oiEje}°` : '-'}</td>
+                  <td style="padding: 7px 8px; font-weight: 700;">${oiAdd}</td>
                   <td style="padding: 7px 8px; font-weight: 600; color: #334155;">
                     DI: ${details.diOI || '-'} mm ${details.apOI ? `| AP: ${details.apOI} mm` : ''}
                   </td>
@@ -175,18 +221,21 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
               <div style="background: #fff; border: 1px solid #e2e8f0; padding: 8px 10px; border-radius: 6px;">
                 <div style="font-weight: 700; color: #475569; font-size: 10px; text-transform: uppercase;">Cristales y Tratamiento</div>
                 <div style="font-weight: 700; color: #0f172a; margin-top: 2px;">
-                  ${crystal ? crystal.name : (details.prescriptionType || 'Monofocal')}
+                  ${crystalName}
                 </div>
-                <div style="color: #64748b; font-size: 10px;">
-                  ${[
-                    details.material ? `Mat: ${details.material}` : '',
-                    details.diseno ? `Diseño: ${details.diseno}` : '',
-                    details.lensColor ? `Color: ${details.lensColor}` : '',
-                    details.selectedTreatments && details.selectedTreatments.length ? `Tratamientos: ${details.selectedTreatments.join(', ')}` : ''
-                  ].filter(Boolean).join(' | ')}
-                </div>
+                ${crystalDetailsLine ? `<div style="color: #64748b; font-size: 10px; margin-top: 2px;">${crystalDetailsLine}</div>` : ''}
               </div>
             </div>
+
+            ${(details.internalLabCost || details.internalLabDescription) ? `
+              <div style="margin-top: 8px; font-size: 11px; background: #fff7ed; border: 1px solid #fdba74; padding: 7px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span style="font-weight: 800; color: #c2410c; text-transform: uppercase; font-size: 10px;">🔧 Trabajo de Taller Interno:</span>
+                  <span style="font-weight: 700; color: #7c2d12; margin-left: 6px;">${details.internalLabDescription || 'Servicio de laboratorio interno'}</span>
+                </div>
+                ${parseFloat(details.internalLabCost) > 0 ? `<span style="font-weight: 800; color: #c2410c;">$${parseFloat(details.internalLabCost).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>` : ''}
+              </div>
+            ` : ''}
 
             ${(details.observaciones || details.deliveryDate) ? `
               <div style="margin-top: 8px; font-size: 10.5px; background: #fff; border: 1px dashed #cbd5e1; padding: 8px 10px; border-radius: 6px;">
@@ -254,7 +303,7 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
             <div class="doc-info">
               <div class="doc-title">Comprobante de Venta y Trabajo</div>
               <div class="doc-number">N° ${receipt.id}</div>
-              <div class="doc-date">Fecha: ${receipt.date} &bull; Hora: ${receipt.time}</div>
+              <div class="doc-date">Fecha: ${receiptDisplayDate} &bull; Hora: ${receipt.time}</div>
             </div>
           </div>
 
@@ -264,7 +313,7 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
             <div class="patient-details">
               ${receipt.clientDni ? `<div><strong>DNI:</strong> ${receipt.clientDni}</div>` : ''}
               ${receipt.clientPhone ? `<div><strong>Teléfono:</strong> ${receipt.clientPhone}</div>` : ''}
-              ${receipt.clientAddress ? `<div><strong>Dirección:</strong> ${receipt.clientAddress}</div>` : ''}
+              ${receiptDisplayAddress ? `<div><strong>Dirección:</strong> ${receiptDisplayAddress}</div>` : ''}
               ${receipt.clientInsurance ? `<div><strong>Obra Social:</strong> ${receipt.clientInsurance}</div>` : ''}
               <div><strong>Forma de Pago:</strong> ${receipt.paymentMethod}</div>
             </div>
@@ -349,14 +398,52 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
         let detailsText = '';
         if (item.type === 'prescription' && item.prescriptionDetails) {
           const d = item.prescriptionDetails;
+          const crystal = d.selectedCrystalItem || d.selectedCrystal;
+          
+          const odEsf = d.lejosOD?.esf || d.lejosOD?.esfera || d.cercaOD?.esf || d.cercaOD?.esfera || '';
+          const odCil = d.lejosOD?.cil || d.lejosOD?.cilindro || d.cercaOD?.cil || d.cercaOD?.cilindro || '';
+          const odEje = d.lejosOD?.eje || d.cercaOD?.eje || '';
+          const odAdd = d.adicionOD || '';
+
+          const oiEsf = d.lejosOI?.esf || d.lejosOI?.esfera || d.cercaOI?.esf || d.cercaOI?.esfera || '';
+          const oiCil = d.lejosOI?.cil || d.lejosOI?.cilindro || d.cercaOI?.cil || d.cercaOI?.cilindro || '';
+          const oiEje = d.lejosOI?.eje || d.cercaOI?.eje || '';
+          const oiAdd = d.adicionOI || '';
+
+          const odParts: string[] = [];
+          if (odEsf) odParts.push(`Esf: ${odEsf}`);
+          if (odCil) odParts.push(`Cil: ${odCil}`);
+          if (odEje) odParts.push(`x ${odEje}°`);
+          if (odAdd) odParts.push(`Add: ${odAdd}`);
+
+          const oiParts: string[] = [];
+          if (oiEsf) oiParts.push(`Esf: ${oiEsf}`);
+          if (oiCil) oiParts.push(`Cil: ${oiCil}`);
+          if (oiEje) oiParts.push(`x ${oiEje}°`);
+          if (oiAdd) oiParts.push(`Add: ${oiAdd}`);
+
+          const crystalName = crystal?.name 
+            ? crystal.name 
+            : (d.multifocalSubType === 'bifocal' || d.prescriptionType === 'bifocal'
+                ? 'Bifocal'
+                : d.prescriptionType === 'multifocal'
+                  ? 'Multifocal'
+                  : (d.prescriptionType || ''));
+
+          const treatmentsList = Array.isArray(d.selectedTreatments) && d.selectedTreatments.length > 0
+            ? d.selectedTreatments.join(', ')
+            : (Array.isArray(crystal?.treatments) && crystal.treatments.length > 0 ? crystal.treatments.join(', ') : '');
+
           detailsText = `
-            <div style="font-size: 9px; color: #333; margin: 3px 0 4px 6px; border-left: 2px solid #555; padding-left: 4px;">
+            <div style="font-size: 9px; color: #111; margin: 3px 0 4px 4px; border-left: 2px solid #333; padding-left: 5px; line-height: 1.35;">
               ${d.medico ? `<div>Médico: ${d.medico}</div>` : ''}
-              ${(d.lejosOD || d.cercaOD) ? `<div>OD: ${d.lejosOD?.esfera || d.cercaOD?.esfera || '0'} / ${d.lejosOD?.cilindro || d.cercaOD?.cilindro || '0'} x ${d.lejosOD?.eje || d.cercaOD?.eje || '0'}°</div>` : ''}
-              ${(d.lejosOI || d.cercaOI) ? `<div>OI: ${d.lejosOI?.esfera || d.cercaOI?.esfera || '0'} / ${d.lejosOI?.cilindro || d.cercaOI?.cilindro || '0'} x ${d.lejosOI?.eje || d.cercaOI?.eje || '0'}°</div>` : ''}
-              ${(d.diOD || d.diOI) ? `<div>DI: ${d.diOD || '-'}/${d.diOI || '-'} mm ${d.apOD ? `| AP: ${d.apOD}` : ''}</div>` : ''}
-              ${d.selectedFrame ? `<div>Arm: ${d.selectedFrame.name || d.selectedFrame.model || 'Armazón'}</div>` : ''}
-              ${d.selectedCrystal ? `<div>Cristal: ${d.selectedCrystal.name || 'Cristal'}</div>` : ''}
+              ${odParts.length > 0 ? `<div><strong>OD:</strong> ${odParts.join(' | ')}</div>` : ''}
+              ${oiParts.length > 0 ? `<div><strong>OI:</strong> ${oiParts.join(' | ')}</div>` : ''}
+              ${(d.diOD || d.diOI) ? `<div>DI: ${d.diOD || '-'}/${d.diOI || '-'} mm ${d.apOD ? `| AP: ${d.apOD} mm` : ''}</div>` : ''}
+              ${d.selectedFrame ? `<div>Arm: ${d.selectedFrame.name || d.selectedFrame.model || 'Armazón'}${d.selectedFrame.color ? ` (${d.selectedFrame.color})` : ''}</div>` : ''}
+              ${crystalName ? `<div>Cristal: <strong>${crystalName}</strong></div>` : ''}
+              ${treatmentsList ? `<div>Tratamientos: ${treatmentsList}</div>` : ''}
+              ${(d.internalLabCost || d.internalLabDescription) ? `<div>Taller: ${d.internalLabDescription || 'Trabajo interno'}${parseFloat(d.internalLabCost) > 0 ? ` ($${parseFloat(d.internalLabCost).toLocaleString('es-AR')})` : ''}</div>` : ''}
             </div>
           `;
         }
@@ -414,7 +501,7 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
               ${businessPhone ? `<p class="subtitle">Tel: ${businessPhone}</p>` : ''}
               <div class="divider"></div>
               <p class="bold" style="font-size: 11px;">COMPROBANTE #${receipt.id}</p>
-              <p style="font-size: 9px;">${receipt.date} - ${receipt.time}</p>
+              <p style="font-size: 9px;">${receiptDisplayDate} - ${receipt.time}</p>
             </div>
 
             <div style="margin-top: 6px;">
@@ -431,6 +518,11 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
               <div class="row">
                 <span class="bold">Tel:</span>
                 <span>${receipt.clientPhone}</span>
+              </div>` : ''}
+              ${receiptDisplayAddress ? `
+              <div class="row">
+                <span class="bold">Dir:</span>
+                <span>${receiptDisplayAddress}</span>
               </div>` : ''}
               <div class="row">
                 <span class="bold">Medio de Pago:</span>

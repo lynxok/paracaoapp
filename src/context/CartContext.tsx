@@ -260,7 +260,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         });
 
         // 2. Deduct stock for frame and crystal
-        if (details.selectedFrame) {
+        if (details.selectedFrame && !details.selectedFrame.isOwn && details.selectedFrame.sku) {
           deductStock(details.selectedFrame.sku, 1, 1);
         }
         if (details.selectedCrystal) {
@@ -443,18 +443,37 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const prescriptionClient = cart.find(c => c.type === 'prescription' && c.details?.client)?.details?.client;
     const finalClient = targetClient || prescriptionClient;
 
+    // Format address properly if it is an object
+    let formattedAddress = '';
+    if (finalClient?.address) {
+      if (typeof finalClient.address === 'object') {
+        const a = finalClient.address as any;
+        const parts = [
+          [a.street, a.number].filter(Boolean).join(' '),
+          a.floor ? `Piso ${a.floor}` : '',
+          a.apartment ? `Dpto ${a.apartment}` : ''
+        ].filter(Boolean);
+        formattedAddress = parts.join(', ');
+      } else {
+        formattedAddress = String(finalClient.address);
+      }
+    }
+
+    const [y, m, d] = dateStr.split('-');
+    const displayDate = (y && m && d) ? `${d}/${m}/${y}` : now.toLocaleDateString('es-AR');
+
     clearCart();
     return { 
       success: true, 
       message: `Venta cobrada por $${effectivePaid.toLocaleString('es-AR')} vía ${boxName}`,
       receipt: {
         id: `REC-${Date.now().toString().slice(-6)}`,
-        date: dateStr,
+        date: displayDate,
         time: timeStr,
         clientName: finalClient?.name || targetClientName,
         clientDni: finalClient?.dni || '',
         clientPhone: finalClient?.phone || '',
-        clientAddress: finalClient?.address || '',
+        clientAddress: formattedAddress,
         clientInsurance: finalClient?.insurance || '',
         items: itemsSummary,
         subtotal: subtotal,
