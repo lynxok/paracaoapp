@@ -5,9 +5,10 @@ import { useSettings } from "../context/SettingsContext";
 import { useAuth } from "../context/AuthContext";
 import { Supplier, SupplierTransaction } from "../types";
 import { cn } from "../lib/utils";
+import { supabase } from "../lib/supabase";
 
 export function Suppliers() {
-  const { suppliers, addSupplierTransaction, updateSupplier, addSupplier, addCheques, boxes, addTransaction } = useFinance();
+  const { suppliers, addSupplierTransaction, updateSupplier, addSupplier, addCheques, boxes, addTransaction, cheques } = useFinance();
   const { nextChequeNumber, setNextChequeNumber } = useSettings();
   const [activeTab, setActiveTab] = useState<'list' | 'purchases' | 'pending'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -16,6 +17,12 @@ export function Suppliers() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
   const [copiedTxId, setCopiedTxId] = useState<string | null>(null);
+  const [assignChequesModal, setAssignChequesModal] = useState<{
+    tx: SupplierTransaction;
+    supplierId: string;
+    supplierName: string;
+    cheques: Array<{ number: string; bank: string; amount: number; dueDate: string; terms: string }>;
+  } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   
   const [categories, setCategories] = useState(["Armazones", "Cristales", "Insumos de Laboratorio", "Lentes de Contacto", "Accesorios"]);
@@ -24,11 +31,19 @@ export function Suppliers() {
   const [menuPosition, setMenuPosition] = useState<{ x: number, y: number } | null>(null);
   const [contextItem, setContextItem] = useState<Supplier | null>(null);
 
-  const parseTxDetails = (description?: string) => {
-    if (!description) return { cleanDesc: '', details: null };
-    const parts = description.split('Detalles de Pago:');
+  const parseTxDetails = (
+    description?: string, 
+    totalAmount?: number, 
+    txDate?: string, 
+    paymentTerms?: string,
+    allCheques?: any[],
+    voucherNumber?: string
+  ) => {
+    if (!description && !paymentTerms) return { cleanDesc: '', details: null };
+    const parts = (description || '').split('Detalles de Pago:');
     const cleanDesc = parts[0]?.replace(/\|\s*$/, '').trim() || '';
     let details: any = null;
+
     if (parts.length > 1) {
       try {
         details = JSON.parse(parts[1].trim());
@@ -36,13 +51,97 @@ export function Suppliers() {
         // Ignored
       }
     }
+
+    // Check if there are linked cheques in FinanceContext
+    if (voucherNumber && allCheques && allCheques.length > 0) {
+      const linked = allCheques.filter(c => 
+        c.voucherId && (
+          c.voucherId.toLowerCase() === voucherNumber.toLowerCase() ||
+          voucherNumber.toLowerCase().includes(c.voucherId.toLowerCase())
+        )
+      );
+      if (linked.length > 0) {
+        if (!details) {
+          details = {
+            efectivo: { amount: 0, boxId: '' },
+            transferencia: { amount: 0, boxId: '' },
+            tarjeta: { amount: 0, boxId: '' },
+            cheques: linked,
+            cuentaCorriente: 0
+          };
+        } else {
+          details.cheques = linked;
+        }
+      }
+    }
+
+    // Smart fallback parser for free-text notes (e.g. "le entregue 500.000efectivo y saldo en 3 cheques 30/60/90")
+    if (!details || (!details.cheques?.length && !details.efectivo?.amount && !details.transferencia?.amount && !details.tarjeta?.amount)) {
+      const text = ((description || '') + ' ' + (paymentTerms || '')).toLowerCase();
+      const hasCheques = text.includes('cheque') || text.includes('e-check') || text.includes('echeck') || text.includes('30/60/90');
+      const hasCash = text.includes('efectivo') || text.includes('contado');
+
+      if (hasCheques || hasCash) {
+        let cashAmount = 0;
+        const cashMatch = text.match(/(?:(?:entregue|pago|seña|anticipo)?\s*(?:\$)?\s*([\d\.]+)\s*(?:en\s*)?efectivo)|(?:efectivo\s*(?:\$)?\s*([\d\.]+))/i);
+        if (cashMatch) {
+          const numStr = (cashMatch[1] || cashMatch[2]).replace(/\./g, '');
+          cashAmount = parseFloat(numStr) || 0;
+        }
+
+        let numCheques = 1;
+        const numMatch = text.match(/(\d+)\s*(?:cheques|e-checks|echecks)/i);
+        if (numMatch) {
+          numCheques = parseInt(numMatch[1], 10) || 1;
+        } else if (text.includes('30/60/90/120')) {
+          numCheques = 4;
+        } else if (text.includes('30/60/90')) {
+          numCheques = 3;
+        } else if (text.includes('30/60')) {
+          numCheques = 2;
+        }
+
+        const remainingForCheques = Math.max(0, (totalAmount || 0) - cashAmount);
+        const chequesList = [];
+
+        if (hasCheques && remainingForCheques > 0) {
+          const perCheque = Math.round(remainingForCheques / numCheques);
+          const baseDate = txDate ? new Date(txDate + 'T12:00:00') : new Date();
+
+          for (let i = 1; i <= numCheques; i++) {
+            const days = i * 30;
+            const dueDate = new Date(baseDate.getTime() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            const amt = (i === numCheques) ? (remainingForCheques - perCheque * (numCheques - 1)) : perCheque;
+
+            chequesList.push({
+              number: `Cheque ${i} de ${numCheques}`,
+              bank: 'A designar',
+              amount: amt,
+              dueDate: dueDate,
+              terms: `${days} días`,
+              observation: 'Detectado del concepto de compra'
+            });
+          }
+        }
+
+        details = {
+          efectivo: { amount: cashAmount, boxId: '' },
+          transferencia: { amount: 0, boxId: '' },
+          tarjeta: { amount: 0, boxId: '' },
+          cheques: chequesList,
+          cuentaCorriente: Math.max(0, (totalAmount || 0) - cashAmount - remainingForCheques),
+          isEstimated: true
+        };
+      }
+    }
+
     return { cleanDesc, details };
   };
 
   const handleCopyTx = (tx: SupplierTransaction, supplier: Supplier) => {
     const isInvoice = tx.type === 'invoice';
-    const { cleanDesc } = parseTxDetails(tx.description);
-    const text = `*ÓPTICA PARACAO - ${isInvoice ? 'Comprobante de Compra' : 'Recibo de Pago'}*\n` +
+    const { cleanDesc, details } = parseTxDetails(tx.description, tx.amount, tx.date, tx.paymentTerms, cheques, tx.voucherNumber);
+    let text = `*ÓPTICA PARACAO - ${isInvoice ? 'Comprobante de Compra' : 'Recibo de Pago'}*\n` +
       `Proveedor: ${supplier.name} (CUIT: ${supplier.cuit || 'S/D'})\n` +
       `Comprobante: ${tx.voucherNumber}\n` +
       `Fecha: ${tx.date}\n` +
@@ -50,6 +149,17 @@ export function Suppliers() {
       (tx.paymentTerms ? `Condición: ${tx.paymentTerms}\n` : '') +
       `Importe: ${isInvoice ? '+' : '-'}$${tx.amount.toLocaleString()}\n` +
       (cleanDesc ? `Detalle: ${cleanDesc}\n` : '');
+
+    if (details?.efectivo?.amount > 0) {
+      text += `💵 Efectivo: $${details.efectivo.amount.toLocaleString()}\n`;
+    }
+    if (details?.cheques && details.cheques.length > 0) {
+      text += `📑 Cheques Emitidos (${details.cheques.length}):\n`;
+      details.cheques.forEach((c: any) => {
+        text += `  • ${c.number} (${c.bank}) Vence: ${c.dueDate || c.terms}: $${c.amount?.toLocaleString()}\n`;
+      });
+    }
+
     navigator.clipboard.writeText(text);
     setCopiedTxId(tx.id);
     setTimeout(() => setCopiedTxId(null), 2000);
@@ -62,15 +172,26 @@ export function Suppliers() {
       return;
     }
     const isInvoice = tx.type === 'invoice';
-    const { cleanDesc } = parseTxDetails(tx.description);
-    const text = `Hola ${supplier.contact || supplier.name}, te compartimos el detalle del ${isInvoice ? 'comprobante de compra' : 'pago'} registrado en Óptica Paracao:\n\n` +
+    const { cleanDesc, details } = parseTxDetails(tx.description, tx.amount, tx.date, tx.paymentTerms, cheques, tx.voucherNumber);
+    let text = `Hola ${supplier.contact || supplier.name}, te compartimos el detalle del ${isInvoice ? 'comprobante de compra' : 'pago'} registrado en Óptica Paracao:\n\n` +
       `📄 *${isInvoice ? 'Factura' : 'Recibo'} Nº:* ${tx.voucherNumber}\n` +
       `📅 *Fecha:* ${tx.date}\n` +
       `💰 *Monto:* $${tx.amount.toLocaleString()}\n` +
       (tx.paymentTerms ? `⏱️ *Condición:* ${tx.paymentTerms}\n` : '') +
       (tx.dueDate ? `📆 *Vencimiento:* ${tx.dueDate}\n` : '') +
-      (cleanDesc ? `📝 *Detalle:* ${cleanDesc}\n` : '') +
-      `\nQuedamos a tu disposición. ¡Muchas gracias!`;
+      (cleanDesc ? `📝 *Detalle:* ${cleanDesc}\n` : '');
+
+    if (details?.efectivo?.amount > 0) {
+      text += `💵 *Efectivo:* $${details.efectivo.amount.toLocaleString()}\n`;
+    }
+    if (details?.cheques && details.cheques.length > 0) {
+      text += `📑 *Cheques Emitidos (${details.cheques.length}):*\n`;
+      details.cheques.forEach((c: any) => {
+        text += `  • ${c.number} (${c.bank}) Vence: ${c.dueDate || c.terms}: $${c.amount?.toLocaleString()}\n`;
+      });
+    }
+
+    text += `\nQuedamos a tu disposición. ¡Muchas gracias!`;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -79,7 +200,7 @@ export function Suppliers() {
     if (!win) return;
     
     const isInvoice = tx.type === 'invoice';
-    const { cleanDesc, details: parsedDetails } = parseTxDetails(tx.description);
+    const { cleanDesc, details: parsedDetails } = parseTxDetails(tx.description, tx.amount, tx.date, tx.paymentTerms, cheques, tx.voucherNumber);
 
     win.document.write(`
       <!DOCTYPE html>
@@ -224,6 +345,78 @@ export function Suppliers() {
       </html>
     `);
     win.document.close();
+  };
+
+  const handleSaveAssignedCheques = async () => {
+    if (!assignChequesModal) return;
+    const { tx, supplierId, supplierName, cheques: chqsToSave } = assignChequesModal;
+
+    const validCheques = chqsToSave.map((c, i) => ({
+      id: `cheque-emit-${Date.now()}-${i}`,
+      number: c.number || `CHQ-${i + 1}`,
+      bank: c.bank || 'Banco a designar',
+      amount: c.amount,
+      dueDate: c.dueDate,
+      terms: c.terms,
+      status: 'Pendiente' as const,
+      type: 'Emitido' as const,
+      supplierId: supplierId,
+      supplierName: supplierName,
+      voucherId: tx.voucherNumber,
+      observation: `Factura Nº ${tx.voucherNumber}`
+    }));
+
+    // 1. Add to Finance cheques state
+    addCheques(validCheques);
+
+    // 2. Insert to Supabase cheques table
+    try {
+      await supabase.from('cheques').insert(validCheques.map(c => ({
+        id: c.id,
+        number: c.number,
+        bank: c.bank,
+        amount: c.amount,
+        due_date: c.dueDate,
+        terms: c.terms,
+        status: c.status,
+        type: c.type,
+        supplier_id: c.supplierId,
+        supplier_name: c.supplierName,
+        voucher_id: c.voucherId,
+        observation: c.observation
+      })));
+    } catch (err) {
+      console.warn("Could not insert cheques to supabase:", err);
+    }
+
+    // 3. Update transaction description in Supabase & local state
+    const currentDetails = parseTxDetails(tx.description, tx.amount, tx.date, tx.paymentTerms, cheques, tx.voucherNumber).details;
+    const paymentDetails = {
+      efectivo: currentDetails?.efectivo || { amount: 0, boxId: '' },
+      transferencia: currentDetails?.transferencia || { amount: 0, boxId: '' },
+      tarjeta: currentDetails?.tarjeta || { amount: 0, boxId: '' },
+      cheques: validCheques,
+      cuentaCorriente: currentDetails?.cuentaCorriente || 0
+    };
+    const cleanNote = tx.description?.split('Detalles de Pago:')[0]?.replace(/\|\s*$/, '').trim() || '';
+    const newDesc = `${cleanNote ? cleanNote + ' | ' : ''}Detalles de Pago: ${JSON.stringify(paymentDetails)}`;
+
+    try {
+      await supabase.from('supplier_transactions').update({ description: newDesc }).eq('id', tx.id);
+    } catch (err) {
+      console.warn("Could not update tx in supabase:", err);
+    }
+
+    // 4. Update in-memory state
+    tx.description = newDesc;
+    if (selectedSupplier) {
+      setSelectedSupplier({
+        ...selectedSupplier,
+        transactions: selectedSupplier.transactions.map(t => t.id === tx.id ? { ...t, description: newDesc } : t)
+      });
+    }
+
+    setAssignChequesModal(null);
   };
 
   // Mixed Payment States
@@ -1200,7 +1393,7 @@ export function Suppliers() {
                 ) : (
                   selectedSupplier.transactions.map((tx) => {
                     const isExpanded = expandedTxId === tx.id;
-                    const { cleanDesc, details } = parseTxDetails(tx.description);
+                    const { cleanDesc, details } = parseTxDetails(tx.description, tx.amount, tx.date, tx.paymentTerms, cheques, tx.voucherNumber);
                     const isInvoice = tx.type === 'invoice';
 
                     return (
@@ -1360,9 +1553,34 @@ export function Suppliers() {
                                 {/* Cheques Breakdown */}
                                 {details.cheques && details.cheques.length > 0 && (
                                   <div className="mt-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800 p-3 space-y-2">
-                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
-                                      Cheques / E-Checks Emitidos ({details.cheques.length})
-                                    </span>
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                                        Cheques / E-Checks Emitidos ({details.cheques.length})
+                                      </span>
+                                      {details.isEstimated && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAssignChequesModal({
+                                              tx,
+                                              supplierId: selectedSupplier.id,
+                                              supplierName: selectedSupplier.name,
+                                              cheques: details.cheques.map((c: any) => ({
+                                                number: c.number.startsWith('Cheque') ? '' : c.number,
+                                                bank: c.bank === 'A designar' ? '' : c.bank,
+                                                amount: c.amount,
+                                                dueDate: c.dueDate,
+                                                terms: c.terms
+                                              }))
+                                            });
+                                          }}
+                                          className="px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 rounded font-bold text-[10px] flex items-center gap-1 transition-colors border border-indigo-200 dark:border-indigo-800"
+                                        >
+                                          <Edit2 className="w-3 h-3" /> Asignar Nº y Banco
+                                        </button>
+                                      )}
+                                    </div>
                                     <div className="divide-y divide-slate-100 dark:divide-slate-800">
                                       {details.cheques.map((c: any, idx: number) => (
                                         <div key={idx} className="py-2 flex items-center justify-between text-xs">
@@ -1380,6 +1598,11 @@ export function Suppliers() {
                                         </div>
                                       ))}
                                     </div>
+                                    {details.isEstimated && (
+                                      <p className="text-[10px] text-amber-600 dark:text-amber-400 italic pt-1 border-t border-slate-100 dark:border-slate-800">
+                                        💡 Cheques detectados automáticamente del texto registrado. Podés asignar los números de cheque y banco con el botón superior.
+                                      </p>
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -1820,6 +2043,127 @@ export function Suppliers() {
               <Trash2 className="w-4 h-4" /> Eliminar Proveedor
             </button>
           )}
+        </div>
+      )}
+
+      {/* Modal to assign Cheque numbers and bank */}
+      {assignChequesModal && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in duration-150">
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Receipt className="w-5 h-5 text-indigo-600" />
+                  Asignar Cheques a {assignChequesModal.tx.voucherNumber}
+                </h3>
+                <p className="text-xs text-slate-500">{assignChequesModal.supplierName}</p>
+              </div>
+              <button 
+                onClick={() => setAssignChequesModal(null)}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                Completá los datos de los <strong>{assignChequesModal.cheques.length} cheques</strong> para registrarlos en la cartera de cheques y vincularlos formalmente a esta factura.
+              </p>
+
+              <div className="space-y-3">
+                {assignChequesModal.cheques.map((c, idx) => (
+                  <div key={idx} className="p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                        Cheque {idx + 1} de {assignChequesModal.cheques.length} ({c.terms})
+                      </span>
+                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400">
+                        ${c.amount.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Nº Cheque</label>
+                        <input
+                          type="text"
+                          placeholder="Ej: 004928"
+                          value={c.number}
+                          onChange={(e) => {
+                            const newChqs = [...assignChequesModal.cheques];
+                            newChqs[idx].number = e.target.value;
+                            setAssignChequesModal({ ...assignChequesModal, cheques: newChqs });
+                          }}
+                          className="w-full h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-600"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Banco Emisor</label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Santander, Galicia..."
+                          value={c.bank}
+                          onChange={(e) => {
+                            const newChqs = [...assignChequesModal.cheques];
+                            newChqs[idx].bank = e.target.value;
+                            setAssignChequesModal({ ...assignChequesModal, cheques: newChqs });
+                          }}
+                          className="w-full h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-600"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Vencimiento</label>
+                        <input
+                          type="date"
+                          value={c.dueDate}
+                          onChange={(e) => {
+                            const newChqs = [...assignChequesModal.cheques];
+                            newChqs[idx].dueDate = e.target.value;
+                            setAssignChequesModal({ ...assignChequesModal, cheques: newChqs });
+                          }}
+                          className="w-full h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold outline-none focus:ring-2 focus:ring-indigo-600"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Importe ($)</label>
+                        <input
+                          type="number"
+                          value={c.amount}
+                          onChange={(e) => {
+                            const newChqs = [...assignChequesModal.cheques];
+                            newChqs[idx].amount = parseFloat(e.target.value) || 0;
+                            setAssignChequesModal({ ...assignChequesModal, cheques: newChqs });
+                          }}
+                          className="w-full h-8 px-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-black text-emerald-600 outline-none focus:ring-2 focus:ring-indigo-600"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 bg-slate-50 dark:bg-slate-900/50">
+              <button
+                type="button"
+                onClick={() => setAssignChequesModal(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAssignedCheques}
+                className="px-5 py-2 text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-md shadow-indigo-500/20 transition-all"
+              >
+                Guardar Cheques en Cartera
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
