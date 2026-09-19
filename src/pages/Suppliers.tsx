@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Plus, Edit2, Receipt, Truck, X, Settings2, Trash2, Smartphone, FileText, ArrowUpRight, ArrowDownRight, History, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
+import { Search, Plus, Edit2, Receipt, Truck, X, Settings2, Trash2, Smartphone, FileText, ArrowUpRight, ArrowDownRight, History, Calendar, CheckCircle2, AlertCircle, ChevronDown, Printer, Copy, Check, Clock, CreditCard, Banknote, Building2 } from "lucide-react";
 import { useFinance } from "../context/FinanceContext";
 import { useSettings } from "../context/SettingsContext";
 import { useAuth } from "../context/AuthContext";
@@ -14,6 +14,8 @@ export function Suppliers() {
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
+  const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
+  const [copiedTxId, setCopiedTxId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   
   const [categories, setCategories] = useState(["Armazones", "Cristales", "Insumos de Laboratorio", "Lentes de Contacto", "Accesorios"]);
@@ -21,6 +23,208 @@ export function Suppliers() {
   const [newCatName, setNewCatName] = useState("");
   const [menuPosition, setMenuPosition] = useState<{ x: number, y: number } | null>(null);
   const [contextItem, setContextItem] = useState<Supplier | null>(null);
+
+  const parseTxDetails = (description?: string) => {
+    if (!description) return { cleanDesc: '', details: null };
+    const parts = description.split('Detalles de Pago:');
+    const cleanDesc = parts[0]?.replace(/\|\s*$/, '').trim() || '';
+    let details: any = null;
+    if (parts.length > 1) {
+      try {
+        details = JSON.parse(parts[1].trim());
+      } catch (e) {
+        // Ignored
+      }
+    }
+    return { cleanDesc, details };
+  };
+
+  const handleCopyTx = (tx: SupplierTransaction, supplier: Supplier) => {
+    const isInvoice = tx.type === 'invoice';
+    const { cleanDesc } = parseTxDetails(tx.description);
+    const text = `*ÓPTICA PARACAO - ${isInvoice ? 'Comprobante de Compra' : 'Recibo de Pago'}*\n` +
+      `Proveedor: ${supplier.name} (CUIT: ${supplier.cuit || 'S/D'})\n` +
+      `Comprobante: ${tx.voucherNumber}\n` +
+      `Fecha: ${tx.date}\n` +
+      (tx.dueDate ? `Vencimiento: ${tx.dueDate}\n` : '') +
+      (tx.paymentTerms ? `Condición: ${tx.paymentTerms}\n` : '') +
+      `Importe: ${isInvoice ? '+' : '-'}$${tx.amount.toLocaleString()}\n` +
+      (cleanDesc ? `Detalle: ${cleanDesc}\n` : '');
+    navigator.clipboard.writeText(text);
+    setCopiedTxId(tx.id);
+    setTimeout(() => setCopiedTxId(null), 2000);
+  };
+
+  const handleWhatsAppTx = (tx: SupplierTransaction, supplier: Supplier) => {
+    const phone = supplier.phone?.replace(/\D/g, '');
+    if (!phone) {
+      alert("El proveedor no tiene un teléfono registrado para WhatsApp.");
+      return;
+    }
+    const isInvoice = tx.type === 'invoice';
+    const { cleanDesc } = parseTxDetails(tx.description);
+    const text = `Hola ${supplier.contact || supplier.name}, te compartimos el detalle del ${isInvoice ? 'comprobante de compra' : 'pago'} registrado en Óptica Paracao:\n\n` +
+      `📄 *${isInvoice ? 'Factura' : 'Recibo'} Nº:* ${tx.voucherNumber}\n` +
+      `📅 *Fecha:* ${tx.date}\n` +
+      `💰 *Monto:* $${tx.amount.toLocaleString()}\n` +
+      (tx.paymentTerms ? `⏱️ *Condición:* ${tx.paymentTerms}\n` : '') +
+      (tx.dueDate ? `📆 *Vencimiento:* ${tx.dueDate}\n` : '') +
+      (cleanDesc ? `📝 *Detalle:* ${cleanDesc}\n` : '') +
+      `\nQuedamos a tu disposición. ¡Muchas gracias!`;
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  const handlePrintVoucher = (tx: SupplierTransaction, supplier: Supplier) => {
+    const win = window.open('', '_blank', 'width=560,height=750');
+    if (!win) return;
+    
+    const isInvoice = tx.type === 'invoice';
+    const { cleanDesc, details: parsedDetails } = parseTxDetails(tx.description);
+
+    win.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <title>${isInvoice ? 'Comprobante de Compra' : 'Recibo de Pago'} - ${tx.voucherNumber}</title>
+        <style>
+          @page { size: auto; margin: 10mm; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 13px; color: #1e293b; background: #fff; padding: 24px; line-height: 1.5; }
+          .receipt-container { border: 1px solid #cbd5e1; border-radius: 12px; padding: 24px; max-width: 500px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); }
+          .header { text-align: center; border-bottom: 2px solid #e2e8f0; padding-bottom: 16px; margin-bottom: 16px; }
+          .optica-title { font-size: 20px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; }
+          .optica-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+          .badge { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 4px 10px; border-radius: 6px; margin-top: 8px; ${isInvoice ? 'background: #ffe4e6; color: #e11d48;' : 'background: #dcfce7; color: #15803d;'} }
+          .section { margin-bottom: 14px; }
+          .section-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 6px; }
+          .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+          .box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; }
+          .label { font-size: 10px; color: #64748b; font-weight: 600; text-transform: uppercase; }
+          .value { font-size: 13px; font-weight: 700; color: #0f172a; margin-top: 2px; }
+          .amount-box { background: #0f172a; color: #fff; border-radius: 10px; padding: 16px; text-align: center; margin: 16px 0; }
+          .amount-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8; }
+          .amount-val { font-size: 26px; font-weight: 900; margin-top: 4px; ${isInvoice ? 'color: #fda4af;' : 'color: #86efac;'} }
+          .cheques-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11px; }
+          .cheques-table th { background: #f1f5f9; padding: 6px 8px; text-align: left; font-size: 10px; text-transform: uppercase; color: #475569; }
+          .cheques-table td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; }
+          .signatures { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 32px; padding-top: 12px; text-align: center; }
+          .signature-line { border-top: 1px dashed #94a3b8; padding-top: 6px; font-size: 11px; font-weight: 600; color: #475569; }
+          .no-print { text-align: center; margin-top: 24px; }
+          .btn { padding: 10px 20px; font-weight: 700; font-size: 13px; cursor: pointer; border: none; border-radius: 8px; margin: 0 4px; }
+          .btn-primary { background: #4f46e5; color: #fff; }
+          .btn-secondary { background: #e2e8f0; color: #334155; }
+          @media print {
+            .no-print { display: none !important; }
+            body { padding: 0; }
+            .receipt-container { border: none; box-shadow: none; max-width: 100%; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="receipt-container">
+          <div class="header">
+            <h1 class="optica-title">ÓPTICA PARACAO</h1>
+            <p class="optica-sub">Paraná, Entre Ríos, Argentina</p>
+            <div class="badge">${isInvoice ? 'Factura de Compra' : 'Recibo de Pago a Proveedor'}</div>
+          </div>
+
+          <div class="section">
+            <div class="grid-2">
+              <div class="box">
+                <div class="label">Proveedor</div>
+                <div class="value">${supplier.name}</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">CUIT: ${supplier.cuit || 'S/D'} · Cód: ${supplier.code}</div>
+              </div>
+              <div class="box">
+                <div class="label">Nº Comprobante</div>
+                <div class="value" style="font-family: monospace;">${tx.voucherNumber}</div>
+                <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Fecha: ${tx.date}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="amount-box">
+            <div class="amount-label">Monto Total ${isInvoice ? 'Facturado' : 'Imputado'}</div>
+            <div class="amount-val">${isInvoice ? '+' : '-'}$${tx.amount.toLocaleString()}</div>
+          </div>
+
+          ${(tx.paymentTerms || tx.dueDate) ? `
+            <div class="section">
+              <div class="grid-2">
+                ${tx.paymentTerms ? `<div class="box"><div class="label">Condición de Pago</div><div class="value">${tx.paymentTerms}</div></div>` : ''}
+                ${tx.dueDate ? `<div class="box"><div class="label">Fecha de Vencimiento</div><div class="value">${tx.dueDate}</div></div>` : ''}
+              </div>
+            </div>
+          ` : ''}
+
+          ${cleanDesc ? `
+            <div class="section">
+              <div class="box">
+                <div class="label">Concepto / Detalle</div>
+                <div class="value" style="font-weight: 500; font-size: 12px; margin-top: 4px;">${cleanDesc}</div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${parsedDetails ? `
+            <div class="section">
+              <div class="section-title">Desglose de Pago</div>
+              <div class="box" style="padding: 6px 12px;">
+                ${parsedDetails.efectivo?.amount > 0 ? `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #e2e8f0;"><span style="font-size:12px; color:#64748b;">Efectivo</span><strong style="font-size:12px;">$${parsedDetails.efectivo.amount.toLocaleString()}</strong></div>` : ''}
+                ${parsedDetails.transferencia?.amount > 0 ? `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #e2e8f0;"><span style="font-size:12px; color:#64748b;">Transferencia / Banco</span><strong style="font-size:12px;">$${parsedDetails.transferencia.amount.toLocaleString()}</strong></div>` : ''}
+                ${parsedDetails.tarjeta?.amount > 0 ? `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #e2e8f0;"><span style="font-size:12px; color:#64748b;">Tarjeta de Crédito</span><strong style="font-size:12px;">$${parsedDetails.tarjeta.amount.toLocaleString()}</strong></div>` : ''}
+                ${parsedDetails.cuentaCorriente > 0 ? `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #e2e8f0;"><span style="font-size:12px; color:#64748b;">Saldo en C.C. (Deuda)</span><strong style="font-size:12px; color:#e11d48;">$${parsedDetails.cuentaCorriente.toLocaleString()}</strong></div>` : ''}
+                ${parsedDetails.cheques && parsedDetails.cheques.length > 0 ? `
+                  <div style="margin-top: 8px;">
+                    <div style="font-size: 10px; font-weight: 700; color: #475569; text-transform: uppercase;">Cheques Emitidos (${parsedDetails.cheques.length})</div>
+                    <table class="cheques-table">
+                      <thead>
+                        <tr>
+                          <th>Nº Cheque</th>
+                          <th>Banco</th>
+                          <th>Vence</th>
+                          <th style="text-align:right;">Importe</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        ${parsedDetails.cheques.map((c: any) => `
+                          <tr>
+                            <td style="font-family: monospace; font-weight: 700;">${c.number}</td>
+                            <td>${c.bank}</td>
+                            <td>${c.dueDate || c.terms}</td>
+                            <td style="text-align:right; font-weight:700;">$${c.amount?.toLocaleString()}</td>
+                          </tr>
+                        `).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="signatures">
+            <div>
+              <div class="signature-line">Firma Administración</div>
+              <div style="font-size: 9px; color: #94a3b8; margin-top: 2px;">Óptica Paracao</div>
+            </div>
+            <div>
+              <div class="signature-line">Recibí Conforme</div>
+              <div style="font-size: 9px; color: #94a3b8; margin-top: 2px;">${supplier.name}</div>
+            </div>
+          </div>
+
+          <div class="no-print">
+            <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimir</button>
+            <button class="btn btn-secondary" onclick="window.close()">Cerrar</button>
+          </div>
+        </div>
+      </body>
+      </html>
+    `);
+    win.document.close();
+  };
 
   // Mixed Payment States
   const [payCash, setPayCash] = useState<number>(0);
@@ -994,54 +1198,242 @@ export function Suppliers() {
                     <p className="font-bold">No hay movimientos registrados</p>
                   </div>
                 ) : (
-                  selectedSupplier.transactions.map((tx) => (
-                    <div 
-                      key={tx.id}
-                      className="group flex items-center justify-between p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 transition-all shadow-sm"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className={cn(
-                          "p-2.5 rounded-lg",
-                          tx.type === 'invoice' ? "bg-rose-50 text-rose-600 shadow-sm shadow-rose-100" : "bg-emerald-50 text-emerald-600 shadow-sm shadow-emerald-100"
-                        )}>
-                          {tx.type === 'invoice' ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-black text-slate-900 dark:text-white uppercase">{tx.voucherNumber}</p>
-                            <span className={cn(
-                                "text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1 font-bold",
-                                tx.type === 'invoice' ? "bg-rose-100 text-rose-700" : "bg-emerald-100 text-emerald-700"
+                  selectedSupplier.transactions.map((tx) => {
+                    const isExpanded = expandedTxId === tx.id;
+                    const { cleanDesc, details } = parseTxDetails(tx.description);
+                    const isInvoice = tx.type === 'invoice';
+
+                    return (
+                      <div 
+                        key={tx.id}
+                        className={cn(
+                          "rounded-xl border transition-all duration-200 overflow-hidden shadow-sm",
+                          isExpanded 
+                            ? "border-indigo-400 dark:border-indigo-600 bg-white dark:bg-slate-900 ring-2 ring-indigo-500/10 shadow-md" 
+                            : "border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
+                        )}
+                      >
+                        {/* Header Row (Clickable) */}
+                        <div 
+                          onClick={() => setExpandedTxId(isExpanded ? null : tx.id)}
+                          className="p-4 flex items-center justify-between cursor-pointer select-none hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
+                        >
+                          <div className="flex items-center gap-4">
+                            <div className={cn(
+                              "p-2.5 rounded-lg shrink-0",
+                              isInvoice ? "bg-rose-50 text-rose-600 shadow-sm shadow-rose-100 dark:bg-rose-950/40 dark:shadow-none" : "bg-emerald-50 text-emerald-600 shadow-sm shadow-emerald-100 dark:bg-emerald-950/40 dark:shadow-none"
                             )}>
-                              {tx.type === 'invoice' ? 'Factura' : 'Pago'}
-                            </span>
+                              {isInvoice ? <ArrowUpRight className="w-5 h-5" /> : <ArrowDownRight className="w-5 h-5" />}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">{tx.voucherNumber}</p>
+                                <span className={cn(
+                                    "text-[9px] px-1.5 py-0.5 rounded flex items-center gap-1 font-bold",
+                                    isInvoice ? "bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300" : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+                                )}>
+                                  {isInvoice ? 'Factura' : 'Pago'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className="flex items-center gap-1 text-[10px] text-slate-400 font-bold">
+                                  <Calendar className="w-3 h-3" /> {tx.date}
+                                </span>
+                                {(cleanDesc || tx.description) && (
+                                  <span className="text-[10px] text-slate-500 italic max-w-[200px] sm:max-w-[320px] truncate">
+                                    {cleanDesc || tx.description}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex items-center gap-3 mt-1">
-                            <span className="flex items-center gap-1 text-[10px] text-slate-400 font-bold">
-                              <Calendar className="w-3 h-3" /> {tx.date}
-                            </span>
-                            {tx.description && (
-                              <span className="text-[10px] text-slate-500 italic max-w-[200px] truncate">
-                                {tx.description}
-                              </span>
+
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className={cn(
+                                "text-base font-black",
+                                isInvoice ? "text-slate-900 dark:text-white" : "text-emerald-600 dark:text-emerald-400"
+                              )}>
+                                {isInvoice ? '+' : '-'}${tx.amount.toLocaleString()}
+                              </p>
+                              <div className="flex items-center justify-end gap-1 mt-0.5">
+                                 <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Procesado</span>
+                              </div>
+                            </div>
+                            <div className={cn(
+                              "p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-transform duration-200",
+                              isExpanded && "rotate-180 text-indigo-600 dark:text-indigo-400"
+                            )}>
+                              <ChevronDown className="w-4 h-4" />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Expandable Details Panel */}
+                        {isExpanded && (
+                          <div className="px-5 pb-5 pt-3 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 space-y-4 animate-in fade-in duration-150">
+                            
+                            {/* Metadata Badges */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                              <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                                <span className="text-[9px] font-bold uppercase text-slate-400 block tracking-wider">Fecha Emisión</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-200">{tx.date}</span>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                                <span className="text-[9px] font-bold uppercase text-slate-400 block tracking-wider">Vencimiento</span>
+                                <span className={cn("font-bold", tx.dueDate ? "text-slate-800 dark:text-slate-200" : "text-slate-400 italic")}>
+                                  {tx.dueDate || 'Sin definir'}
+                                </span>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                                <span className="text-[9px] font-bold uppercase text-slate-400 block tracking-wider">Condición</span>
+                                <span className={cn("font-bold truncate block", tx.paymentTerms ? "text-slate-800 dark:text-slate-200" : "text-slate-400 italic")}>
+                                  {tx.paymentTerms || 'Contado / Inmediato'}
+                                </span>
+                              </div>
+                              <div className="bg-white dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                                <span className="text-[9px] font-bold uppercase text-slate-400 block tracking-wider">Estado C.C.</span>
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3.5 h-3.5 inline" /> {isInvoice ? 'Facturado' : 'Imputado'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Clean Concept/Description */}
+                            {cleanDesc && (
+                              <div className="p-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider mb-1">Concepto / Detalle</span>
+                                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                                  {cleanDesc}
+                                </p>
+                              </div>
                             )}
+
+                            {/* Payment Breakdown if available */}
+                            {details && (
+                              <div className="space-y-2">
+                                <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">Desglose de Pago Imputado</span>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                  {details.efectivo?.amount > 0 && (
+                                    <div className="p-2.5 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/50 dark:border-emerald-900/40 rounded-lg">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 uppercase">
+                                        <Banknote className="w-3.5 h-3.5" /> Efectivo
+                                      </div>
+                                      <p className="text-sm font-black text-emerald-800 dark:text-emerald-300 mt-1">
+                                        ${details.efectivo.amount.toLocaleString()}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {details.transferencia?.amount > 0 && (
+                                    <div className="p-2.5 bg-blue-50/60 dark:bg-blue-950/20 border border-blue-200/50 dark:border-blue-900/40 rounded-lg">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-blue-700 dark:text-blue-400 uppercase">
+                                        <Building2 className="w-3.5 h-3.5" /> Transferencia
+                                      </div>
+                                      <p className="text-sm font-black text-blue-800 dark:text-blue-300 mt-1">
+                                        ${details.transferencia.amount.toLocaleString()}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {details.tarjeta?.amount > 0 && (
+                                    <div className="p-2.5 bg-purple-50/60 dark:bg-purple-950/20 border border-purple-200/50 dark:border-purple-900/40 rounded-lg">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-purple-700 dark:text-purple-400 uppercase">
+                                        <CreditCard className="w-3.5 h-3.5" /> Tarjeta
+                                      </div>
+                                      <p className="text-sm font-black text-purple-800 dark:text-purple-300 mt-1">
+                                        ${details.tarjeta.amount.toLocaleString()}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {details.cuentaCorriente > 0 && (
+                                    <div className="p-2.5 bg-rose-50/60 dark:bg-rose-950/20 border border-rose-200/50 dark:border-rose-900/40 rounded-lg">
+                                      <div className="flex items-center gap-1.5 text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase">
+                                        <Receipt className="w-3.5 h-3.5" /> Saldo Deudor C.C.
+                                      </div>
+                                      <p className="text-sm font-black text-rose-800 dark:text-rose-300 mt-1">
+                                        ${details.cuentaCorriente.toLocaleString()}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Cheques Breakdown */}
+                                {details.cheques && details.cheques.length > 0 && (
+                                  <div className="mt-3 bg-white dark:bg-slate-900 rounded-lg border border-slate-200/60 dark:border-slate-800 p-3 space-y-2">
+                                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 block">
+                                      Cheques / E-Checks Emitidos ({details.cheques.length})
+                                    </span>
+                                    <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                      {details.cheques.map((c: any, idx: number) => (
+                                        <div key={idx} className="py-2 flex items-center justify-between text-xs">
+                                          <div>
+                                            <p className="font-bold text-slate-800 dark:text-slate-200 font-mono">
+                                              Nº {c.number} · <span className="font-sans font-bold">{c.bank}</span>
+                                            </p>
+                                            <p className="text-[10px] text-slate-400 font-medium">
+                                              Vence: {c.dueDate || 'S/D'} ({c.terms || '30 días'}) {c.observation ? `· ${c.observation}` : ''}
+                                            </p>
+                                          </div>
+                                          <span className="font-black text-emerald-600 dark:text-emerald-400">
+                                            ${c.amount?.toLocaleString()}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Actions bar inside expanded card */}
+                            <div className="pt-2 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200/60 dark:border-slate-800">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCopyTx(tx, selectedSupplier);
+                                }}
+                                className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                              >
+                                {copiedTxId === tx.id ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-500" /> Copiado
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5" /> Copiar Resumen
+                                  </>
+                                )}
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleWhatsAppTx(tx, selectedSupplier);
+                                }}
+                                className="px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center gap-1.5 transition-colors"
+                              >
+                                <Smartphone className="w-3.5 h-3.5 text-emerald-600" /> Enviar por WhatsApp
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handlePrintVoucher(tx, selectedSupplier);
+                                }}
+                                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 shadow-sm shadow-indigo-500/20 transition-all"
+                              >
+                                <Printer className="w-3.5 h-3.5" /> Imprimir Comprobante
+                              </button>
+                            </div>
+
                           </div>
-                        </div>
+                        )}
                       </div>
-                      <div className="text-right">
-                        <p className={cn(
-                          "text-base font-black",
-                          tx.type === 'invoice' ? "text-slate-900 dark:text-white" : "text-emerald-600"
-                        )}>
-                          {tx.type === 'invoice' ? '+' : '-'}${tx.amount.toLocaleString()}
-                        </p>
-                        <div className="flex items-center justify-end gap-1 mt-1">
-                           <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Procesado</span>
-                        </div>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -1253,13 +1645,22 @@ export function Suppliers() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {suppliers.flatMap(s => s.transactions.filter(t => t.type === 'invoice').map(t => ({...t, supplierName: s.name})))
+                    {suppliers.flatMap(s => s.transactions.filter(t => t.type === 'invoice').map(t => ({...t, supplierName: s.name, supplier: s})))
                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
                       .map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <tr 
+                          key={p.id} 
+                          onClick={() => {
+                            setSelectedSupplier(p.supplier);
+                            setExpandedTxId(p.id);
+                            setIsHistoryModalOpen(true);
+                          }}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                          title="Click para ver detalle completo del comprobante"
+                        >
                           <td className="px-6 py-4 font-medium text-slate-600 dark:text-slate-400">{p.date}</td>
                           <td className="px-6 py-4 font-black text-slate-900 dark:text-white uppercase text-xs">{p.supplierName}</td>
-                          <td className="px-6 py-4 font-mono text-slate-500 dark:text-slate-400">{p.voucherNumber}</td>
+                          <td className="px-6 py-4 font-mono text-slate-500 dark:text-slate-400 font-bold group-hover:text-indigo-600 transition-colors">{p.voucherNumber}</td>
                           <td className="px-6 py-4 font-black text-slate-900 dark:text-white">${p.amount.toLocaleString()}</td>
                           <td className="px-6 py-4">
                             <span className={cn(
@@ -1312,7 +1713,19 @@ export function Suppliers() {
                     {suppliers.flatMap(s => s.transactions.filter(t => t.type === 'invoice' && t.status === 'pending').map(t => ({...t, supplierName: s.name, supplierId: s.id})))
                       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
                       .map((p) => (
-                        <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                        <tr 
+                          key={p.id} 
+                          onClick={() => {
+                            const sup = suppliers.find(s => s.id === p.supplierId);
+                            if (sup) {
+                              setSelectedSupplier(sup);
+                              setExpandedTxId(p.id);
+                              setIsHistoryModalOpen(true);
+                            }
+                          }}
+                          className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors cursor-pointer group"
+                          title="Click para ver detalle completo del comprobante"
+                        >
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-2">
                                <Calendar className="w-4 h-4 text-slate-400" />
@@ -1320,10 +1733,20 @@ export function Suppliers() {
                             </div>
                           </td>
                           <td className="px-6 py-4 font-black text-slate-900 dark:text-white uppercase text-xs">{p.supplierName}</td>
-                          <td className="px-6 py-4 font-mono text-slate-500 dark:text-slate-400">{p.voucherNumber}</td>
+                          <td className="px-6 py-4 font-mono text-slate-500 dark:text-slate-400 font-bold group-hover:text-indigo-600 transition-colors">{p.voucherNumber}</td>
                           <td className="px-6 py-4 font-black text-rose-600">${p.amount.toLocaleString()}</td>
                           <td className="px-6 py-4 text-right">
-                             <button className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all">
+                             <button 
+                               onClick={(e) => {
+                                 e.stopPropagation();
+                                 const sup = suppliers.find(s => s.id === p.supplierId);
+                                 if (sup) {
+                                   setSelectedSupplier(sup);
+                                   setIsVoucherModalOpen(true);
+                                 }
+                               }}
+                               className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg font-black text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 transition-all"
+                             >
                                Pagar Factura
                              </button>
                           </td>
