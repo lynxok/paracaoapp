@@ -27,7 +27,7 @@ export function AddClientModal({ isOpen, onClose, initialDni = '', onClientAdded
   const [newInsuranceName, setNewInsuranceName] = useState('');
   const [insuranceError, setInsuranceError] = useState('');
 
-  const handleAddNewInsurance = () => {
+  const handleAddNewInsurance = async () => {
     const trimmed = newInsuranceName.trim();
     if (!trimmed) {
       setInsuranceError('Ingrese un nombre para la obra social.');
@@ -38,13 +38,12 @@ export function AddClientModal({ isOpen, onClose, initialDni = '', onClientAdded
       setInsuranceError(`La obra social "${trimmed}" ya existe en el sistema.`);
       return;
     }
-    const newInsId = Date.now().toString();
-    addInsurance({
+    const created = await addInsurance({
       name: trimmed,
       active: true,
       coverages: []
     });
-    setSelectedInsuranceId(newInsId);
+    setSelectedInsuranceId(created.id);
     setIsAddingNewInsurance(false);
     setNewInsuranceName('');
     setInsuranceError('');

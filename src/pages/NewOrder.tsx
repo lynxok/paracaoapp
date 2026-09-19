@@ -10,6 +10,7 @@ import { useLabs } from "../context/LabContext";
 import { useCart } from "../context/CartContext";
 import { CrystalPricingCondition } from "../types";
 import { AddClientModal } from "../components/AddClientModal";
+import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
 
 export function NewOrder() {
@@ -22,6 +23,7 @@ export function NewOrder() {
   const { inventory, deductStock } = useInventory();
   const { labs, addJob } = useLabs();
   const { cart, updateCartItem, addToCart, setIsCartOpen } = useCart();
+  const { currentBranch, branches } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -157,8 +159,21 @@ export function NewOrder() {
     }
   }, [editingItem]);
 
-  // Cristales disponibles para el tipo de receta (monofocal, multifocal, ocupacional, etc.)
-  const crystalsOfType = crystalItems.filter(c => c.type === (type || editingItem?.details?.prescriptionType || 'monofocal') && c.active);
+  // Cristales disponibles para el tipo de receta (monofocal, multifocal, bifocal, ocupacional, etc.)
+  const effectiveType = isMultifocalRoute 
+    ? (multifocalSubType === 'bifocal' ? 'bifocal' : 'multifocal') 
+    : (type || editingItem?.details?.prescriptionType || 'monofocal');
+
+  const crystalsOfType = crystalItems.filter(c => {
+    if (!c.active) return false;
+    if (effectiveType === 'bifocal') {
+      return c.type === 'bifocal' || (c.type === 'multifocal' && c.design?.toLowerCase().includes('bifocal'));
+    }
+    if (effectiveType === 'multifocal') {
+      return c.type === 'multifocal' && !c.design?.toLowerCase().includes('bifocal');
+    }
+    return c.type === effectiveType;
+  });
   const availableBrandsForSelect = [...new Set(crystalsOfType.map(c => c.brand))];
   const availableMaterialsForSelect = [...new Set(crystalsOfType.filter(c => !selBrand || c.brand === selBrand).map(c => c.material))];
 
@@ -178,7 +193,7 @@ export function NewOrder() {
     } else if (crystalsOfType.length > 0 && !selectedCrystalId) {
       setSelectedCrystalId(crystalsOfType[0].id);
     }
-  }, [selBrand, selMaterial, type, crystalItems]);
+  }, [selBrand, selMaterial, type, multifocalSubType, crystalItems]);
 
   const selectedCrystal = crystalsOfType.find(c => c.id === selectedCrystalId) 
     || availableCrystals[0] 
@@ -572,10 +587,12 @@ export function NewOrder() {
   const orderTotal = Math.max(0, subtotal - totalCoverage);
 
   const filteredCrystals: any[] = []; 
-  const currentBranchId = '1'; 
+  const currentBranchId = currentBranch?.id ? String(currentBranch.id) : '1'; 
 
   const renderStockBreakdown = (stocks: Record<string, number>) => {
-    const branchesMap: Record<string, string> = { '1': 'Casa Central', '2': 'Shopping' };
+    const branchesMap: Record<string, string> = (branches && branches.length > 0)
+      ? branches.reduce((acc, b) => ({ ...acc, [String(b.id)]: b.name }), {})
+      : { '1': 'Casa Central', '2': 'Shopping' };
     const currentStock = stocks[currentBranchId] || 0;
     const otherBranches = Object.entries(stocks).filter(([bId, qty]) => bId !== currentBranchId && qty > 0);
     const hasOtherStock = otherBranches.length > 0;

@@ -37,7 +37,7 @@ export interface PDFConfig {
 
 interface SettingsContextType {
   insurances: Insurance[];
-  addInsurance: (insurance: Omit<Insurance, 'id'>) => void;
+  addInsurance: (insurance: Omit<Insurance, 'id'>) => Promise<Insurance>;
   updateInsurance: (insurance: Insurance) => void;
   removeInsurance: (id: string) => void;
   banks: BankEntity[];
@@ -815,7 +815,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addInsurance = async (ins: Omit<Insurance, 'id'>) => {
+  const addInsurance = async (ins: Omit<Insurance, 'id'>): Promise<Insurance> => {
     const newIns: Insurance = { ...ins, id: Date.now().toString() };
     setInsurances(prev => [...prev, newIns]);
     try {
@@ -823,6 +823,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     } catch (e) {
       console.error("Supabase addInsurance error:", e);
     }
+    return newIns;
   };
 
   const updateInsurance = async (insurance: Insurance) => {

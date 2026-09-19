@@ -12,6 +12,7 @@ const BRANCHES = [
 ];
 
 import { useInventory, InventoryItem, StockMovement } from "../context/InventoryContext";
+import { useAuth } from "../context/AuthContext";
 import { cn, parseCurrency, formatMoney } from "../lib/utils";
 
 function calculateFIFOValue(item: InventoryItem, movements: StockMovement[]): number {
@@ -70,6 +71,10 @@ function calculateFIFOValue(item: InventoryItem, movements: StockMovement[]): nu
 }
 
 export function Inventory() {
+  const { branches } = useAuth();
+  const availableBranches = (branches && branches.length > 0)
+    ? branches.map(b => ({ id: Number(b.id) || b.id, name: b.name }))
+    : BRANCHES;
   const { inventoryCategories: categories, lensColors, contactLensColors, lensTypes } = useSettings();
   const { inventory, stockMovements, addInventoryItem, updateInventoryItem, deleteInventoryItem, registerMovement } = useInventory();
   const { suppliers } = useFinance();
@@ -511,7 +516,7 @@ export function Inventory() {
                     onChange={(e) => setSelectedBranch(e.target.value)}
                   >
                     <option value="all">Todas las Sucursales</option>
-                    {BRANCHES.map(b => (
+                    {availableBranches.map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
@@ -1030,7 +1035,7 @@ export function Inventory() {
                   <div className="flex flex-col gap-1.5 md:col-span-2">
                     <label className="text-sm font-bold text-slate-700 dark:text-slate-300">Stock por Sucursal</label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                      {BRANCHES.map(b => (
+                      {availableBranches.map(b => (
                         <div key={b.id} className="flex flex-col gap-1">
                           <label className="text-[10px] font-bold text-slate-500 uppercase">{b.name}</label>
                           <input 
@@ -1206,7 +1211,7 @@ export function Inventory() {
                     className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white text-sm"
                   >
                     <option value="">Seleccionar sucursal...</option>
-                    {BRANCHES.map(b => (
+                    {availableBranches.map(b => (
                       <option key={b.id} value={b.id}>{b.name}</option>
                     ))}
                   </select>
@@ -1286,8 +1291,8 @@ export function Inventory() {
                 return;
               }
 
-              const sourceBranch = BRANCHES.find(b => b.id === sourceId);
-              const targetBranch = BRANCHES.find(b => b.id === targetId);
+              const sourceBranch = availableBranches.find(b => b.id === sourceId);
+              const targetBranch = availableBranches.find(b => b.id === targetId);
 
               if (contextItem && sourceBranch && targetBranch) {
                 const currentSourceStock = contextItem.stocks[sourceBranch.id] || 0;
@@ -1329,7 +1334,7 @@ export function Inventory() {
                 <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-xl space-y-2">
                   <p className="text-xs font-bold text-blue-700 dark:text-blue-400">Producto: {contextItem?.name} ({contextItem?.sku})</p>
                   <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-slate-600 dark:text-slate-400">
-                    {BRANCHES.map(b => (
+                    {availableBranches.map(b => (
                       <span key={b.id} className="font-semibold">{b.name}: {contextItem?.stocks[b.id] || 0} u.</span>
                     ))}
                   </div>
@@ -1345,7 +1350,7 @@ export function Inventory() {
                       onChange={(e) => setStockTransferData({...stockTransferData, sourceBranchId: e.target.value})}
                     >
                       <option value="">Seleccionar origen...</option>
-                      {BRANCHES.map(b => (
+                      {availableBranches.map(b => (
                         <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                     </select>
@@ -1359,7 +1364,7 @@ export function Inventory() {
                       onChange={(e) => setStockTransferData({...stockTransferData, targetBranchId: e.target.value})}
                     >
                       <option value="">Seleccionar destino...</option>
-                      {BRANCHES.map(b => (
+                      {availableBranches.map(b => (
                         <option key={b.id} value={b.id}>{b.name}</option>
                       ))}
                     </select>

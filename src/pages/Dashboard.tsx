@@ -153,8 +153,17 @@ export function Dashboard() {
   };
 
   const handleWhatsApp = (client: any) => {
+    if (!client?.phone) {
+      alert("El cliente no tiene un número de teléfono registrado.");
+      return;
+    }
+    const cleanPhone = client.phone.replace(/\D/g, '');
+    if (!cleanPhone) {
+      alert("El número de teléfono no es válido.");
+      return;
+    }
     const message = encodeURIComponent(`¡Hola ${client.name}! Te escribimos de la Óptica para desearte un muy feliz cumpleaños. 🎂👓`);
-    window.open(`https://wa.me/${client.phone}?text=${message}`, '_blank');
+    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
   };
 
   return (

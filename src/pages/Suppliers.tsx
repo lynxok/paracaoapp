@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Search, Plus, Edit2, Receipt, Truck, X, Settings2, Trash2, Smartphone, FileText, ArrowUpRight, ArrowDownRight, History, Calendar, CheckCircle2, AlertCircle } from "lucide-react";
 import { useFinance } from "../context/FinanceContext";
 import { useSettings } from "../context/SettingsContext";
+import { useAuth } from "../context/AuthContext";
 import { Supplier, SupplierTransaction } from "../types";
 import { cn } from "../lib/utils";
 
@@ -94,8 +95,8 @@ export function Suppliers() {
     return () => window.removeEventListener('click', handleClick);
   }, []);
 
-  // Simulated User Role
-  const userRole = "superadmin";
+  const { currentUser } = useAuth();
+  const userRole = currentUser?.role || "Vendedor";
 
   const addCategory = () => {
     if (newCatName && !categories.includes(newCatName)) {

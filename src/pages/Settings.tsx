@@ -368,6 +368,31 @@ export function Settings() {
     return () => window.removeEventListener('audit_log_updated', handleUpdate);
   }, []);
 
+  const handleExportAuditCsv = () => {
+    if (!auditLogs || auditLogs.length === 0) {
+      alert("No hay registros en el Audit Log para exportar.");
+      return;
+    }
+    const headers = ["ID", "Fecha/Hora", "Usuario", "Modulo", "Accion/Error", "Detalles", "Estado"];
+    const rows = auditLogs.map(log => [
+      log.id,
+      `"${log.timestamp}"`,
+      `"${log.user}"`,
+      `"${log.module}"`,
+      `"${(log.message || '').replace(/"/g, '""')}"`,
+      `"${(log.details || '').replace(/"/g, '""')}"`,
+      log.type
+    ]);
+    const csvContent = "\uFEFF" + [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `audit_log_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   // Initial mock logs if empty
   useEffect(() => {
     if (auditLogs.length === 0) {
@@ -3472,7 +3497,10 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                 </h3>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Registro histórico de acciones y errores del sistema.</p>
               </div>
-              <button className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+              <button 
+                onClick={handleExportAuditCsv}
+                className="flex items-center gap-2 px-4 py-2 border border-slate-200 dark:border-slate-800 rounded-lg text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
                 Exportar CSV
               </button>
             </div>

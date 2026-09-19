@@ -50,6 +50,7 @@ import { useCart } from "../context/CartContext";
 import { CartSidebar } from "./CartSidebar";
 import { GuidedManualLauncher } from "./manual/GuidedManualLauncher";
 import { hasPermission } from "../lib/permissions";
+import { supabase } from "../lib/supabase";
 
 const menuItems = [
   { path: "/", icon: LayoutDashboard, label: "Inicio" },
@@ -262,7 +263,7 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
       document.addEventListener('mouseover', handleMouseOver);
     }
   };
-  const { currentUser, currentBranch, logout } = useAuth();
+  const { currentUser, currentBranch, logout, updateUser } = useAuth();
   const isPathAllowed = hasPermission(currentUser?.role, location.pathname);
   const visibleMenuItems = menuItems.filter(item => hasPermission(currentUser?.role, item.path));
   
@@ -297,7 +298,27 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAllNotifications, setShowAllNotifications] = useState(false);
   const [notificationFilter, setNotificationFilter] = useState('Todas');
-  const { notifications, removeNotification, clearAll } = useNotifications();
+  const { notifications, removeNotification, clearAll, markAsRead } = useNotifications();
+  const [headerSearch, setHeaderSearch] = useState("");
+
+  const handleNotificationAction = (notif: any) => {
+    if (notif?.id) markAsRead(notif.id);
+    setShowAllNotifications(false);
+    setShowNotifications(false);
+    const titleLower = (notif?.title || '').toLowerCase();
+    const descLower = (notif?.desc || '').toLowerCase();
+    if (titleLower.includes('stock') || descLower.includes('stock') || descLower.includes('inventario')) {
+      navigate('/inventory');
+    } else if (titleLower.includes('laboratorio') || titleLower.includes('taller') || descLower.includes('laboratorio')) {
+      navigate('/lab-management');
+    } else if (titleLower.includes('caja') || titleLower.includes('pago') || descLower.includes('caja')) {
+      navigate('/finance');
+    } else if (titleLower.includes('pedido') || descLower.includes('pedido')) {
+      navigate('/clients');
+    } else {
+      navigate('/');
+    }
+  };
 
   const getIconComponent = (name: string) => {
     switch(name) {
@@ -354,10 +375,37 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
               </button>
             </div>
             
-            <form onSubmit={(e) => {
+            <form onSubmit={async (e) => {
               e.preventDefault();
-              alert("Perfil actualizado correctamente");
-              setIsProfileModalOpen(false);
+              try {
+                if (currentUser) {
+                  await updateUser({
+                    ...currentUser,
+                    name: profileData.name,
+                    avatar: profileData.avatar
+                  });
+                }
+                if (passForm.new) {
+                  if (passForm.new !== passForm.confirm) {
+                    alert("Las nuevas contraseñas no coinciden.");
+                    return;
+                  }
+                  if (passForm.new.length < 6) {
+                    alert("La nueva contraseña debe tener al menos 6 caracteres.");
+                    return;
+                  }
+                  const { error } = await supabase.auth.updateUser({ password: passForm.new });
+                  if (error) {
+                    alert(`Error al cambiar la contraseña: ${error.message}`);
+                    return;
+                  }
+                  setPassForm({ current: "", new: "", confirm: "" });
+                }
+                alert("Perfil actualizado correctamente");
+                setIsProfileModalOpen(false);
+              } catch (err: any) {
+                alert(`Error al actualizar perfil: ${err?.message || 'Error desconocido'}`);
+              }
             }}>
               <div className="p-6 space-y-6 overflow-y-auto max-h-[70vh]">
                 <div className="flex flex-col items-center gap-4">
@@ -632,14 +680,14 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
               <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">Desarrollado por</span>
               <img src="/logolynxnaranja.png" alt="LYNX" className="h-10 w-auto object-contain grayscale group-hover:grayscale-0 transition-all opacity-80 group-hover:opacity-100 mt-0.5" />
             </a>
-            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-1">v2.4.6 (14/09)</span>
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 mt-1">v2.4.7</span>
           </div>
         ) : (
           <div className="pb-3 pt-1 flex flex-col items-center justify-center text-center bg-slate-50/50 dark:bg-slate-900/40 rounded-b-2xl">
-            <a href="https://www.lnx.com.ar" target="_blank" rel="noopener noreferrer" title="Desarrollado por LYNX - v2.4.6" className="group cursor-pointer">
+            <a href="https://www.lnx.com.ar" target="_blank" rel="noopener noreferrer" title="Desarrollado por LYNX - v2.4.7" className="group cursor-pointer">
               <img src="/logolynxnaranja.png" alt="LYNX" className="h-5 w-auto object-contain grayscale group-hover:grayscale-0 transition-all opacity-80 group-hover:opacity-100" />
             </a>
-            <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5">v2.4.6</span>
+            <span className="text-[8px] font-semibold text-slate-400 dark:text-slate-500 mt-0.5">v2.4.7</span>
           </div>
         )}
       </aside>
@@ -673,6 +721,13 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
                 className="h-10 pl-11 pr-4 rounded-full glass-panel border-none focus:ring-1 focus:ring-blue-500/50 focus:bg-white dark:focus:bg-slate-900/80 text-sm w-48 lg:w-72 text-slate-900 dark:text-white placeholder:text-slate-500 transition-all" 
                 placeholder="Buscar pacientes, pedidos..." 
                 type="text"
+                value={headerSearch}
+                onChange={(e) => setHeaderSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && headerSearch.trim()) {
+                    navigate(`/clients?q=${encodeURIComponent(headerSearch.trim())}`);
+                  }
+                }}
               />
             </div>
             
@@ -950,7 +1005,12 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
                           </div>
                           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{notif.desc}</p>
                           <div className="mt-4 flex items-center gap-3">
-                            <button className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline">Accionar</button>
+                            <button 
+                              onClick={() => handleNotificationAction(notif)}
+                              className="text-[10px] font-black uppercase tracking-widest text-blue-600 dark:text-blue-400 hover:underline"
+                            >
+                              Accionar
+                            </button>
                             <span className="text-slate-200 dark:text-slate-800">|</span>
                             <button 
                               onClick={() => handleArchive(notif.id)}

@@ -187,7 +187,7 @@ export interface CrystalPricingRule {
 export interface CrystalItem {
   id: string;
   name: string;
-  type: 'monofocal' | 'multifocal' | 'ocupacional' | 'contact';
+  type: 'monofocal' | 'multifocal' | 'ocupacional' | 'contact' | 'bifocal';
   material: string;
   index: string;
   brand: string;

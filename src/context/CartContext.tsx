@@ -260,11 +260,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         });
 
         // 2. Deduct stock for frame and crystal
+        const branchNum = currentBranch?.id ? Number(currentBranch.id) : 1;
         if (details.selectedFrame && !details.selectedFrame.isOwn && details.selectedFrame.sku) {
-          deductStock(details.selectedFrame.sku, 1, 1);
+          deductStock(details.selectedFrame.sku, branchNum, 1);
         }
         if (details.selectedCrystal) {
-          deductStock(details.selectedCrystal.sku, 1, 1);
+          deductStock(details.selectedCrystal.sku, branchNum, 1);
         }
 
         // 3. Add external lab job if applicable (titular de la receta)
@@ -369,8 +370,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         });
 
         // Simple product stock deduction (optional, if catalog SKUs match inventory)
+        const branchNum = currentBranch?.id ? Number(currentBranch.id) : 1;
         if (item.sku) {
-          deductStock(item.sku, item.quantity, 1);
+          deductStock(item.sku, branchNum, item.quantity);
         }
       }
     });

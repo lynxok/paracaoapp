@@ -32,6 +32,7 @@ import {
   Bell,
   ScrollText
 } from "lucide-react";
+import { useSettings } from "../context/SettingsContext";
 
 interface HelpArticle {
   id: string;
@@ -43,6 +44,7 @@ interface HelpArticle {
 }
 
 export function Help() {
+  const { opticaPhone } = useSettings();
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("todos");
   const [openFaq, setOpenFaq] = useState<string | null>(null);
@@ -133,7 +135,8 @@ Mensaje de error / consulta:
 Enviado desde el Centro de Ayuda del Sistema.`;
 
     const encodedText = encodeURIComponent(text);
-    window.open(`https://wa.me/543435555555?text=${encodedText}`, "_blank");
+    const targetPhone = opticaPhone ? opticaPhone.replace(/\D/g, '') : '5493434200000';
+    window.open(`https://wa.me/${targetPhone}?text=${encodedText}`, "_blank");
   };
 
   const articles: HelpArticle[] = [

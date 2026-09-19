@@ -40,7 +40,10 @@ import { BankReconciliation } from "../components/finance/BankReconciliation";
 import { TransferForm } from "../components/finance/TransferForm";
 
 const INITIAL_DENOMINATIONS: Denomination[] = [
-  { id: 1, value: 1000, label: "$1000" },
+  { id: 10, value: 20000, label: "$20.000" },
+  { id: 9, value: 10000, label: "$10.000" },
+  { id: 8, value: 2000, label: "$2.000" },
+  { id: 1, value: 1000, label: "$1.000" },
   { id: 2, value: 500, label: "$500" },
   { id: 3, value: 200, label: "$200" },
   { id: 4, value: 100, label: "$100" },

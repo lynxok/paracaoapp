@@ -37,7 +37,7 @@ const ensureMostradorFirst = (list: Client[]): Client[] => {
 };
 
 export function ClientProvider({ children }: { children: ReactNode }) {
-  const { boxes, addTransaction } = useFinance();
+  const { boxes, addTransaction, transactions } = useFinance();
   const [clients, setClients] = useState<Client[]>([CLIENT_MOSTRADOR]);
   const [orders, setOrders] = useState<Order[]>([]);
 
@@ -170,7 +170,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
   };
 
   const getClientTransactions = (clientId: string) => {
-    return [];
+    return (transactions || []).filter(t => t.clientId === clientId);
   };
 
   const getClientBalance = (clientId: string) => {

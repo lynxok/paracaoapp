@@ -9,7 +9,7 @@ export interface Lab {
   contact?: string;
 }
 
-export type LabJobStatus = 'En Taller' | 'Demorado' | 'Para Retirar' | 'Entregado';
+export type LabJobStatus = 'En Taller' | 'Demorado' | 'Para Retirar' | 'Entregado' | 'Recibido' | 'Completado';
 
 export interface LabJob {
   id: string;

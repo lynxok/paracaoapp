@@ -5,6 +5,7 @@ import { useClients } from "../context/ClientContext";
 import { useSettings } from "../context/SettingsContext";
 import { useFinance } from "../context/FinanceContext";
 import { useLabs } from "../context/LabContext";
+import { useAuth } from "../context/AuthContext";
 import { cn } from "../lib/utils";
 import { Client } from "../types";
 
@@ -81,6 +82,9 @@ export function Clients() {
   const [contextItem, setContextItem] = useState<Client | null>(null);
   const [formData, setFormData] = useState<Partial<Client>>({});
 
+  const { currentUser } = useAuth();
+  const userRole = currentUser?.role || "Vendedor";
+
   // Auto-select client and open modal when navigating with state or search params
   useEffect(() => {
     const state = location.state as { clientId?: string; clientName?: string; openModal?: 'orders' | 'profile' | 'cc' } | null;
@@ -88,6 +92,11 @@ export function Clients() {
     const targetClientId = state?.clientId || searchParams.get('clientId');
     const targetClientName = state?.clientName || searchParams.get('clientName');
     const targetModal = state?.openModal || searchParams.get('modal') || 'orders';
+    const queryParam = searchParams.get('q') || searchParams.get('search');
+
+    if (queryParam) {
+      setSearchTerm(queryParam);
+    }
 
     if (location.pathname === '/clients/new') {
       setContextItem(null);
@@ -138,8 +147,6 @@ export function Clients() {
       }
     }
   }, [location, clients, jobs, getClientFallbackRx]);
-
-  const userRole = "superadmin"; // Simulated role
 
   const handlePrintReceipt = (receipt: any) => {
     const win = window.open('', '_blank', 'width=450,height=600');
@@ -864,7 +871,9 @@ export function Clients() {
                   </div>
                   <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Total Consumido</p>
-                    <p className="text-2xl font-black text-indigo-600">$185.400</p>
+                    <p className="text-2xl font-black text-indigo-600">
+                      ${getClientOrders(contextItem.id).reduce((sum, o) => sum + (Number(o.amount) || 0), 0).toLocaleString('es-AR')}
+                    </p>
                   </div>
                </div>
 

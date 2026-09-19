@@ -264,6 +264,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const updateUser = async (updatedUser: User) => {
     setUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    setCurrentUser(prev => prev && prev.id === updatedUser.id ? { ...prev, ...updatedUser } : prev);
     try {
       await supabase.from('profiles').upsert([{
         id: updatedUser.id,
@@ -272,6 +273,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: updatedUser.email,
         role: updatedUser.role,
         default_branch_id: updatedUser.defaultBranchId,
+        avatar_url: updatedUser.avatar,
         status: updatedUser.status || 'Activo'
       }]);
     } catch (e) {
