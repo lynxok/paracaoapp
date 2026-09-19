@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Search, ShoppingCart, Trash2, Plus, Minus, CreditCard, Banknote, QrCode, User, X, Check, Building, Wallet } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn, parseCurrency, formatMoney } from "../lib/utils";
 import { useFinance } from "../context/FinanceContext";
 import { Transaction } from "../types";
 import { useEffect } from "react";
@@ -19,7 +19,7 @@ export function Sales() {
   );
 
   const handleAddToCart = (item: InventoryItem) => {
-    const numPrice = typeof item.price === 'number' ? item.price : parseFloat(String(item.price).replace(/[^0-9.-]+/g, "")) || 0;
+    const numPrice = parseCurrency(item.price);
     addToCart({
       id: `prod-${item.sku}`,
       type: 'product',
@@ -68,7 +68,7 @@ export function Sales() {
                   </tr>
                 ) : (
                   filteredItems.map(item => {
-                    const numPrice = typeof item.price === 'number' ? item.price : parseFloat(String(item.price).replace(/[^0-9.-]+/g, "")) || 0;
+                    const numPrice = parseCurrency(item.price);
                     const stockCC = item.stocks?.[1] ?? 0;
                     const stockSH = item.stocks?.[2] ?? 0;
 
@@ -102,7 +102,7 @@ export function Sales() {
                           </span>
                         </td>
                         <td className="px-6 py-4 text-right">
-                          <span className="text-sm font-black text-slate-900 dark:text-white">${numPrice.toFixed(2)}</span>
+                          <span className="text-sm font-black text-slate-900 dark:text-white">{formatMoney(numPrice)}</span>
                         </td>
                         <td className="px-6 py-4 text-center">
                           <button 

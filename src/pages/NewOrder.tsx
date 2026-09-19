@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ChevronUp, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays, AlertTriangle, UserPlus, ShieldCheck, Settings, Edit2, Trash2, RotateCcw, Wrench } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn, parseCurrency, formatMoney } from "../lib/utils";
 import { useFinance } from "../context/FinanceContext";
 import { useClients } from "../context/ClientContext";
 import { useSettings } from "../context/SettingsContext";
@@ -546,15 +546,15 @@ export function NewOrder() {
   const crystalPrice = hasPrescriptionCharged ? (baseCrystalPrice * eyesFactor) : 0;
 
   const framePrice = selectedFrame ? selectedFrame.numericPrice : 0;
-  const labIntCost = parseFloat(internalLabCost) || 0;
+  const labIntCost = parseCurrency(internalLabCost);
   const subtotal = crystalPrice + framePrice + labIntCost;
 
   const rawInsuranceId = selectedInsuranceId !== '' ? selectedInsuranceId : (selectedClient?.insuranceId || '');
   const activeInsuranceId = (rawInsuranceId && rawInsuranceId !== 'particular' && rawInsuranceId !== 'ninguna') ? rawInsuranceId : '';
   const activeInsurance = insurances.find(i => i.id === activeInsuranceId) || null;
 
-  let crystalCoverage = parseFloat(manualCrystalCoverage) || 0;
-  let frameCoverage = parseFloat(manualFrameCoverage) || 0;
+  let crystalCoverage = parseCurrency(manualCrystalCoverage);
+  let frameCoverage = parseCurrency(manualFrameCoverage);
 
   // Si no se ingresaron montos manuales pero el cliente/receta tiene obra social seleccionada, usar reglas predeterminadas si existen
   if (activeInsurance && activeInsurance.coverages) {
@@ -783,7 +783,7 @@ export function NewOrder() {
         totalCoverage,
         internalLabCost,
         internalLabDescription,
-        labCost: internalLabCost ? parseFloat(internalLabCost) || 0 : 0
+        labCost: internalLabCost ? parseCurrency(internalLabCost) : 0
       }
     };
 
@@ -1046,7 +1046,7 @@ export function NewOrder() {
                 {filteredFrames.length > 0 ? (
                   filteredFrames.map(frame => {
                     const totalStock = Object.values(frame.stocks || {}).reduce((a: any, b: any) => (a as number) + (b as number), 0) as number;
-                    const parsedPrice = parseFloat(frame.price.replace('$', '')) || 0;
+                    const parsedPrice = parseCurrency(frame.price);
                     return (
                     <button
                       key={frame.sku}
@@ -1064,7 +1064,7 @@ export function NewOrder() {
                         <p className="text-sm text-slate-500">{frame.sku}</p>
                       </div>
                       <div className="text-right">
-                        <p className={`text-sm font-bold ${totalStock === 0 ? 'text-slate-400' : 'text-slate-900 dark:text-white'} mb-1`}>${parsedPrice.toFixed(2)}</p>
+                        <p className={`text-sm font-bold ${totalStock === 0 ? 'text-slate-400' : 'text-slate-900 dark:text-white'} mb-1`}>{formatMoney(parsedPrice)}</p>
                         <div>
                           {renderStockBreakdown(frame.stocks)}
                         </div>
@@ -2131,9 +2131,9 @@ export function NewOrder() {
                     <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Marco / Armazón</p>
                     <span className="font-bold text-slate-900 dark:text-white">
                       {selectedFrame?.isOwn ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">$0.00 (Propio)</span>
+                        <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">$0 (Propio)</span>
                       ) : framePrice > 0 ? (
-                        `$${framePrice.toFixed(2)}`
+                        formatMoney(framePrice)
                       ) : (
                         <span className="text-slate-400 text-sm font-normal">-</span>
                       )}
@@ -2240,7 +2240,7 @@ export function NewOrder() {
                         className="flex-1 h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none"
                       />
                       {labIntCost > 0 && (
-                        <span className="text-sm font-bold text-orange-600 flex-shrink-0">${labIntCost.toFixed(2)}</span>
+                        <span className="text-sm font-bold text-orange-600 flex-shrink-0">{formatMoney(labIntCost)}</span>
                       )}
                     </div>
                   </div>

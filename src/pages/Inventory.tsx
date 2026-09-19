@@ -12,7 +12,7 @@ const BRANCHES = [
 ];
 
 import { useInventory, InventoryItem, StockMovement } from "../context/InventoryContext";
-import { cn } from "../lib/utils";
+import { cn, parseCurrency, formatMoney } from "../lib/utils";
 
 function calculateFIFOValue(item: InventoryItem, movements: StockMovement[]): number {
   const itemMovements = movements.filter(m => m.sku === item.sku);
@@ -30,8 +30,7 @@ function calculateFIFOValue(item: InventoryItem, movements: StockMovement[]): nu
   let exitsLeft = totalEgresos;
   let remainingIngresos: { quantity: number; price: number }[] = [];
 
-  const cleanPrice = item.price.replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
-  const defaultBuyPrice = item.buyPrice || (parseFloat(cleanPrice) * 0.6) || 0;
+  const defaultBuyPrice = item.buyPrice || (parseCurrency(item.price) * 0.6) || 0;
 
   for (const ing of ingresos) {
     const price = ing.buyPrice !== undefined ? ing.buyPrice : defaultBuyPrice;
@@ -210,8 +209,8 @@ export function Inventory() {
     const lensType = formDataObj.get("lensType") as string || "";
     const rawPrice = formDataObj.get("price") as string;
     const rawBuyPrice = formDataObj.get("buyPrice") as string;
-    const priceVal = parseFloat(rawPrice);
-    const buyPriceVal = parseFloat(rawBuyPrice);
+    const priceVal = parseCurrency(rawPrice);
+    const buyPriceVal = parseCurrency(rawBuyPrice);
     const criticalStockVal = parseInt(formDataObj.get("criticalStock") as string) || 5;
     
     if (!name || !sku) {
@@ -262,8 +261,7 @@ export function Inventory() {
     const threshold = item.criticalStock !== undefined ? item.criticalStock : 5;
     if (totalStock <= threshold) lowStockCount++;
     
-    const cleanPrice = item.price.replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
-    const parsedPrice = parseFloat(cleanPrice) || 0;
+    const parsedPrice = parseCurrency(item.price);
     totalValueVenta += (totalStock * parsedPrice);
     
     const itemCostoValuation = calculateFIFOValue(item, stockMovements);
@@ -404,10 +402,9 @@ export function Inventory() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredItems.map((item, idx) => {
                   const lastPurchase = getLastPurchaseInfo(item.sku);
-                  const cleanPrice = item.price.replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
-                  const defaultBuyPrice = item.buyPrice || (parseFloat(cleanPrice) * 0.6) || 0;
+                  const defaultBuyPrice = item.buyPrice || (parseCurrency(item.price) * 0.6) || 0;
                   const formattedDefaultBuyPrice = formatPrice(defaultBuyPrice);
-                  const cleanSalePrice = parseFloat(item.price.replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.')) || 0;
+                  const cleanSalePrice = parseCurrency(item.price);
                   const formattedSalePrice = formatPrice(cleanSalePrice);
                   
                   return (
@@ -1083,7 +1080,7 @@ export function Inventory() {
                       className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white" 
                       placeholder="0.00" 
                       min="0" 
-                      defaultValue={contextItem?.price?.replace('$', '')}
+                      defaultValue={contextItem ? parseCurrency(contextItem.price) : ""}
                       required 
                     />
                   </div>
@@ -1310,8 +1307,7 @@ export function Inventory() {
                   reason: `Transferencia a ${targetBranch.name}`
                 });
 
-                const cleanPrice = contextItem.price.replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
-                const defaultBuyPrice = contextItem.buyPrice || (parseFloat(cleanPrice) * 0.6) || 0;
+                const defaultBuyPrice = contextItem.buyPrice || (parseCurrency(contextItem.price) * 0.6) || 0;
 
                 // Register Entry into Target
                 registerMovement({
