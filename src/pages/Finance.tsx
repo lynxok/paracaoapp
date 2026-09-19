@@ -176,6 +176,7 @@ export function Finance() {
   const [reconcileAmount, setReconcileAmount] = useState<string>("");
   const [reconcileTarget, setReconcileTarget] = useState<string>("");
   const [reconcileSource, setReconcileSource] = useState<string>("");
+  const [todayInsuranceClaims, setTodayInsuranceClaims] = useState<number>(0);
   const location = useLocation();
 
   useEffect(() => {
@@ -581,7 +582,7 @@ export function Finance() {
           <div className="flex-1 space-y-6 w-full">
             {selectedBoxId === 'consolidated' ? (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                   <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
                       <PieChart className="w-4 h-4 text-blue-500" /> Capital Total
@@ -606,6 +607,13 @@ export function Finance() {
                       <TrendingDown className="w-4 h-4 text-rose-500" /> Egresos Totales
                     </p>
                     <p className="text-2xl font-black text-rose-600 dark:text-rose-400">-${consolidatedStats.expenses.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                    <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
+                      <Shield className="w-4 h-4 text-indigo-500" /> Obras Sociales Hoy
+                    </p>
+                    <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">${todayInsuranceClaims.toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400 mt-1">Reintegros emitidos hoy</p>
                   </div>
                 </div>
 

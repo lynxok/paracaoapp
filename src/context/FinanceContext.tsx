@@ -192,6 +192,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
               transactions: txs
             };
           });
+          setSuppliers(mappedSuppliers);
         }
         
         // 4. Fetch Cheques
@@ -633,6 +634,18 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             boxId: boxId,
             reconciled: true
           });
+
+          // Also reduce supplier debt in Cuenta Corriente
+          if (affectedCheque.supplierId) {
+            addSupplierTransaction(affectedCheque.supplierId, {
+              date: new Date().toISOString().split('T')[0],
+              voucherNumber: `CHQ-${affectedCheque.number}`,
+              amount: affectedCheque.amount,
+              type: 'payment',
+              status: 'paid',
+              description: `Acreditación / Cobro Cheque Nº ${affectedCheque.number} (${affectedCheque.bank})`
+            });
+          }
         } else {
           // Cheque we received from client -> deposited/cashed -> Income
           addTransaction({

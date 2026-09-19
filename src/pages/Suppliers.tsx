@@ -395,7 +395,7 @@ export function Suppliers() {
                   };
                   const desc = `${voucherData.description.trim() ? voucherData.description.trim() + ' | ' : ''}Detalles de Pago: ${JSON.stringify(paymentDetails)}`;
 
-                  // 2. Add Supplier Transaction
+                  // 2. Add Supplier Transaction (Invoice)
                   addSupplierTransaction(targetId, {
                     date: voucherData.date,
                     dueDate: voucherData.dueDate,
@@ -406,6 +406,24 @@ export function Suppliers() {
                     status: 'pending',
                     description: desc
                   });
+
+                  // 2b. If it is an invoice and immediate payment was made (cash, transfer, card), register payment on supplier account
+                  const immediatePaidAmount = (payCash || 0) + (payBank || 0) + (payCard || 0);
+                  if (voucherData.type === 'invoice' && immediatePaidAmount > 0) {
+                    const paidMethods = [];
+                    if (payCash > 0) paidMethods.push(`Efectivo: $${payCash.toLocaleString()}`);
+                    if (payBank > 0) paidMethods.push(`Transferencia: $${payBank.toLocaleString()}`);
+                    if (payCard > 0) paidMethods.push(`Tarjeta: $${payCard.toLocaleString()}`);
+
+                    addSupplierTransaction(targetId, {
+                      date: voucherData.date,
+                      voucherNumber: `REC-${voucherData.number || Date.now().toString().slice(-4)}`,
+                      amount: immediatePaidAmount,
+                      type: 'payment',
+                      status: 'paid',
+                      description: `Entrega / Pago inmediato contra Factura Nº ${voucherData.number} (${paidMethods.join(', ')})`
+                    });
+                  }
 
                   // 3. Register cash outflows (Egresos) in Finance
                   const dateStr = voucherData.date;
