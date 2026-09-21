@@ -535,6 +535,82 @@ export function Labs() {
             </div>
           </div>
 
+          ${rx?.isDoubleMonofocal ? `
+          <div class="section-title">Trabajo 1: Visión de Lejos</div>
+          <table class="presc-table" style="margin-bottom: 8px;">
+            <thead>
+              <tr>
+                <th style="width: 140px;">Ojo</th>
+                <th>Esférico</th>
+                <th>Cilíndrico</th>
+                <th>Eje</th>
+                <th>D.I.P.</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Derecho (OD)</td>
+                <td><strong>${lejosOD?.esf || '—'}</strong></td>
+                <td><strong>${lejosOD?.cil || '—'}</strong></td>
+                <td>${lejosOD?.eje ? `${lejosOD.eje}°` : '—'}</td>
+                <td>${diOD ? `${diOD} mm` : '—'}</td>
+              </tr>
+              <tr>
+                <td>Izquierdo (OI)</td>
+                <td><strong>${lejosOI?.esf || '—'}</strong></td>
+                <td><strong>${lejosOI?.cil || '—'}</strong></td>
+                <td>${lejosOI?.eje ? `${lejosOI.eje}°` : '—'}</td>
+                <td>${diOI ? `${diOI} mm` : '—'}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="grid-2" style="margin-bottom: 14px;">
+            <div class="info-card">
+              <div class="label">Cristal Lejos</div>
+              <div class="val">${rx.selectedCrystalLejos?.name || cd?.name || 'Monofocal Lejos'}</div>
+            </div>
+            <div class="info-card">
+              <div class="label">Armazón Lejos</div>
+              <div class="val">${(rx.selectedFrameLejos || rx.selectedFrame)?.name || ((rx.selectedFrameLejos || rx.selectedFrame)?.isOwn ? 'Armazón Propio (Del Paciente)' : 'Stock')}</div>
+            </div>
+          </div>
+
+          <div class="section-title">Trabajo 2: Visión de Cerca</div>
+          <table class="presc-table" style="margin-bottom: 8px;">
+            <thead>
+              <tr>
+                <th style="width: 140px;">Ojo</th>
+                <th>Esférico</th>
+                <th>Cilíndrico</th>
+                <th>Eje</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Derecho (OD)</td>
+                <td><strong>${cercaOD?.esf || '—'}</strong></td>
+                <td><strong>${cercaOD?.cil || '—'}</strong></td>
+                <td>${cercaOD?.eje ? `${cercaOD.eje}°` : '—'}</td>
+              </tr>
+              <tr>
+                <td>Izquierdo (OI)</td>
+                <td><strong>${cercaOI?.esf || '—'}</strong></td>
+                <td><strong>${cercaOI?.cil || '—'}</strong></td>
+                <td>${cercaOI?.eje ? `${cercaOI.eje}°` : '—'}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="grid-2" style="margin-bottom: 14px;">
+            <div class="info-card">
+              <div class="label">Cristal Cerca</div>
+              <div class="val">${rx.selectedCrystalCerca?.name || 'Monofocal Cerca'}</div>
+            </div>
+            <div class="info-card">
+              <div class="label">Armazón Cerca</div>
+              <div class="val">${rx.selectedFrameCerca?.name || (rx.selectedFrameCerca?.isOwn ? 'Armazón Propio (Del Paciente)' : 'Stock')}</div>
+            </div>
+          </div>
+          ` : `
           ${(hasRx || matchedOrder?.type !== 'producto') ? `
           <div class="section-title">Graduación Oftálmica (${rx?.type || (rx as any)?.prescriptionType || matchedOrder?.type || 'Receta'})</div>
           <table class="presc-table">
@@ -601,6 +677,7 @@ export function Labs() {
               <div class="val">${matchedOrder?.frame?.name || matchedOrder?.frame?.model || 'Armazón del cliente / en taller'}</div>
             </div>
           </div>
+          `}
 
           ${(rx?.internalLabDescription || rx?.internalLabCost) ? `
           <div style="margin-top: 10px; background: #fff7ed; border: 1px solid #fdba74; padding: 8px 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
@@ -1373,6 +1450,105 @@ export function Labs() {
                 const rx = activeJobDetails.prescription || activeJobDetails.order?.prescriptionDetails;
                 const rxType = (rx?.type || rx?.prescriptionType || activeJobDetails.order?.type || 'Receta Oftálmica').toUpperCase();
                 
+                if (rx?.isDoubleMonofocal) {
+                  return (
+                    <div className="space-y-4">
+                      <h4 className="font-black text-slate-850 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 uppercase tracking-wide">
+                        Receta Oftálmica: Monofocales (Lejos y Cerca)
+                      </h4>
+
+                      {/* TRABAJO 1: LEJOS */}
+                      <div className="p-3 bg-blue-50/40 dark:bg-blue-950/20 rounded-xl border border-blue-100 dark:border-blue-900/30 space-y-2">
+                        <span className="font-bold text-xs text-blue-800 dark:text-blue-300 uppercase tracking-wider block">
+                          👓 Trabajo 1: Visión de Lejos
+                        </span>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border border-blue-200 dark:border-blue-800/40 text-center font-medium bg-white dark:bg-slate-900">
+                            <thead className="bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 uppercase tracking-widest text-[9px]">
+                              <tr>
+                                <th className="px-2 py-1.5 border-r border-b border-blue-200 dark:border-blue-800/40 text-left">Ojo</th>
+                                <th className="px-2 py-1.5 border-r border-b border-blue-200 dark:border-blue-800/40">Esférico</th>
+                                <th className="px-2 py-1.5 border-r border-b border-blue-200 dark:border-blue-800/40">Cilíndrico</th>
+                                <th className="px-2 py-1.5 border-r border-b border-blue-200 dark:border-blue-800/40">Eje</th>
+                                <th className="px-2 py-1.5 border-b border-blue-200 dark:border-blue-800/40">D.I.P.</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-blue-100 dark:divide-blue-900/30 text-xs">
+                              <tr>
+                                <td className="px-2 py-1.5 border-r border-blue-100 dark:border-blue-900/30 font-bold text-left">OD</td>
+                                <td className="px-2 py-1.5 border-r border-blue-100 dark:border-blue-900/30 font-bold">{rx.lejosOD?.esf || '—'}</td>
+                                <td className="px-2 py-1.5 border-r border-blue-100 dark:border-blue-900/30 font-bold">{rx.lejosOD?.cil || '—'}</td>
+                                <td className="px-2 py-1.5 border-r border-blue-100 dark:border-blue-900/30">{rx.lejosOD?.eje ? `${rx.lejosOD.eje}°` : '—'}</td>
+                                <td className="px-2 py-1.5">{rx.diOD ? `${rx.diOD} mm` : '—'}</td>
+                              </tr>
+                              <tr>
+                                <td className="px-2 py-1.5 border-r border-blue-100 dark:border-blue-900/30 font-bold text-left">OI</td>
+                                <td className="px-2 py-1.5 border-r border-blue-100 dark:border-blue-900/30 font-bold">{rx.lejosOI?.esf || '—'}</td>
+                                <td className="px-2 py-1.5 border-r border-blue-100 dark:border-blue-900/30 font-bold">{rx.lejosOI?.cil || '—'}</td>
+                                <td className="px-2 py-1.5 border-r border-blue-100 dark:border-blue-900/30">{rx.lejosOI?.eje ? `${rx.lejosOI.eje}°` : '—'}</td>
+                                <td className="px-2 py-1.5">{rx.diOI ? `${rx.diOI} mm` : '—'}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                          <div className="p-2 bg-white dark:bg-slate-900 rounded border border-blue-150 dark:border-blue-900/30">
+                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Cristal Lejos</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{(rx.selectedCrystalLejos || rx.selectedCrystalItemLejos)?.name || 'Monofocal'}</span>
+                          </div>
+                          <div className="p-2 bg-white dark:bg-slate-900 rounded border border-blue-150 dark:border-blue-900/30">
+                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Armazón Lejos</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{(rx.selectedFrameLejos || rx.selectedFrame)?.name || ((rx.selectedFrameLejos || rx.selectedFrame)?.isOwn ? 'Armazón Propio (Del Paciente)' : 'Stock')}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* TRABAJO 2: CERCA */}
+                      <div className="p-3 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-900/30 space-y-2">
+                        <span className="font-bold text-xs text-emerald-800 dark:text-emerald-300 uppercase tracking-wider block">
+                          📖 Trabajo 2: Visión de Cerca
+                        </span>
+                        <div className="overflow-x-auto">
+                          <table className="w-full border border-emerald-200 dark:border-emerald-800/40 text-center font-medium bg-white dark:bg-slate-900">
+                            <thead className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 uppercase tracking-widest text-[9px]">
+                              <tr>
+                                <th className="px-2 py-1.5 border-r border-b border-emerald-200 dark:border-emerald-800/40 text-left">Ojo</th>
+                                <th className="px-2 py-1.5 border-r border-b border-emerald-200 dark:border-emerald-800/40">Esférico</th>
+                                <th className="px-2 py-1.5 border-r border-b border-emerald-200 dark:border-emerald-800/40">Cilíndrico</th>
+                                <th className="px-2 py-1.5 border-b border-emerald-200 dark:border-emerald-800/40">Eje</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-emerald-100 dark:divide-emerald-900/30 text-xs">
+                              <tr>
+                                <td className="px-2 py-1.5 border-r border-emerald-100 dark:border-emerald-900/30 font-bold text-left">OD</td>
+                                <td className="px-2 py-1.5 border-r border-emerald-100 dark:border-emerald-900/30 font-bold">{rx.cercaOD?.esf || '—'}</td>
+                                <td className="px-2 py-1.5 border-r border-emerald-100 dark:border-emerald-900/30 font-bold">{rx.cercaOD?.cil || '—'}</td>
+                                <td className="px-2 py-1.5">{rx.cercaOD?.eje ? `${rx.cercaOD.eje}°` : '—'}</td>
+                              </tr>
+                              <tr>
+                                <td className="px-2 py-1.5 border-r border-emerald-100 dark:border-emerald-900/30 font-bold text-left">OI</td>
+                                <td className="px-2 py-1.5 border-r border-emerald-100 dark:border-emerald-900/30 font-bold">{rx.cercaOI?.esf || '—'}</td>
+                                <td className="px-2 py-1.5 border-r border-emerald-100 dark:border-emerald-900/30 font-bold">{rx.cercaOI?.cil || '—'}</td>
+                                <td className="px-2 py-1.5">{rx.cercaOI?.eje ? `${rx.cercaOI.eje}°` : '—'}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                          <div className="p-2 bg-white dark:bg-slate-900 rounded border border-emerald-150 dark:border-emerald-900/30">
+                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Cristal Cerca</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{(rx.selectedCrystalCerca || rx.selectedCrystalItemCerca)?.name || 'Monofocal'}</span>
+                          </div>
+                          <div className="p-2 bg-white dark:bg-slate-900 rounded border border-emerald-150 dark:border-emerald-900/30">
+                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Armazón Cerca</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{rx.selectedFrameCerca?.name || (rx.selectedFrameCerca?.isOwn ? 'Armazón Propio (Del Paciente)' : 'Stock')}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+
                 return (
                   <div className="space-y-3">
                     <h4 className="font-black text-slate-850 dark:text-slate-200 border-b border-slate-100 dark:border-slate-800 pb-1.5 uppercase tracking-wide">

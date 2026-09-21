@@ -7,12 +7,12 @@ export function Orders() {
   const state = location.state;
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
       <Link 
         to={`/orders/new/monofocal${search}`}
         state={state}
         data-manual-title="Cristales Monofocales"
-        data-manual-description="Visión sencilla para lejos o cerca. Permite cargar la receta de Esfera, Cilindro y Eje para un solo foco visual."
+        data-manual-description="Visión sencilla para lejos o cerca. Permite cargar la receta de Esfera, Cilindro y Eje para un solo foco visual o separar ambos trabajos."
         className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-xl hover:border-blue-500/50 transition-all group flex flex-col items-center text-center gap-4"
       >
         <div className="w-14 h-14 rounded-2xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center group-hover:scale-110 transition-transform">
@@ -20,7 +20,7 @@ export function Orders() {
         </div>
         <div>
           <h3 className="text-lg font-bold dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Monofocales</h3>
-          <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs leading-relaxed">Visión sencilla para lejos o cerca. Ideal para miopía o hipermetropía.</p>
+          <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs leading-relaxed">Visión sencilla para lejos, cerca o ambos trabajos independientes.</p>
         </div>
       </Link>
       
@@ -28,15 +28,31 @@ export function Orders() {
         to={`/orders/new/multifocal${search}`}
         state={state}
         data-manual-title="Cristales Multifocales Progresivos"
-        data-manual-description="Lentes progresivas o bifocales con zonas de visión combinada (lejos, intermedia y cerca). Requiere adición (ADD) y altura pupilar."
+        data-manual-description="Lentes progresivas con zonas de visión combinada (lejos, intermedia y cerca). Requiere adición (ADD) y altura pupilar."
         className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-xl hover:border-indigo-500/50 transition-all group flex flex-col items-center text-center gap-4"
       >
         <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 flex items-center justify-center group-hover:scale-110 transition-transform">
           <Glasses className="w-7 h-7" />
         </div>
         <div>
-          <h3 className="text-lg font-bold dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Multifocales / Bifocales</h3>
-          <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs leading-relaxed">Lentes progresivos o con segmento bifocal. Para presbicia y visión combinada.</p>
+          <h3 className="text-lg font-bold dark:text-white group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Multifocales</h3>
+          <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs leading-relaxed">Lentes progresivos con transición suave para visión lejana, intermedia y cercana.</p>
+        </div>
+      </Link>
+
+      <Link 
+        to={`/orders/new/bifocal${search}`}
+        state={state}
+        data-manual-title="Cristales Bifocales"
+        data-manual-description="Lentes con segmento visible (Flattop, Kryptok, etc.) para lejos y cerca en el mismo cristal."
+        className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 hover:shadow-xl hover:border-cyan-500/50 transition-all group flex flex-col items-center text-center gap-4"
+      >
+        <div className="w-14 h-14 rounded-2xl bg-cyan-50 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400 flex items-center justify-center group-hover:scale-110 transition-transform">
+          <Glasses className="w-7 h-7" />
+        </div>
+        <div>
+          <h3 className="text-lg font-bold dark:text-white group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-colors">Bifocales</h3>
+          <p className="text-slate-500 dark:text-slate-400 mt-2 text-xs leading-relaxed">Lentes con segmento marcado para lejos y cerca en un solo cristal.</p>
         </div>
       </Link>
       

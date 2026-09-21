@@ -30,21 +30,22 @@ export function NewOrder() {
   const { type, cartItemId } = useParams<{ type?: string; cartItemId?: string }>();
   const isEditMode = !!cartItemId;
   const editingItem = isEditMode ? cart.find(item => item.id === cartItemId) : null;
-  const isMultifocalRoute = type === 'multifocal' || editingItem?.details?.prescriptionType === 'multifocal' || editingItem?.details?.prescriptionType === 'bifocal';
+  const isMultifocalRoute = type === 'multifocal' || type === 'bifocal' || editingItem?.details?.prescriptionType === 'multifocal' || editingItem?.details?.prescriptionType === 'bifocal';
   const isOccupational = type === 'ocupacional' || editingItem?.details?.prescriptionType === 'ocupacional';
   const isContact = type === 'contact' || editingItem?.details?.prescriptionType === 'contact';
   
   const [multifocalSubType, setMultifocalSubType] = useState<'multifocal' | 'bifocal'>(() => {
-    if (editingItem?.details?.prescriptionType === 'bifocal' || editingItem?.details?.multifocalSubType === 'bifocal') {
+    if (type === 'bifocal' || editingItem?.details?.prescriptionType === 'bifocal' || editingItem?.details?.multifocalSubType === 'bifocal') {
       return 'bifocal';
     }
     return 'multifocal';
   });
 
   const isMultifocal = isMultifocalRoute;
+  const isDoubleMonofocal = (type === 'monofocal' || (!isMultifocalRoute && !isOccupational && !isContact)) && Boolean(editingItem ? (editingItem.details?.enableLejos && editingItem.details?.enableCerca) : false); // updated dynamically below
   const title = isContact 
     ? "Lentes de Contacto" 
-    : isMultifocalRoute 
+    : (isMultifocalRoute || type === 'bifocal') 
       ? (multifocalSubType === 'bifocal' ? "Bifocales" : "Multifocales") 
       : isOccupational 
         ? "Ocupacionales" 
@@ -76,6 +77,15 @@ export function NewOrder() {
   const [selDesign, setSelDesign] = useState("");
   const [selColor, setSelColor] = useState("");
 
+  // Local state for crystal selectors (Cerca en Monofocal Doble)
+  const [selectedCrystalIdCerca, setSelectedCrystalIdCerca] = useState("");
+  const [selBrandCerca, setSelBrandCerca] = useState("");
+  const [selMaterialCerca, setSelMaterialCerca] = useState("");
+  const [selIndexCerca, setSelIndexCerca] = useState("");
+  const [selDesignCerca, setSelDesignCerca] = useState("");
+  const [selColorCerca, setSelColorCerca] = useState("");
+  const [selectedTreatmentNamesCerca, setSelectedTreatmentNamesCerca] = useState<string[]>([]);
+
   const resetForm = (mode: 'sameClient' | 'all') => {
     setLejosOD({ esf: "", cil: "", eje: "" });
     setLejosOI({ esf: "", cil: "", eje: "" });
@@ -90,6 +100,7 @@ export function NewOrder() {
     setApOD("");
     setApOI("");
     setSelectedFrame(null);
+    setSelectedFrameCerca(null);
     setAssignedLab(null);
     setDeliveryDate("");
     setObservaciones("");
@@ -100,6 +111,13 @@ export function NewOrder() {
     setSelDesign("");
     setSelColor("");
     setSelectedTreatmentNames([]);
+    setSelectedCrystalIdCerca("");
+    setSelBrandCerca("");
+    setSelMaterialCerca("");
+    setSelIndexCerca("");
+    setSelDesignCerca("");
+    setSelColorCerca("");
+    setSelectedTreatmentNamesCerca([]);
     setInternalLabCost('');
     setInternalLabDescription('');
     setSelectedOjos('ambos');
@@ -142,18 +160,39 @@ export function NewOrder() {
         setMultifocalSubType('multifocal');
       }
       
-      // Load new crystal refactored states
+      // Load crystal refactored states (Lejos / General)
       if (details.selectedOjos) setSelectedOjos(details.selectedOjos);
       if (details.selectedTreatments) setSelectedTreatmentNames(details.selectedTreatments);
-      if (details.selectedCrystalItem) {
-        setSelectedCrystalId(details.selectedCrystalItem.id || "");
-        setSelBrand(details.selectedCrystalItem.brand || "");
-        setSelMaterial(details.selectedCrystalItem.material || "");
-        setSelIndex(details.selectedCrystalItem.index || "");
-        setSelDesign(details.selectedCrystalItem.design || "");
-        setSelColor(details.selectedCrystalItem.color || "");
+      const cLejos = details.selectedCrystalItemLejos || details.selectedCrystalLejos || details.selectedCrystalItem;
+      if (cLejos) {
+        setSelectedCrystalId(cLejos.id || "");
+        setSelBrand(cLejos.brand || "");
+        setSelMaterial(cLejos.material || "");
+        setSelIndex(cLejos.index || "");
+        setSelDesign(cLejos.design || "");
+        setSelColor(cLejos.color || "");
       }
-      if (details.selectedFrame) setSelectedFrame(details.selectedFrame);
+      if (details.selectedFrameLejos || details.selectedFrame) {
+        setSelectedFrame(details.selectedFrameLejos || details.selectedFrame);
+      }
+
+      // Load Cerca states for double monofocal
+      const cCerca = details.selectedCrystalItemCerca || details.selectedCrystalCerca;
+      if (cCerca) {
+        setSelectedCrystalIdCerca(cCerca.id || "");
+        setSelBrandCerca(cCerca.brand || "");
+        setSelMaterialCerca(cCerca.material || "");
+        setSelIndexCerca(cCerca.index || "");
+        setSelDesignCerca(cCerca.design || "");
+        setSelColorCerca(cCerca.color || "");
+      }
+      if (details.selectedTreatmentsCerca) {
+        setSelectedTreatmentNamesCerca(details.selectedTreatmentsCerca);
+      }
+      if (details.selectedFrameCerca) {
+        setSelectedFrameCerca(details.selectedFrameCerca);
+      }
+
       if (details.assignedLab) setAssignedLab(details.assignedLab);
       if (details.deliveryDate) setDeliveryDate(details.deliveryDate);
     }
@@ -183,17 +222,35 @@ export function NewOrder() {
     (!selMaterial || c.material === selMaterial)
   );
 
-  // Mantener sincronizado el cristal seleccionado
+  // Auto-limpiar filtros de marca y material al cambiar de tipo si no existen
+  useEffect(() => {
+    if (selBrand && availableBrandsForSelect.length > 0 && !availableBrandsForSelect.includes(selBrand)) {
+      setSelBrand("");
+    }
+  }, [effectiveType, availableBrandsForSelect]);
+
+  useEffect(() => {
+    if (selMaterial && availableMaterialsForSelect.length > 0 && !availableMaterialsForSelect.includes(selMaterial)) {
+      setSelMaterial("");
+    }
+  }, [effectiveType, selBrand, availableMaterialsForSelect]);
+
+  // Mantener sincronizado el cristal seleccionado de Lejos / Principal
   useEffect(() => {
     if (availableCrystals.length > 0) {
       const exists = availableCrystals.some(c => c.id === selectedCrystalId);
       if (!exists) {
         setSelectedCrystalId(availableCrystals[0].id);
       }
-    } else if (crystalsOfType.length > 0 && !selectedCrystalId) {
-      setSelectedCrystalId(crystalsOfType[0].id);
+    } else if (crystalsOfType.length > 0) {
+      const exists = crystalsOfType.some(c => c.id === selectedCrystalId);
+      if (!exists) {
+        setSelectedCrystalId(crystalsOfType[0].id);
+      }
+    } else {
+      setSelectedCrystalId("");
     }
-  }, [selBrand, selMaterial, type, multifocalSubType, crystalItems]);
+  }, [selBrand, selMaterial, effectiveType, crystalItems]);
 
   const selectedCrystal = crystalsOfType.find(c => c.id === selectedCrystalId) 
     || availableCrystals[0] 
@@ -209,6 +266,45 @@ export function NewOrder() {
       setSelectedTreatmentNames([]);
     }
   }, [selectedCrystal?.id]);
+
+  // --- Cristales para Trabajo de Cerca (Monofocal Doble) ---
+  const crystalsOfTypeCerca = crystalItems.filter(c => c.active && c.type === 'monofocal');
+  const availableBrandsForSelectCerca = [...new Set(crystalsOfTypeCerca.map(c => c.brand))];
+  const availableMaterialsForSelectCerca = [...new Set(crystalsOfTypeCerca.filter(c => !selBrandCerca || c.brand === selBrandCerca).map(c => c.material))];
+  const availableCrystalsCerca = crystalsOfTypeCerca.filter(c => 
+    (!selBrandCerca || c.brand === selBrandCerca) &&
+    (!selMaterialCerca || c.material === selMaterialCerca)
+  );
+
+  useEffect(() => {
+    if (availableCrystalsCerca.length > 0) {
+      const exists = availableCrystalsCerca.some(c => c.id === selectedCrystalIdCerca);
+      if (!exists) {
+        setSelectedCrystalIdCerca(availableCrystalsCerca[0].id);
+      }
+    } else if (crystalsOfTypeCerca.length > 0) {
+      const exists = crystalsOfTypeCerca.some(c => c.id === selectedCrystalIdCerca);
+      if (!exists) {
+        setSelectedCrystalIdCerca(crystalsOfTypeCerca[0].id);
+      }
+    } else {
+      setSelectedCrystalIdCerca("");
+    }
+  }, [selBrandCerca, selMaterialCerca, crystalItems]);
+
+  const selectedCrystalCerca = crystalsOfTypeCerca.find(c => c.id === selectedCrystalIdCerca) 
+    || availableCrystalsCerca[0] 
+    || crystalsOfTypeCerca[0] 
+    || null;
+
+  useEffect(() => {
+    if (selectedCrystalCerca) {
+      const validTreatments = selectedCrystalCerca.treatments || [];
+      setSelectedTreatmentNamesCerca(prev => prev.filter(t => validTreatments.includes(t)));
+    } else {
+      setSelectedTreatmentNamesCerca([]);
+    }
+  }, [selectedCrystalCerca?.id]);
 
   const handleDniSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -262,6 +358,8 @@ export function NewOrder() {
   // Frame state
   const [isFrameModalOpen, setIsFrameModalOpen] = useState(false);
   const [selectedFrame, setSelectedFrame] = useState<any>(null);
+  const [selectedFrameCerca, setSelectedFrameCerca] = useState<any>(null);
+  const [targetFrameFor, setTargetFrameFor] = useState<'single' | 'lejos' | 'cerca'>('single');
   const [frameSearch, setFrameSearch] = useState("");
 
   // Lab state
@@ -544,23 +642,39 @@ export function NewOrder() {
   const hasCercaCharged = !!(enableCerca && (cercaOD.esf || cercaOD.cil || cercaOI.esf || cercaOI.cil));
   const hasPrescriptionCharged = hasLejosCharged || hasCercaCharged;
 
-  // Si se carga tanto para lejos como para cerca (lente de dos focos/monofocal doble), sumamos ambos cristales
-  const isDoubleFocusCharged = hasLejosCharged && hasCercaCharged && (type === 'monofocal' || editingItem?.details?.prescriptionType === 'monofocal');
+  // Condición de monofocal doble (separación de trabajos lejos y cerca)
+  const isDoubleMonofocalActive = (type === 'monofocal' || (!isMultifocalRoute && !isOccupational && !isContact)) && enableLejos && enableCerca;
+  const isSingleEyeCharged = selectedOjos === 'od' || selectedOjos === 'oi';
 
-  // Detectar si solo se cargaron datos en un ojo
-  const hasODData = !!(lejosOD.esf || lejosOD.cil || cercaOD.esf || cercaOD.cil);
-  const hasOIData = !!(lejosOI.esf || lejosOI.cil || cercaOI.esf || cercaOI.cil);
-  const isSingleEyeCharged = selectedOjos === 'od' || selectedOjos === 'oi' || (selectedOjos === 'ambos' && ((hasODData && !hasOIData) || (!hasODData && hasOIData)));
+  // Factores individuales para Monofocal Doble o Simple
+  const hasODDataLejos = !!(enableLejos && (lejosOD.esf || lejosOD.cil));
+  const hasOIDataLejos = !!(enableLejos && (lejosOI.esf || lejosOI.cil));
+  const isSingleEyeLejos = selectedOjos === 'od' || selectedOjos === 'oi' || (selectedOjos === 'ambos' && ((hasODDataLejos && !hasOIDataLejos) || (!hasODDataLejos && hasOIDataLejos)));
+  const eyesFactorLejos = isSingleEyeLejos ? 0.5 : 1.0;
 
-  const eyesFactor = isSingleEyeCharged ? 0.5 : 1.0;
+  const hasODDataCerca = !!(enableCerca && (cercaOD.esf || cercaOD.cil));
+  const hasOIDataCerca = !!(enableCerca && (cercaOI.esf || cercaOI.cil));
+  const isSingleEyeCerca = selectedOjos === 'od' || selectedOjos === 'oi' || (selectedOjos === 'ambos' && ((hasODDataCerca && !hasOIDataCerca) || (!hasODDataCerca && hasOIDataCerca)));
+  const eyesFactorCerca = isSingleEyeCerca ? 0.5 : 1.0;
 
-  // El precio base se duplica si es lejos + cerca a la vez (monofocal doble)
-  const baseCrystalPrice = selectedCrystal ? (selectedCrystal.basePrice * (isDoubleFocusCharged ? 2 : 1)) : 0;
+  // Precios para Lejos
+  const crystalPriceLejos = (hasLejosCharged && selectedCrystal) ? (selectedCrystal.basePrice * eyesFactorLejos) : 0;
+  const framePriceLejos = selectedFrame ? selectedFrame.numericPrice : 0;
+  const subtotalLejos = crystalPriceLejos + framePriceLejos;
 
-  // Calculamos el precio total del cristal (solo si hay alguna receta cargada)
-  const crystalPrice = hasPrescriptionCharged ? (baseCrystalPrice * eyesFactor) : 0;
+  // Precios para Cerca
+  const crystalCercaActive = isDoubleMonofocalActive ? selectedCrystalCerca : selectedCrystal;
+  const crystalPriceCerca = (hasCercaCharged && crystalCercaActive) ? (crystalCercaActive.basePrice * eyesFactorCerca) : 0;
+  const framePriceCerca = isDoubleMonofocalActive 
+    ? (selectedFrameCerca ? selectedFrameCerca.numericPrice : 0) 
+    : (selectedFrame ? selectedFrame.numericPrice : 0);
+  const subtotalCerca = crystalPriceCerca + framePriceCerca;
 
-  const framePrice = selectedFrame ? selectedFrame.numericPrice : 0;
+  // Totales
+  const crystalPrice = isDoubleMonofocalActive 
+    ? (crystalPriceLejos + crystalPriceCerca) 
+    : (hasPrescriptionCharged ? ((selectedCrystal ? selectedCrystal.basePrice : 0) * (selectedOjos === 'od' || selectedOjos === 'oi' ? 0.5 : 1.0)) : 0);
+  const framePrice = isDoubleMonofocalActive ? (framePriceLejos + framePriceCerca) : (selectedFrame ? selectedFrame.numericPrice : 0);
   const labIntCost = parseCurrency(internalLabCost);
   const subtotal = crystalPrice + framePrice + labIntCost;
 
@@ -577,8 +691,8 @@ export function NewOrder() {
        const rule = activeInsurance.coverages.find((c: any) => c.categoryId === 'Cristales');
        if (rule) crystalCoverage = Math.min(crystalPrice, rule.amount || 0);
     }
-    if (selectedFrame && !manualFrameCoverage) {
-       const rule = activeInsurance.coverages.find((c: any) => c.categoryId === selectedFrame.cat);
+    if (framePrice > 0 && !manualFrameCoverage) {
+       const rule = activeInsurance.coverages.find((c: any) => c.categoryId === selectedFrame?.cat);
        if (rule) frameCoverage = Math.min(framePrice, rule.amount || 0);
     }
   }
@@ -661,62 +775,90 @@ export function NewOrder() {
       }
     }
 
-    if (selectedCrystal) {
-      const validateEye = (eyeName: string, esfVal: string, cilVal: string, addVal: string) => {
-        const esf = parseFloat(esfVal) || 0;
-        const cil = parseFloat(cilVal) || 0;
-        const add = parseFloat(addVal) || 0;
+    const validateEye = (eyeName: string, esfVal: string, cilVal: string, addVal: string, crystalItem: any, sectionPrefix: string = '') => {
+      if (!crystalItem) return;
+      const esf = parseFloat(esfVal) || 0;
+      const cil = parseFloat(cilVal) || 0;
+      const add = parseFloat(addVal) || 0;
+      const prefix = sectionPrefix ? `[${sectionPrefix}] ` : '';
 
-        if (esf < selectedCrystal.sphMin || esf > selectedCrystal.sphMax) {
-          const sphMinStr = selectedCrystal.sphMin >= 0 ? `+${selectedCrystal.sphMin}` : `${selectedCrystal.sphMin}`;
-          const sphMaxStr = selectedCrystal.sphMax >= 0 ? `+${selectedCrystal.sphMax}` : `${selectedCrystal.sphMax}`;
+      if (crystalItem.sphMin !== undefined && crystalItem.sphMax !== undefined) {
+        if (esf < crystalItem.sphMin || esf > crystalItem.sphMax) {
+          const sphMinStr = crystalItem.sphMin >= 0 ? `+${crystalItem.sphMin}` : `${crystalItem.sphMin}`;
+          const sphMaxStr = crystalItem.sphMax >= 0 ? `+${crystalItem.sphMax}` : `${crystalItem.sphMax}`;
           errors.push(
-            `Ojo ${eyeName}: El esférico (${esf >= 0 ? `+${esf}` : esf}) está fuera del rango [${sphMinStr} / ${sphMaxStr}] de este cristal.`
+            `${prefix}Ojo ${eyeName}: El esférico (${esf >= 0 ? `+${esf}` : esf}) está fuera del rango [${sphMinStr} / ${sphMaxStr}] de este cristal.`
           );
         }
-        if (Math.abs(cil) > Math.abs(selectedCrystal.cylMax)) {
+      }
+      if (crystalItem.cylMax !== undefined && crystalItem.cylMax !== null) {
+        const absMax = Math.abs(crystalItem.cylMax);
+        // Si cylMax es 0 en el catálogo, no bloqueamos falsamente al cliente a menos que sea un cristal cargado con límite mayor estricto
+        if (absMax > 0 && Math.abs(cil) > absMax) {
           const cilFormatted = cil > 0 ? `+${cil}` : `${cil}`;
-          const maxFormatted = selectedCrystal.cylMax > 0 ? `+${selectedCrystal.cylMax}` : `${selectedCrystal.cylMax}`;
+          const maxFormatted = crystalItem.cylMax > 0 ? `+${crystalItem.cylMax}` : `${crystalItem.cylMax}`;
           errors.push(
-            `Ojo ${eyeName}: El cilíndrico (${cilFormatted}) excede el límite permitido (máx ${maxFormatted}) de este cristal.`
+            `${prefix}Ojo ${eyeName}: El cilíndrico (${cilFormatted}) excede el límite permitido (máx ${maxFormatted}) de este cristal.`
           );
         }
-        if (selectedCrystal.esfPlusCilMax !== undefined && selectedCrystal.esfPlusCilMax > 0) {
-          const combinedMax = Math.max(Math.abs(esf), Math.abs(esf + cil));
-          if (combinedMax > selectedCrystal.esfPlusCilMax) {
-            const sumVal = esf + cil;
-            const sumFormatted = sumVal >= 0 ? `+${sumVal.toFixed(2)}` : `${sumVal.toFixed(2)}`;
+      }
+      if (crystalItem.esfPlusCilMax !== undefined && crystalItem.esfPlusCilMax > 0) {
+        const combinedMax = Math.max(Math.abs(esf), Math.abs(esf + cil));
+        if (combinedMax > crystalItem.esfPlusCilMax) {
+          const sumVal = esf + cil;
+          const sumFormatted = sumVal >= 0 ? `+${sumVal.toFixed(2)}` : `${sumVal.toFixed(2)}`;
+          errors.push(
+            `${prefix}Ojo ${eyeName}: La potencia combinada Esférico + Cilíndrico (${sumFormatted}) supera el límite de suma máxima (±${crystalItem.esfPlusCilMax.toFixed(2)}) permitido para este cristal de stock.`
+          );
+        }
+      }
+      if (crystalItem.type === 'multifocal' || crystalItem.type === 'ocupacional' || crystalItem.type === 'bifocal') {
+        if (crystalItem.addMin !== undefined && crystalItem.addMax !== undefined) {
+          if (add > 0 && (add < crystalItem.addMin || add > crystalItem.addMax)) {
             errors.push(
-              `Ojo ${eyeName}: La potencia combinada Esférico + Cilíndrico (${sumFormatted}) supera el límite de suma máxima (±${selectedCrystal.esfPlusCilMax.toFixed(2)}) permitido para este cristal de stock.`
+              `${prefix}Ojo ${eyeName}: La adición (+${add.toFixed(2)}) está fuera del rango [+${crystalItem.addMin.toFixed(2)} / +${crystalItem.addMax.toFixed(2)}] de este cristal.`
             );
           }
         }
-        if (selectedCrystal.type === 'multifocal' || selectedCrystal.type === 'ocupacional') {
-          if (selectedCrystal.addMin !== undefined && selectedCrystal.addMax !== undefined) {
-            if (add < selectedCrystal.addMin || add > selectedCrystal.addMax) {
-              errors.push(
-                `Ojo ${eyeName}: La adición (+${add.toFixed(2)}) está fuera del rango [+${selectedCrystal.addMin.toFixed(2)} / +${selectedCrystal.addMax.toFixed(2)}] de este cristal.`
-              );
-            }
-          }
-        }
-      };
+      }
+    };
 
+    if (isDoubleMonofocalActive) {
+      // Validar Lejos con su cristal de Lejos
+      if (enableLejos && selectedCrystal) {
+        if ((selectedOjos === 'ambos' || selectedOjos === 'od') && (lejosOD.esf || lejosOD.cil)) {
+          validateEye('Derecho', lejosOD.esf, lejosOD.cil, '', selectedCrystal, 'Lejos');
+        }
+        if ((selectedOjos === 'ambos' || selectedOjos === 'oi') && (lejosOI.esf || lejosOI.cil)) {
+          validateEye('Izquierdo', lejosOI.esf, lejosOI.cil, '', selectedCrystal, 'Lejos');
+        }
+      }
+      // Validar Cerca con su cristal de Cerca
+      if (enableCerca && selectedCrystalCerca) {
+        if ((selectedOjos === 'ambos' || selectedOjos === 'od') && (cercaOD.esf || cercaOD.cil)) {
+          validateEye('Derecho', cercaOD.esf, cercaOD.cil, '', selectedCrystalCerca, 'Cerca');
+        }
+        if ((selectedOjos === 'ambos' || selectedOjos === 'oi') && (cercaOI.esf || cercaOI.cil)) {
+          validateEye('Izquierdo', cercaOI.esf, cercaOI.cil, '', selectedCrystalCerca, 'Cerca');
+        }
+      }
+    } else if (selectedCrystal) {
       if (selectedOjos === 'ambos' || selectedOjos === 'od') {
         const esf = lejosOD.esf || cercaOD.esf;
         const cil = lejosOD.cil || cercaOD.cil;
         const add = adicionOD;
-        if (esf || cil || add) validateEye('Derecho', esf, cil, add);
+        if (esf || cil || add) validateEye('Derecho', esf, cil, add, selectedCrystal);
       }
       if (selectedOjos === 'ambos' || selectedOjos === 'oi') {
         const esf = lejosOI.esf || cercaOI.esf;
         const cil = lejosOI.cil || cercaOI.cil;
         const add = adicionOI;
-        if (esf || cil || add) validateEye('Izquierdo', esf, cil, add);
+        if (esf || cil || add) validateEye('Izquierdo', esf, cil, add, selectedCrystal);
       }
     }
+
     setValidationErrors(errors);
-  }, [selectedCrystal, lejosOD, lejosOI, cercaOD, cercaOI, adicionOD, adicionOI, selectedOjos, enableLejos, enableCerca, isMultifocal, isOccupational]);
+  }, [selectedCrystal, selectedCrystalCerca, lejosOD, lejosOI, cercaOD, cercaOI, adicionOD, adicionOI, selectedOjos, enableLejos, enableCerca, isMultifocal, isOccupational, isDoubleMonofocalActive]);
 
   const handleConfirm = () => {
     handleConfirmWithLab();
@@ -761,13 +903,16 @@ export function NewOrder() {
     const itemData = {
       id: isEditMode ? cartItemId! : `prescription-${Date.now()}`,
       type: 'prescription' as const,
-      name: `${title}: ${selectedClient?.name || 'Cliente Mostrador'}`,
+      name: isDoubleMonofocalActive 
+        ? `Monofocales (Lejos y Cerca): ${selectedClient?.name || 'Cliente Mostrador'}`
+        : `${title}: ${selectedClient?.name || 'Cliente Mostrador'}`,
       price: orderTotal || 0,
       quantity: 1,
       details: {
         client: selectedClient,
         prescriptionType: isMultifocalRoute ? multifocalSubType : (type || editingItem?.details?.prescriptionType || 'monofocal'),
         multifocalSubType: isMultifocalRoute ? multifocalSubType : undefined,
+        isDoubleMonofocal: isDoubleMonofocalActive,
         enableLejos,
         enableCerca,
         lejosOD,
@@ -786,10 +931,30 @@ export function NewOrder() {
         observaciones,
         lensColor,
         selectedOjos,
+        
+        // Específico para Trabajo de Lejos
+        selectedCrystalLejos: isDoubleMonofocalActive ? selectedCrystal : (enableLejos ? selectedCrystal : null),
+        selectedCrystalItemLejos: isDoubleMonofocalActive ? selectedCrystal : (enableLejos ? selectedCrystal : null),
+        selectedTreatmentsLejos: selectedTreatmentNames,
+        selectedFrameLejos: isDoubleMonofocalActive ? selectedFrame : (enableLejos ? selectedFrame : null),
+        subtotalLejos: isDoubleMonofocalActive ? subtotalLejos : undefined,
+        crystalPriceLejos: isDoubleMonofocalActive ? crystalPriceLejos : undefined,
+        framePriceLejos: isDoubleMonofocalActive ? framePriceLejos : undefined,
+
+        // Específico para Trabajo de Cerca
+        selectedCrystalCerca: isDoubleMonofocalActive ? selectedCrystalCerca : (enableCerca ? selectedCrystal : null),
+        selectedCrystalItemCerca: isDoubleMonofocalActive ? selectedCrystalCerca : (enableCerca ? selectedCrystal : null),
+        selectedTreatmentsCerca: isDoubleMonofocalActive ? selectedTreatmentNamesCerca : selectedTreatmentNames,
+        selectedFrameCerca: isDoubleMonofocalActive ? selectedFrameCerca : (enableCerca ? selectedFrame : null),
+        subtotalCerca: isDoubleMonofocalActive ? subtotalCerca : undefined,
+        crystalPriceCerca: isDoubleMonofocalActive ? crystalPriceCerca : undefined,
+        framePriceCerca: isDoubleMonofocalActive ? framePriceCerca : undefined,
+
+        // Compatibilidad general
         selectedCrystal: selectedCrystal,
         selectedCrystalItem: selectedCrystal,
         selectedTreatments: selectedTreatmentNames,
-        selectedFrame,
+        selectedFrame: selectedFrame,
         assignedLab: currentLab,
         deliveryDate,
         insuranceId: activeInsuranceId,
@@ -1036,7 +1201,7 @@ export function NewOrder() {
             <div className="flex items-center justify-between p-6 border-b border-slate-100 dark:border-slate-800 text-slate-900 dark:text-white">
               <h3 className="text-xl font-bold flex items-center gap-2">
                 <Search className="w-6 h-6 text-purple-600" />
-                Buscar Marco
+                Buscar Marco {targetFrameFor === 'cerca' ? '(Para Cerca)' : targetFrameFor === 'lejos' ? '(Para Lejos)' : ''}
               </h3>
               <button 
                 onClick={() => setIsFrameModalOpen(false)} 
@@ -1069,7 +1234,11 @@ export function NewOrder() {
                       key={frame.sku}
                       onClick={() => {
                         if (totalStock > 0) {
-                          setSelectedFrame({...frame, numericPrice: parsedPrice});
+                          if (targetFrameFor === 'cerca') {
+                            setSelectedFrameCerca({...frame, numericPrice: parsedPrice});
+                          } else {
+                            setSelectedFrame({...frame, numericPrice: parsedPrice});
+                          }
                           setIsFrameModalOpen(false);
                         }
                       }}
@@ -1259,21 +1428,46 @@ export function NewOrder() {
                   </div>
                 )}
 
-                {/* Marco y Color */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
-                  <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '10px' }}>
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: '#555', marginBottom: '4px' }}>Marco / Armazón</div>
-                    <div style={{ fontWeight: '700' }}>
-                      {selectedFrame 
-                        ? (selectedFrame.isOwn ? 'PROPIO (Armazón del Cliente)' : `${selectedFrame.name} (${selectedFrame.sku || 'Stock'})`)
-                        : '(sin especificar)'}
+                {/* Marco y Cristales */}
+                {isDoubleMonofocalActive ? (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ border: '1px solid #93c5fd', background: '#eff6ff', borderRadius: '6px', padding: '10px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', color: '#1e40af', marginBottom: '4px' }}>Trabajo 1 (Lejos)</div>
+                      <div style={{ fontSize: '11px', color: '#334155', marginBottom: '3px' }}>
+                        <strong>Cristal:</strong> {selectedCrystal ? `${selectedCrystal.name} (${selectedCrystal.brand} - ${selectedCrystal.material})` : '(sin especificar)'}
+                        {selectedTreatmentNames.length > 0 && <span> | {selectedTreatmentNames.join(', ')}</span>}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#334155' }}>
+                        <strong>Marco:</strong> {selectedFrame ? (selectedFrame.isOwn ? 'PROPIO (Del Cliente)' : `${selectedFrame.name} (${selectedFrame.sku || 'Stock'})`) : '(sin especificar)'}
+                      </div>
+                    </div>
+                    <div style={{ border: '1px solid #a7f3d0', background: '#ecfdf5', borderRadius: '6px', padding: '10px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', color: '#065f46', marginBottom: '4px' }}>Trabajo 2 (Cerca)</div>
+                      <div style={{ fontSize: '11px', color: '#334155', marginBottom: '3px' }}>
+                        <strong>Cristal:</strong> {selectedCrystalCerca ? `${selectedCrystalCerca.name} (${selectedCrystalCerca.brand} - ${selectedCrystalCerca.material})` : '(sin especificar)'}
+                        {selectedTreatmentNamesCerca.length > 0 && <span> | {selectedTreatmentNamesCerca.join(', ')}</span>}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#334155' }}>
+                        <strong>Marco:</strong> {selectedFrameCerca ? (selectedFrameCerca.isOwn ? 'PROPIO (Del Cliente)' : `${selectedFrameCerca.name} (${selectedFrameCerca.sku || 'Stock'})`) : '(sin especificar)'}
+                      </div>
                     </div>
                   </div>
-                  <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '10px' }}>
-                    <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: '#555', marginBottom: '4px' }}>Color del Cristal</div>
-                    <div style={{ fontWeight: '700' }}>{lensColor || '(sin especificar)'}</div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+                    <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '10px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: '#555', marginBottom: '4px' }}>Marco / Armazón</div>
+                      <div style={{ fontWeight: '700' }}>
+                        {selectedFrame 
+                          ? (selectedFrame.isOwn ? 'PROPIO (Armazón del Cliente)' : `${selectedFrame.name} (${selectedFrame.sku || 'Stock'})`)
+                          : '(sin especificar)'}
+                      </div>
+                    </div>
+                    <div style={{ border: '1px solid #ddd', borderRadius: '6px', padding: '10px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', color: '#555', marginBottom: '4px' }}>Color del Cristal</div>
+                      <div style={{ fontWeight: '700' }}>{lensColor || '(sin especificar)'}</div>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Observaciones */}
                 {observaciones && (
@@ -1754,7 +1948,11 @@ export function NewOrder() {
                         <div className="flex items-center gap-1 bg-white dark:bg-slate-950 p-1 rounded-lg border border-indigo-200 dark:border-indigo-900/50 self-start sm:self-auto">
                           <button
                             type="button"
-                            onClick={() => setMultifocalSubType('multifocal')}
+                            onClick={() => {
+                              setMultifocalSubType('multifocal');
+                              setSelBrand('');
+                              setSelMaterial('');
+                            }}
                             className={cn(
                               "px-3 py-1 rounded-md text-xs font-bold transition-colors",
                               multifocalSubType === 'multifocal'
@@ -1766,7 +1964,11 @@ export function NewOrder() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setMultifocalSubType('bifocal')}
+                            onClick={() => {
+                              setMultifocalSubType('bifocal');
+                              setSelBrand('');
+                              setSelMaterial('');
+                            }}
                             className={cn(
                               "px-3 py-1 rounded-md text-xs font-bold transition-colors",
                               multifocalSubType === 'bifocal'
@@ -1936,201 +2138,588 @@ export function NewOrder() {
             </h3>
             <div className="space-y-2">
 
-              {/* Crystal — Modelo + Material + Selector de Cristal directo */}
+              {/* Crystal & Frame Selectors */}
               {!isContact && (
-                <div className="py-2 border-b border-slate-100 dark:border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cristal Seleccionado</p>
-                    <span className="text-[10px] font-bold text-slate-400">
-                      {availableCrystals.length} {availableCrystals.length === 1 ? 'opción' : 'opciones'}
-                    </span>
-                  </div>
-                  
-                  {/* 1. Filtros por Modelo y Material */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Modelo / Marca</label>
-                      <select
-                        value={selBrand}
-                        onChange={e => setSelBrand(e.target.value)}
-                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
-                      >
-                        <option value="">Todos los modelos</option>
-                        {availableBrandsForSelect.map(b => <option key={b} value={b}>{b}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Material</label>
-                      <select
-                        value={selMaterial}
-                        onChange={e => setSelMaterial(e.target.value)}
-                        className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
-                      >
-                        <option value="">Todos los materiales</option>
-                        {availableMaterialsForSelect.map(m => <option key={m} value={m}>{m}</option>)}
-                      </select>
-                    </div>
-                  </div>
+                isDoubleMonofocalActive ? (
+                  <div className="space-y-4 py-2 border-b border-slate-100 dark:border-slate-800">
+                    {/* TRABAJO 1: LEJOS */}
+                    <div className="p-3.5 bg-blue-50/40 dark:bg-blue-950/20 rounded-xl border border-blue-200 dark:border-blue-900/40 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-blue-100 dark:border-blue-900/30">
+                        <span className="text-xs font-black uppercase text-blue-800 dark:text-blue-300 flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5 text-blue-600" /> Trabajo 1: Lejos
+                        </span>
+                        <span className="text-xs font-black text-blue-700 dark:text-blue-300">
+                          Subtotal: ${subtotalLejos.toLocaleString('es-AR')}
+                        </span>
+                      </div>
 
-                  {/* 2. Desplegable del Cristal / Variante específica del catálogo */}
+                      {/* Cristal Lejos */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cristal Lejos</p>
+                          <span className="text-[10px] font-black text-blue-600 dark:text-blue-400">
+                            ${crystalPriceLejos.toLocaleString('es-AR')}
+                          </span>
+                        </div>
+
+                        {/* Filtros Modelo y Material */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Modelo / Marca</label>
+                            <select
+                              value={selBrand}
+                              onChange={e => setSelBrand(e.target.value)}
+                              className="h-8 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
+                            >
+                              <option value="">Todos los modelos</option>
+                              {availableBrandsForSelect.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Material</label>
+                            <select
+                              value={selMaterial}
+                              onChange={e => setSelMaterial(e.target.value)}
+                              className="h-8 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
+                            >
+                              <option value="">Todos los materiales</option>
+                              {availableMaterialsForSelect.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Selector de cristal Lejos */}
+                        <select
+                          value={selectedCrystal?.id || ""}
+                          onChange={e => {
+                            const chosen = crystalsOfType.find(c => c.id === e.target.value);
+                            if (chosen) {
+                              setSelectedCrystalId(chosen.id);
+                              setSelBrand(chosen.brand);
+                              setSelMaterial(chosen.material);
+                            }
+                          }}
+                          className="h-9 px-2.5 w-full rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none shadow-sm"
+                        >
+                          {availableCrystals.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} — ${c.basePrice.toLocaleString('es-AR')} ({c.brand} | {c.material})
+                            </option>
+                          ))}
+                          {availableCrystals.length === 0 && (
+                            <option value="">No hay cristales con este filtro</option>
+                          )}
+                        </select>
+
+                        {/* Tratamientos Lejos */}
+                        {(selectedCrystal?.treatments || []).length > 0 && (
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Tratamientos</label>
+                            <div className="flex flex-wrap gap-1">
+                              {selectedCrystal.treatments.map(t => {
+                                const isSelected = selectedTreatmentNames.includes(t);
+                                return (
+                                  <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isSelected) setSelectedTreatmentNames(selectedTreatmentNames.filter(x => x !== t));
+                                      else setSelectedTreatmentNames([...selectedTreatmentNames, t]);
+                                    }}
+                                    className={cn(
+                                      "px-2 py-0.5 rounded text-[9px] font-bold border transition-all",
+                                      isSelected
+                                        ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
+                                        : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300"
+                                    )}
+                                  >
+                                    {t}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Armazón Lejos */}
+                      <div className="space-y-1.5 pt-2 border-t border-blue-100 dark:border-blue-900/30">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Armazón Lejos</p>
+                          <span className="font-bold text-slate-900 dark:text-white text-xs">
+                            {selectedFrame?.isOwn ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">$0 (Propio)</span>
+                            ) : framePriceLejos > 0 ? (
+                              formatMoney(framePriceLejos)
+                            ) : (
+                              <span className="text-slate-400 font-normal">-</span>
+                            )}
+                          </span>
+                        </div>
+
+                        {selectedFrame ? (
+                          <div className="flex items-center justify-between bg-white dark:bg-slate-950 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {selectedFrame.isOwn ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                  Armazón Propio
+                                </span>
+                              ) : (
+                                <span className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                                  {selectedFrame.name} {selectedFrame.sku ? `(${selectedFrame.sku})` : ''}
+                                </span>
+                              )}
+                            </div>
+                            <button 
+                              type="button" 
+                              onClick={() => setSelectedFrame(null)} 
+                              className="text-slate-400 hover:text-red-500 p-1 transition-colors"
+                              title="Quitar marco"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFrame({ name: 'PROPIO (Del Cliente)', isOwn: true, numericPrice: 0 })}
+                              className="flex-1 h-7 rounded-lg text-[11px] font-bold border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-all flex items-center justify-center gap-1 shadow-sm"
+                            >
+                              <Check className="w-3 h-3" /> Propio
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setTargetFrameFor('lejos');
+                                setIsFrameModalOpen(true);
+                              }} 
+                              className="flex-1 h-7 rounded-lg text-[11px] font-bold border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 transition-all flex items-center justify-center gap-1 shadow-sm"
+                            >
+                              <Plus className="w-3 h-3" /> Del Stock
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* TRABAJO 2: CERCA */}
+                    <div className="p-3.5 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-xl border border-emerald-200 dark:border-emerald-900/40 space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-emerald-100 dark:border-emerald-900/30">
+                        <span className="text-xs font-black uppercase text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5 text-emerald-600" /> Trabajo 2: Cerca
+                        </span>
+                        <span className="text-xs font-black text-emerald-700 dark:text-emerald-300">
+                          Subtotal: ${subtotalCerca.toLocaleString('es-AR')}
+                        </span>
+                      </div>
+
+                      {/* Cristal Cerca */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cristal Cerca</p>
+                          <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400">
+                            ${crystalPriceCerca.toLocaleString('es-AR')}
+                          </span>
+                        </div>
+
+                        {/* Filtros Modelo y Material */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Modelo / Marca</label>
+                            <select
+                              value={selBrandCerca}
+                              onChange={e => setSelBrandCerca(e.target.value)}
+                              className="h-8 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-600 outline-none"
+                            >
+                              <option value="">Todos los modelos</option>
+                              {availableBrandsForSelectCerca.map(b => <option key={b} value={b}>{b}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-0.5">Material</label>
+                            <select
+                              value={selMaterialCerca}
+                              onChange={e => setSelMaterialCerca(e.target.value)}
+                              className="h-8 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-emerald-600 outline-none"
+                            >
+                              <option value="">Todos los materiales</option>
+                              {availableMaterialsForSelectCerca.map(m => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Selector de cristal Cerca */}
+                        <select
+                          value={selectedCrystalCerca?.id || ""}
+                          onChange={e => {
+                            const chosen = crystalsOfTypeCerca.find(c => c.id === e.target.value);
+                            if (chosen) {
+                              setSelectedCrystalIdCerca(chosen.id);
+                              setSelBrandCerca(chosen.brand);
+                              setSelMaterialCerca(chosen.material);
+                            }
+                          }}
+                          className="h-9 px-2.5 w-full rounded-lg border-2 border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-emerald-600 outline-none shadow-sm"
+                        >
+                          {availableCrystalsCerca.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} — ${c.basePrice.toLocaleString('es-AR')} ({c.brand} | {c.material})
+                            </option>
+                          ))}
+                          {availableCrystalsCerca.length === 0 && (
+                            <option value="">No hay cristales con este filtro</option>
+                          )}
+                        </select>
+
+                        {/* Tratamientos Cerca */}
+                        {(selectedCrystalCerca?.treatments || []).length > 0 && (
+                          <div>
+                            <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Tratamientos</label>
+                            <div className="flex flex-wrap gap-1">
+                              {selectedCrystalCerca.treatments.map(t => {
+                                const isSelected = selectedTreatmentNamesCerca.includes(t);
+                                return (
+                                  <button
+                                    key={t}
+                                    type="button"
+                                    onClick={() => {
+                                      if (isSelected) setSelectedTreatmentNamesCerca(selectedTreatmentNamesCerca.filter(x => x !== t));
+                                      else setSelectedTreatmentNamesCerca([...selectedTreatmentNamesCerca, t]);
+                                    }}
+                                    className={cn(
+                                      "px-2 py-0.5 rounded text-[9px] font-bold border transition-all",
+                                      isSelected
+                                        ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
+                                        : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300"
+                                    )}
+                                  >
+                                    {t}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Armazón Cerca */}
+                      <div className="space-y-1.5 pt-2 border-t border-emerald-100 dark:border-emerald-900/30">
+                        <div className="flex items-center justify-between">
+                          <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Armazón Cerca</p>
+                          <span className="font-bold text-slate-900 dark:text-white text-xs">
+                            {selectedFrameCerca?.isOwn ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">$0 (Propio)</span>
+                            ) : framePriceCerca > 0 ? (
+                              formatMoney(framePriceCerca)
+                            ) : (
+                              <span className="text-slate-400 font-normal">-</span>
+                            )}
+                          </span>
+                        </div>
+
+                        {selectedFrameCerca ? (
+                          <div className="flex items-center justify-between bg-white dark:bg-slate-950 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {selectedFrameCerca.isOwn ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                  Armazón Propio
+                                </span>
+                              ) : (
+                                <span className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                                  {selectedFrameCerca.name} {selectedFrameCerca.sku ? `(${selectedFrameCerca.sku})` : ''}
+                                </span>
+                              )}
+                            </div>
+                            <button 
+                              type="button" 
+                              onClick={() => setSelectedFrameCerca(null)} 
+                              className="text-slate-400 hover:text-red-500 p-1 transition-colors"
+                              title="Quitar marco"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedFrameCerca({ name: 'PROPIO (Del Cliente)', isOwn: true, numericPrice: 0 })}
+                              className="flex-1 h-7 rounded-lg text-[11px] font-bold border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-all flex items-center justify-center gap-1 shadow-sm"
+                            >
+                              <Check className="w-3 h-3" /> Propio
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setTargetFrameFor('cerca');
+                                setIsFrameModalOpen(true);
+                              }} 
+                              className="flex-1 h-7 rounded-lg text-[11px] font-bold border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 transition-all flex items-center justify-center gap-1 shadow-sm"
+                            >
+                              <Plus className="w-3 h-3" /> Del Stock
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* VISTA MONOFOCAL SIMPLE / MULTIFOCAL / BIFOCAL / OCUPACIONAL */
+                  <>
+                    <div className="py-2 border-b border-slate-100 dark:border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Cristal Seleccionado</p>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {availableCrystals.length} {availableCrystals.length === 1 ? 'opción' : 'opciones'}
+                        </span>
+                      </div>
+                      
+                      {/* 1. Filtros por Modelo y Material */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Modelo / Marca</label>
+                          <select
+                            value={selBrand}
+                            onChange={e => setSelBrand(e.target.value)}
+                            className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
+                          >
+                            <option value="">Todos los modelos</option>
+                            {availableBrandsForSelect.map(b => <option key={b} value={b}>{b}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Material</label>
+                          <select
+                            value={selMaterial}
+                            onChange={e => setSelMaterial(e.target.value)}
+                            className="h-9 px-2 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-semibold focus:ring-2 focus:ring-blue-600 outline-none"
+                          >
+                            <option value="">Todos los materiales</option>
+                            {availableMaterialsForSelect.map(m => <option key={m} value={m}>{m}</option>)}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* 2. Desplegable del Cristal / Variante específica del catálogo */}
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">
+                          Opción de Cristal del Catálogo
+                        </label>
+                        <select
+                          value={selectedCrystal?.id || ""}
+                          onChange={e => {
+                            const chosen = crystalsOfType.find(c => c.id === e.target.value);
+                            if (chosen) {
+                              setSelectedCrystalId(chosen.id);
+                              setSelBrand(chosen.brand);
+                              setSelMaterial(chosen.material);
+                            }
+                          }}
+                          className="h-10 px-2.5 w-full rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-blue-50/40 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none shadow-sm"
+                        >
+                          {availableCrystals.map(c => (
+                            <option key={c.id} value={c.id}>
+                              {c.name} — ${c.basePrice.toLocaleString('es-AR')} ({c.brand} | {c.material} {c.index ? `índ ${c.index}` : ''}{c.esfPlusCilMax ? ` | Suma máx ±${c.esfPlusCilMax}` : ''})
+                            </option>
+                          ))}
+                          {availableCrystals.length === 0 && (
+                            <option value="">No hay cristales con este filtro</option>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Tratamientos */}
+                      <div className="pt-1.5">
+                        <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Tratamientos Adicionales</label>
+                        <div className="flex flex-wrap gap-1">
+                          {(selectedCrystal?.treatments || []).map(t => {
+                            const isSelected = selectedTreatmentNames.includes(t);
+                            return (
+                              <button
+                                key={t}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedTreatmentNames(selectedTreatmentNames.filter(x => x !== t));
+                                  } else {
+                                    setSelectedTreatmentNames([...selectedTreatmentNames, t]);
+                                  }
+                                }}
+                                className={cn(
+                                  "px-2 py-1 rounded-lg text-[9px] font-bold border transition-all",
+                                  isSelected
+                                    ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
+                                    : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300"
+                                )}
+                              >
+                                {t}
+                              </button>
+                            );
+                          })}
+                          {(!selectedCrystal || !selectedCrystal.treatments || selectedCrystal.treatments.length === 0) && (
+                            <span className="text-[10px] text-slate-400 font-semibold bg-slate-50 dark:bg-slate-950 p-2 rounded w-full text-center">
+                              Sin tratamientos configurados para este cristal.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Resumen e información del cristal */}
+                      {selectedCrystal && hasPrescriptionCharged ? (
+                        <div className="space-y-1 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-850">
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{selectedCrystal.name}</p>
+                            <span className="text-xs font-black text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2">
+                              ${selectedCrystal.basePrice.toLocaleString('es-AR')}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-x-2 text-[10px] text-slate-500 dark:text-slate-400">
+                            <span>Marca: <strong>{selectedCrystal.brand}</strong></span>
+                            <span>•</span>
+                            <span>Material: <strong>{selectedCrystal.material} {selectedCrystal.index ? `(${selectedCrystal.index})` : ''}</strong></span>
+                            <span>•</span>
+                            <span>CIL máx: <strong>{selectedCrystal.cylMax >= 0 ? `+${selectedCrystal.cylMax}` : selectedCrystal.cylMax}</strong></span>
+                            {selectedCrystal.esfPlusCilMax !== undefined && selectedCrystal.esfPlusCilMax > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className="text-purple-600 dark:text-purple-400 font-bold">Suma máx: <strong>±{selectedCrystal.esfPlusCilMax}</strong></span>
+                              </>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-0.5">
+                            Ojos a procesar: {isSingleEyeCharged ? '1 Cristal (50% del par)' : 'Ambos Ojos (Par completo)'}
+                          </p>
+                          {selectedTreatmentNames.length > 0 && (
+                            <p className="text-[10px] text-emerald-600 dark:text-emerald-450 font-bold">
+                              Tratamientos: {selectedTreatmentNames.join(', ')}
+                            </p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-amber-500 font-semibold bg-amber-50/50 dark:bg-amber-950/20 p-2 rounded border border-amber-100 dark:border-amber-900/50">
+                          {!hasPrescriptionCharged 
+                            ? "Esperando que cargues dioptrías en la receta." 
+                            : "No se encontró ningún cristal configurado en el catálogo."}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Marco / Armazón */}
+                    <div className="py-2 border-b border-slate-100 dark:border-slate-800 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Marco / Armazón</p>
+                        <span className="font-bold text-slate-900 dark:text-white">
+                          {selectedFrame?.isOwn ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">$0 (Propio)</span>
+                          ) : framePrice > 0 ? (
+                            formatMoney(framePrice)
+                          ) : (
+                            <span className="text-slate-400 text-sm font-normal">-</span>
+                          )}
+                        </span>
+                      </div>
+
+                      {selectedFrame ? (
+                        <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-850 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                          <div className="flex items-center gap-2 min-w-0">
+                            {selectedFrame.isOwn ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                                Armazón Propio
+                              </span>
+                            ) : (
+                              <span className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                                {selectedFrame.name} {selectedFrame.sku ? `(${selectedFrame.sku})` : ''}
+                              </span>
+                            )}
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setSelectedFrame(null)} 
+                            className="text-slate-400 hover:text-red-500 p-1 transition-colors"
+                            title="Quitar marco"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 pt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedFrame({ name: 'PROPIO (Del Cliente)', isOwn: true, numericPrice: 0 })}
+                            className="flex-1 h-8 rounded-lg text-xs font-bold border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Marco Propio
+                          </button>
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setTargetFrameFor('single');
+                              setIsFrameModalOpen(true);
+                            }} 
+                            className="flex-1 h-8 rounded-lg text-xs font-bold border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Del Stock
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )
+              )}
+
+              {/* Selección de Obra Social y Cobertura (común para todos) */}
+              {!isContact && (
+                <div className="py-2.5 border-b border-slate-100 dark:border-slate-800 space-y-3">
                   <div>
-                    <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">
-                      Opción de Cristal del Catálogo
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
+                      Obra Social / Cobertura Médica
                     </label>
                     <select
-                      value={selectedCrystal?.id || ""}
-                      onChange={e => {
-                        const chosen = crystalsOfType.find(c => c.id === e.target.value);
-                        if (chosen) {
-                          setSelectedCrystalId(chosen.id);
-                          setSelBrand(chosen.brand);
-                          setSelMaterial(chosen.material);
-                        }
-                      }}
-                      className="h-10 px-2.5 w-full rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-blue-50/40 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none shadow-sm"
+                      value={activeInsuranceId}
+                      onChange={e => setSelectedInsuranceId(e.target.value)}
+                      className="w-full h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none"
                     >
-                      {availableCrystals.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.name} — ${c.basePrice.toLocaleString('es-AR')} ({c.brand} | {c.material} {c.index ? `índ ${c.index}` : ''}{c.esfPlusCilMax ? ` | Suma máx ±${c.esfPlusCilMax}` : ''})
-                        </option>
+                      <option value="">-- Ninguna (Particular) --</option>
+                      {insurances.map(ins => (
+                        <option key={ins.id} value={ins.id}>{ins.name}</option>
                       ))}
-                      {availableCrystals.length === 0 && (
-                        <option value="">No hay cristales con este filtro</option>
-                      )}
                     </select>
                   </div>
 
-                  {/* Tratamientos */}
-                  <div className="pt-1.5">
-                    <label className="text-[9px] font-bold text-slate-500 uppercase block mb-1">Tratamientos Adicionales</label>
-                    <div className="flex flex-wrap gap-1">
-                      {(selectedCrystal?.treatments || []).map(t => {
-                        const isSelected = selectedTreatmentNames.includes(t);
-                        return (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedTreatmentNames(selectedTreatmentNames.filter(x => x !== t));
-                              } else {
-                                setSelectedTreatmentNames([...selectedTreatmentNames, t]);
-                              }
-                            }}
-                            className={cn(
-                              "px-2 py-1 rounded-lg text-[9px] font-bold border transition-all",
-                              isSelected
-                                ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
-                                : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-slate-300"
-                            )}
-                          >
-                            {t}
-                          </button>
-                        );
-                      })}
-                      {(!selectedCrystal || !selectedCrystal.treatments || selectedCrystal.treatments.length === 0) && (
-                        <span className="text-[10px] text-slate-400 font-semibold bg-slate-50 dark:bg-slate-950 p-2 rounded w-full text-center">
-                          Sin tratamientos configurados para este cristal.
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Resumen e información del cristal */}
-                  {selectedCrystal && hasPrescriptionCharged ? (
-                    <div className="space-y-1 bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-850">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{selectedCrystal.name}</p>
-                        <span className="text-xs font-black text-blue-600 dark:text-blue-400 flex-shrink-0 ml-2">
-                          ${selectedCrystal.basePrice.toLocaleString('es-AR')}
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-x-2 text-[10px] text-slate-500 dark:text-slate-400">
-                        <span>Marca: <strong>{selectedCrystal.brand}</strong></span>
-                        <span>•</span>
-                        <span>Material: <strong>{selectedCrystal.material} {selectedCrystal.index ? `(${selectedCrystal.index})` : ''}</strong></span>
-                        <span>•</span>
-                        <span>CIL máx: <strong>{selectedCrystal.cylMax >= 0 ? `+${selectedCrystal.cylMax}` : selectedCrystal.cylMax}</strong></span>
-                        {selectedCrystal.esfPlusCilMax !== undefined && selectedCrystal.esfPlusCilMax > 0 && (
-                          <>
-                            <span>•</span>
-                            <span className="text-purple-600 dark:text-purple-400 font-bold">Suma máx: <strong>±{selectedCrystal.esfPlusCilMax}</strong></span>
-                          </>
-                        )}
-                      </div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 pt-0.5">
-                        Ojos a procesar: {isSingleEyeCharged ? '1 Cristal (50% del par)' : 'Ambos Ojos (Par completo)'}
+                  {activeInsuranceId && (
+                    <div className="space-y-2 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/40 animate-in fade-in duration-200">
+                      <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Reintegro / Cobertura a pedir:
                       </p>
-                      {selectedTreatmentNames.length > 0 && (
-                        <p className="text-[10px] text-emerald-600 dark:text-emerald-450 font-bold">
-                          Tratamientos: {selectedTreatmentNames.join(', ')}
-                        </p>
-                      )}
-                      {isDoubleFocusCharged && (
-                        <p className="text-[10px] text-blue-600 dark:text-blue-450 font-bold">
-                          ✓ Cotizando Lejos + Cerca (Suma)
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-amber-500 font-semibold bg-amber-50/50 dark:bg-amber-950/20 p-2 rounded border border-amber-100 dark:border-amber-900/50">
-                      {!hasPrescriptionCharged 
-                        ? "Esperando que cargues dioptrías en la receta." 
-                        : "No se encontró ningún cristal configurado en el catálogo."}
-                    </p>
-                  )}
-                  {/* Selección de Obra Social y Cobertura */}
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                        Obra Social / Cobertura Médica
-                      </label>
-                      <select
-                        value={activeInsuranceId}
-                        onChange={e => setSelectedInsuranceId(e.target.value)}
-                        className="w-full h-9 px-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none"
-                      >
-                        <option value="">-- Ninguna (Particular) --</option>
-                        {insurances.map(ins => (
-                          <option key={ins.id} value={ins.id}>{ins.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                      
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 block mb-0.5">Reintegro Cristal ($)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={manualCrystalCoverage}
+                            onChange={e => setManualCrystalCoverage(e.target.value)}
+                            placeholder={crystalCoverage > 0 && !manualCrystalCoverage ? crystalCoverage.toString() : "0"}
+                            className="w-full h-8 px-2 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
+                        </div>
 
-                    {activeInsuranceId && (
-                      <div className="space-y-2 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/40 animate-in fade-in duration-200">
-                        <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
-                          <ShieldCheck className="w-3.5 h-3.5" /> Reintegro / Cobertura a pedir:
-                        </p>
-                        
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 block mb-0.5">Reintegro Cristal ($)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={manualCrystalCoverage}
-                              onChange={e => setManualCrystalCoverage(e.target.value)}
-                              placeholder={crystalCoverage > 0 && !manualCrystalCoverage ? crystalCoverage.toString() : "0"}
-                              className="w-full h-8 px-2 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                            />
-                          </div>
-
-                          <div>
-                            <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 block mb-0.5">Reintegro Armazón ($)</label>
-                            <input
-                              type="number"
-                              min="0"
-                              value={manualFrameCoverage}
-                              onChange={e => setManualFrameCoverage(e.target.value)}
-                              placeholder={frameCoverage > 0 && !manualFrameCoverage ? frameCoverage.toString() : "0"}
-                              className="w-full h-8 px-2 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
-                            />
-                          </div>
+                        <div>
+                          <label className="text-[10px] font-semibold text-slate-600 dark:text-slate-400 block mb-0.5">Reintegro Armazón ($)</label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={manualFrameCoverage}
+                            onChange={e => setManualFrameCoverage(e.target.value)}
+                            placeholder={frameCoverage > 0 && !manualFrameCoverage ? frameCoverage.toString() : "0"}
+                            className="w-full h-8 px-2 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 text-xs font-bold outline-none focus:ring-2 focus:ring-emerald-500"
+                          />
                         </div>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
                   {crystalPrice > 0 && (
                     <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 mt-2">
@@ -2138,63 +2727,10 @@ export function NewOrder() {
                       <span className="text-sm font-black text-emerald-600">${crystalPrice.toLocaleString('es-AR')}</span>
                     </div>
                   )}
-                </div>
-              )}
-
-              {/* Frame */}
-              {!isContact && (
-                <div className="py-2 border-b border-slate-100 dark:border-slate-800 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Marco / Armazón</p>
-                    <span className="font-bold text-slate-900 dark:text-white">
-                      {selectedFrame?.isOwn ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 text-xs font-bold">$0 (Propio)</span>
-                      ) : framePrice > 0 ? (
-                        formatMoney(framePrice)
-                      ) : (
-                        <span className="text-slate-400 text-sm font-normal">-</span>
-                      )}
-                    </span>
-                  </div>
-
-                  {selectedFrame ? (
-                    <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-850 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800">
-                      <div className="flex items-center gap-2 min-w-0">
-                        {selectedFrame.isOwn ? (
-                          <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                            Armazón Propio
-                          </span>
-                        ) : (
-                          <span className="text-xs font-bold text-slate-800 dark:text-white truncate">
-                            {selectedFrame.name} {selectedFrame.sku ? `(${selectedFrame.sku})` : ''}
-                          </span>
-                        )}
-                      </div>
-                      <button 
-                        type="button" 
-                        onClick={() => setSelectedFrame(null)} 
-                        className="text-slate-400 hover:text-red-500 p-1 transition-colors"
-                        title="Quitar marco"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 pt-0.5">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedFrame({ name: 'PROPIO (Del Cliente)', isOwn: true, numericPrice: 0 })}
-                        className="flex-1 h-8 rounded-lg text-xs font-bold border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
-                      >
-                        <Check className="w-3.5 h-3.5" /> Marco Propio
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => setIsFrameModalOpen(true)} 
-                        className="flex-1 h-8 rounded-lg text-xs font-bold border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-all flex items-center justify-center gap-1.5 shadow-sm active:scale-98"
-                      >
-                        <Plus className="w-3.5 h-3.5" /> Del Stock
-                      </button>
+                  {framePrice > 0 && (
+                    <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800 rounded-lg p-2.5 mt-1">
+                      <span className="text-xs text-slate-500 font-bold">Total Armazones:</span>
+                      <span className="text-sm font-black text-emerald-600">${framePrice.toLocaleString('es-AR')}</span>
                     </div>
                   )}
                 </div>

@@ -261,10 +261,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
         // 2. Deduct stock for frame and crystal
         const branchNum = currentBranch?.id ? Number(currentBranch.id) : 1;
-        if (details.selectedFrame && !details.selectedFrame.isOwn && details.selectedFrame.sku) {
-          deductStock(details.selectedFrame.sku, branchNum, 1);
+        if (details.isDoubleMonofocal) {
+          const frameL = details.selectedFrameLejos || details.selectedFrame;
+          if (frameL && !frameL.isOwn && frameL.sku) {
+            deductStock(frameL.sku, branchNum, 1);
+          }
+          const frameC = details.selectedFrameCerca;
+          if (frameC && !frameC.isOwn && frameC.sku) {
+            deductStock(frameC.sku, branchNum, 1);
+          }
+        } else {
+          if (details.selectedFrame && !details.selectedFrame.isOwn && details.selectedFrame.sku) {
+            deductStock(details.selectedFrame.sku, branchNum, 1);
+          }
         }
-        if (details.selectedCrystal) {
+        if (details.selectedCrystal && details.selectedCrystal.sku) {
           deductStock(details.selectedCrystal.sku, branchNum, 1);
         }
 
@@ -282,6 +293,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             clientDni: rxClientDni,
             prescription: {
               type: details.prescriptionType || 'monofocal',
+              isDoubleMonofocal: details.isDoubleMonofocal,
+              selectedFrameLejos: details.selectedFrameLejos,
+              selectedCrystalLejos: details.selectedCrystalLejos || details.selectedCrystalItemLejos,
+              selectedFrameCerca: details.selectedFrameCerca,
+              selectedCrystalCerca: details.selectedCrystalCerca || details.selectedCrystalItemCerca,
               lejosOD: details.lejosOD,
               lejosOI: details.lejosOI,
               cercaOD: details.cercaOD,

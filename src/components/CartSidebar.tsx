@@ -131,6 +131,129 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
         const frame = details.selectedFrame;
         const crystal = details.selectedCrystalItem || details.selectedCrystal;
 
+        if (details.isDoubleMonofocal) {
+          const frameLejos = details.selectedFrameLejos || frame;
+          const crystalLejos = details.selectedCrystalItemLejos || details.selectedCrystalLejos || crystal;
+          const frameCerca = details.selectedFrameCerca;
+          const crystalCerca = details.selectedCrystalItemCerca || details.selectedCrystalCerca;
+
+          const treatmentsLejos = Array.isArray(details.selectedTreatmentsLejos) && details.selectedTreatmentsLejos.length > 0
+            ? details.selectedTreatmentsLejos.join(', ')
+            : (Array.isArray(details.selectedTreatments) ? details.selectedTreatments.join(', ') : '');
+
+          const treatmentsCerca = Array.isArray(details.selectedTreatmentsCerca) && details.selectedTreatmentsCerca.length > 0
+            ? details.selectedTreatmentsCerca.join(', ')
+            : '';
+
+          return `
+            <div style="margin-top: 18px; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 14px 16px; background: #fafafa; break-inside: avoid;">
+              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #2563eb; padding-bottom: 6px; margin-bottom: 12px;">
+                <h3 style="font-size: 13px; font-weight: 800; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.04em;">
+                  🔬 Ficha Técnica: Monofocales (Lejos y Cerca) ${prescriptionItems.length > 1 ? `(#${pIdx + 1})` : ''} - ${item.name}
+                </h3>
+                ${details.medico ? `<span style="font-size: 11px; font-weight: 600; color: #475569;">👨‍⚕️ Médico: <strong style="color:#0f172a;">${details.medico}</strong></span>` : ''}
+              </div>
+
+              <!-- TRABAJO 1: LEJOS -->
+              <div style="margin-bottom: 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; padding: 10px;">
+                <div style="font-weight: 800; color: #1e40af; font-size: 11px; text-transform: uppercase; margin-bottom: 6px;">
+                  👓 Trabajo 1: Visión de Lejos
+                </div>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; background: #fff;">
+                  <thead>
+                    <tr style="background: #dbeafe; text-align: center; font-size: 10px; text-transform: uppercase; color: #1e40af;">
+                      <th style="padding: 5px 8px; text-align: left; width: 25%;">Ojo</th>
+                      <th style="padding: 5px 8px; width: 25%;">Esfera (Esf)</th>
+                      <th style="padding: 5px 8px; width: 25%;">Cilindro (Cil)</th>
+                      <th style="padding: 5px 8px; width: 25%;">Eje (°)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="border-bottom: 1px solid #e2e8f0; text-align: center;">
+                      <td style="padding: 6px 8px; text-align: left; font-weight: 700; color: #1e3a8a;">OD</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.lejosOD?.esf || '-'}</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.lejosOD?.cil || '-'}</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.lejosOD?.eje ? `${details.lejosOD.eje}°` : '-'}</td>
+                    </tr>
+                    <tr style="text-align: center;">
+                      <td style="padding: 6px 8px; text-align: left; font-weight: 700; color: #1e3a8a;">OI</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.lejosOI?.esf || '-'}</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.lejosOI?.cil || '-'}</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.lejosOI?.eje ? `${details.lejosOI.eje}°` : '-'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10.5px;">
+                  <div style="background: #fff; border: 1px solid #bfdbfe; padding: 6px 8px; border-radius: 4px;">
+                    <strong>Cristal Lejos:</strong> ${crystalLejos?.name || 'Monofocal'}
+                    ${treatmentsLejos ? `<div style="color: #64748b; font-size: 9.5px;">Trat: ${treatmentsLejos}</div>` : ''}
+                  </div>
+                  <div style="background: #fff; border: 1px solid #bfdbfe; padding: 6px 8px; border-radius: 4px;">
+                    <strong>Armazón Lejos:</strong> ${frameLejos ? (frameLejos.isOwn ? 'Armazón Propio (Del Cliente)' : (frameLejos.name || frameLejos.model || 'Stock')) : 'No especificado'}
+                  </div>
+                </div>
+              </div>
+
+              <!-- TRABAJO 2: CERCA -->
+              <div style="margin-bottom: 12px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 10px;">
+                <div style="font-weight: 800; color: #065f46; font-size: 11px; text-transform: uppercase; margin-bottom: 6px;">
+                  📖 Trabajo 2: Visión de Cerca
+                </div>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 11px; background: #fff;">
+                  <thead>
+                    <tr style="background: #d1fae5; text-align: center; font-size: 10px; text-transform: uppercase; color: #065f46;">
+                      <th style="padding: 5px 8px; text-align: left; width: 25%;">Ojo</th>
+                      <th style="padding: 5px 8px; width: 25%;">Esfera (Esf)</th>
+                      <th style="padding: 5px 8px; width: 25%;">Cilindro (Cil)</th>
+                      <th style="padding: 5px 8px; width: 25%;">Eje (°)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style="border-bottom: 1px solid #e2e8f0; text-align: center;">
+                      <td style="padding: 6px 8px; text-align: left; font-weight: 700; color: #065f46;">OD</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.cercaOD?.esf || '-'}</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.cercaOD?.cil || '-'}</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.cercaOD?.eje ? `${details.cercaOD.eje}°` : '-'}</td>
+                    </tr>
+                    <tr style="text-align: center;">
+                      <td style="padding: 6px 8px; text-align: left; font-weight: 700; color: #065f46;">OI</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.cercaOI?.esf || '-'}</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.cercaOI?.cil || '-'}</td>
+                      <td style="padding: 6px 8px; font-weight: 700;">${details.cercaOI?.eje ? `${details.cercaOI.eje}°` : '-'}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 10.5px;">
+                  <div style="background: #fff; border: 1px solid #a7f3d0; padding: 6px 8px; border-radius: 4px;">
+                    <strong>Cristal Cerca:</strong> ${crystalCerca?.name || 'Monofocal'}
+                    ${treatmentsCerca ? `<div style="color: #64748b; font-size: 9.5px;">Trat: ${treatmentsCerca}</div>` : ''}
+                  </div>
+                  <div style="background: #fff; border: 1px solid #a7f3d0; padding: 6px 8px; border-radius: 4px;">
+                    <strong>Armazón Cerca:</strong> ${frameCerca ? (frameCerca.isOwn ? 'Armazón Propio (Del Cliente)' : (frameCerca.name || frameCerca.model || 'Stock')) : 'No especificado'}
+                  </div>
+                </div>
+              </div>
+
+              ${(details.internalLabCost || details.internalLabDescription) ? `
+                <div style="margin-top: 8px; font-size: 11px; background: #fff7ed; border: 1px solid #fdba74; padding: 7px 10px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <span style="font-weight: 800; color: #c2410c; text-transform: uppercase; font-size: 10px;">🔧 Trabajo de Taller Interno:</span>
+                    <span style="font-weight: 700; color: #7c2d12; margin-left: 6px;">${details.internalLabDescription || 'Servicio de laboratorio interno'}</span>
+                  </div>
+                  ${parseFloat(details.internalLabCost) > 0 ? `<span style="font-weight: 800; color: #c2410c;">$${parseFloat(details.internalLabCost).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</span>` : ''}
+                </div>
+              ` : ''}
+
+              ${(details.observaciones || details.deliveryDate) ? `
+                <div style="margin-top: 8px; font-size: 10.5px; background: #fff; border: 1px dashed #cbd5e1; padding: 8px 10px; border-radius: 6px;">
+                  ${details.deliveryDate ? `<span style="font-weight: 700; color: #059669;">📅 Fecha Estimada de Entrega: ${new Date(details.deliveryDate + 'T12:00:00').toLocaleDateString('es-AR')}</span> ` : ''}
+                  ${details.observaciones ? `<div style="color: #475569; margin-top: 2px;"><strong>Observaciones de Taller:</strong> ${details.observaciones}</div>` : ''}
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }
+
         // Formatear valores de receta con fallback limpio
         const odEsf = details.lejosOD?.esf || details.lejosOD?.esfera || details.cercaOD?.esf || details.cercaOD?.esfera || '-';
         const odCil = details.lejosOD?.cil || details.lejosOD?.cilindro || details.cercaOD?.cil || details.cercaOD?.cilindro || '-';
@@ -434,18 +557,42 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
             ? d.selectedTreatments.join(', ')
             : (Array.isArray(crystal?.treatments) && crystal.treatments.length > 0 ? crystal.treatments.join(', ') : '');
 
-          detailsText = `
-            <div style="font-size: 9px; color: #111; margin: 3px 0 4px 4px; border-left: 2px solid #333; padding-left: 5px; line-height: 1.35;">
-              ${d.medico ? `<div>Médico: ${d.medico}</div>` : ''}
-              ${odParts.length > 0 ? `<div><strong>OD:</strong> ${odParts.join(' | ')}</div>` : ''}
-              ${oiParts.length > 0 ? `<div><strong>OI:</strong> ${oiParts.join(' | ')}</div>` : ''}
-              ${(d.diOD || d.diOI) ? `<div>DI: ${d.diOD || '-'}/${d.diOI || '-'} mm ${d.apOD ? `| AP: ${d.apOD} mm` : ''}</div>` : ''}
-              ${d.selectedFrame ? `<div>Arm: ${d.selectedFrame.name || d.selectedFrame.model || 'Armazón'}${d.selectedFrame.color ? ` (${d.selectedFrame.color})` : ''}</div>` : ''}
-              ${crystalName ? `<div>Cristal: <strong>${crystalName}</strong></div>` : ''}
-              ${treatmentsList ? `<div>Tratamientos: ${treatmentsList}</div>` : ''}
-              ${(d.internalLabCost || d.internalLabDescription) ? `<div>Taller: ${d.internalLabDescription || 'Trabajo interno'}${parseFloat(d.internalLabCost) > 0 ? ` ($${parseFloat(d.internalLabCost).toLocaleString('es-AR')})` : ''}</div>` : ''}
-            </div>
-          `;
+          if (d.isDoubleMonofocal) {
+            const frameL = d.selectedFrameLejos || d.selectedFrame;
+            const crystalL = d.selectedCrystalItemLejos || d.selectedCrystalLejos || crystal;
+            const frameC = d.selectedFrameCerca;
+            const crystalC = d.selectedCrystalItemCerca || d.selectedCrystalCerca;
+
+            detailsText = `
+              <div style="font-size: 9px; color: #111; margin: 3px 0 4px 4px; border-left: 2px solid #333; padding-left: 5px; line-height: 1.35;">
+                ${d.medico ? `<div>Médico: ${d.medico}</div>` : ''}
+                <div style="font-weight:bold; margin-top:2px;">[1] LEJOS:</div>
+                <div>OD: Esf ${d.lejosOD?.esf || '-'} Cil ${d.lejosOD?.cil || '-'}${d.lejosOD?.eje ? ` x ${d.lejosOD.eje}°` : ''}</div>
+                <div>OI: Esf ${d.lejosOI?.esf || '-'} Cil ${d.lejosOI?.cil || '-'}${d.lejosOI?.eje ? ` x ${d.lejosOI.eje}°` : ''}</div>
+                <div>Arm: ${frameL ? (frameL.isOwn ? 'Propio' : (frameL.name || frameL.model || 'Stock')) : 'No especificado'}</div>
+                <div>Cristal: ${crystalL?.name || 'Monofocal'}</div>
+                <div style="font-weight:bold; margin-top:4px;">[2] CERCA:</div>
+                <div>OD: Esf ${d.cercaOD?.esf || '-'} Cil ${d.cercaOD?.cil || '-'}${d.cercaOD?.eje ? ` x ${d.cercaOD.eje}°` : ''}</div>
+                <div>OI: Esf ${d.cercaOI?.esf || '-'} Cil ${d.cercaOI?.cil || '-'}${d.cercaOI?.eje ? ` x ${d.cercaOI.eje}°` : ''}</div>
+                <div>Arm: ${frameC ? (frameC.isOwn ? 'Propio' : (frameC.name || frameC.model || 'Stock')) : 'No especificado'}</div>
+                <div>Cristal: ${crystalC?.name || 'Monofocal'}</div>
+                ${(d.internalLabCost || d.internalLabDescription) ? `<div>Taller: ${d.internalLabDescription || 'Trabajo interno'}${parseFloat(d.internalLabCost) > 0 ? ` ($${parseFloat(d.internalLabCost).toLocaleString('es-AR')})` : ''}</div>` : ''}
+              </div>
+            `;
+          } else {
+            detailsText = `
+              <div style="font-size: 9px; color: #111; margin: 3px 0 4px 4px; border-left: 2px solid #333; padding-left: 5px; line-height: 1.35;">
+                ${d.medico ? `<div>Médico: ${d.medico}</div>` : ''}
+                ${odParts.length > 0 ? `<div><strong>OD:</strong> ${odParts.join(' | ')}</div>` : ''}
+                ${oiParts.length > 0 ? `<div><strong>OI:</strong> ${oiParts.join(' | ')}</div>` : ''}
+                ${(d.diOD || d.diOI) ? `<div>DI: ${d.diOD || '-'}/${d.diOI || '-'} mm ${d.apOD ? `| AP: ${d.apOD} mm` : ''}</div>` : ''}
+                ${d.selectedFrame ? `<div>Arm: ${d.selectedFrame.name || d.selectedFrame.model || 'Armazón'}${d.selectedFrame.color ? ` (${d.selectedFrame.color})` : ''}</div>` : ''}
+                ${crystalName ? `<div>Cristal: <strong>${crystalName}</strong></div>` : ''}
+                ${treatmentsList ? `<div>Tratamientos: ${treatmentsList}</div>` : ''}
+                ${(d.internalLabCost || d.internalLabDescription) ? `<div>Taller: ${d.internalLabDescription || 'Trabajo interno'}${parseFloat(d.internalLabCost) > 0 ? ` ($${parseFloat(d.internalLabCost).toLocaleString('es-AR')})` : ''}</div>` : ''}
+              </div>
+            `;
+          }
         }
 
         return `
@@ -762,17 +909,46 @@ export function CartSidebar({ isOpen, onClose }: { isOpen: boolean; onClose?: ()
                             <span className="font-black text-slate-700 dark:text-slate-300">{item.details.client.name}</span>
                           </div>
                         )}
-                        {item.details.selectedFrame && (
-                          <div className="flex justify-between">
-                            <span className="font-bold text-slate-500">Armazón:</span>
-                            <span className="text-slate-700 dark:text-slate-300 font-medium">{item.details.selectedFrame.name}</span>
+                        {item.details.isDoubleMonofocal ? (
+                          <div className="space-y-1.5 pt-1 border-t border-slate-200/50 dark:border-slate-800/50">
+                            <div className="p-1.5 bg-blue-50/60 dark:bg-blue-950/40 rounded border border-blue-100 dark:border-blue-900/40 space-y-0.5">
+                              <span className="font-black text-blue-700 dark:text-blue-300 text-[9px] uppercase tracking-wider block">Trabajo 1: Lejos</span>
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Cristal:</span>
+                                <span className="text-slate-700 dark:text-slate-300 font-medium">{(item.details.selectedCrystalItemLejos || item.details.selectedCrystalLejos || item.details.selectedCrystal)?.name || 'Monofocal'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Armazón:</span>
+                                <span className="text-slate-700 dark:text-slate-300 font-medium">{(item.details.selectedFrameLejos || item.details.selectedFrame)?.name || ((item.details.selectedFrameLejos || item.details.selectedFrame)?.isOwn ? 'Propio' : '-')}</span>
+                              </div>
+                            </div>
+                            <div className="p-1.5 bg-emerald-50/60 dark:bg-emerald-950/40 rounded border border-emerald-100 dark:border-emerald-900/40 space-y-0.5">
+                              <span className="font-black text-emerald-700 dark:text-emerald-300 text-[9px] uppercase tracking-wider block">Trabajo 2: Cerca</span>
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Cristal:</span>
+                                <span className="text-slate-700 dark:text-slate-300 font-medium">{(item.details.selectedCrystalItemCerca || item.details.selectedCrystalCerca)?.name || 'Monofocal'}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-500">Armazón:</span>
+                                <span className="text-slate-700 dark:text-slate-300 font-medium">{item.details.selectedFrameCerca?.name || (item.details.selectedFrameCerca?.isOwn ? 'Propio' : '-')}</span>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                        {item.details.selectedCrystal && (
-                          <div className="flex justify-between">
-                            <span className="font-bold text-slate-500">Cristal:</span>
-                            <span className="text-slate-700 dark:text-slate-300 font-medium">{item.details.selectedCrystal.name}</span>
-                          </div>
+                        ) : (
+                          <>
+                            {item.details.selectedFrame && (
+                              <div className="flex justify-between">
+                                <span className="font-bold text-slate-500">Armazón:</span>
+                                <span className="text-slate-700 dark:text-slate-300 font-medium">{item.details.selectedFrame.name}</span>
+                              </div>
+                            )}
+                            {item.details.selectedCrystal && (
+                              <div className="flex justify-between">
+                                <span className="font-bold text-slate-500">Cristal:</span>
+                                <span className="text-slate-700 dark:text-slate-300 font-medium">{item.details.selectedCrystal.name}</span>
+                              </div>
+                            )}
+                          </>
                         )}
                         {item.details.lensColor && (
                           <div className="flex justify-between">

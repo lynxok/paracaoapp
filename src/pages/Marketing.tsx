@@ -324,10 +324,10 @@ export function Marketing() {
 
   const handleProgramAll = () => {
     if (customersPending.length === 0) {
-      alert("No hay recordatorios pendientes para programar.");
+      alert("No hay recordatorios pendientes para enviar.");
       return;
     }
-    alert(`Se han puesto en cola ${customersPending.length} recordatorios automáticos de WhatsApp para ser enviados gradualmente hoy.`);
+    alert(`Hay ${customersPending.length} recordatorios pendientes. Haz clic en el botón 'WhatsApp' de cada cliente para enviar el mensaje personalizado directamente a través de WhatsApp Web o tu aplicación de WhatsApp.`);
   };
 
   const upcomingMonths = [0, 1, 2].map(offset => {
@@ -435,9 +435,9 @@ export function Marketing() {
                               {campaign.status}
                             </span>
                             <span className="text-slate-400">•</span>
-                            <span className="text-slate-500">{campaign.sent} enviados</span>
+                            <span className="text-slate-500 font-medium">Envío manual (wa.me)</span>
                             <span className="text-slate-400">•</span>
-                            <span className="text-emerald-600 font-bold">{campaign.conversion} conv.</span>
+                            <span className="text-slate-400 italic text-[10px]">Sin métricas automáticas</span>
                           </div>
                         </div>
                       </div>
