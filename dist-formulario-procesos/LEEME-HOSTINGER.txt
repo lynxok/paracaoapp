@@ -1,0 +1,13 @@
+PUBLICACIÓN EN HOSTINGER
+
+1. Subí el contenido de esta carpeta al directorio web que elijas, por ejemplo:
+   public_html/relevamiento/
+
+2. La dirección resultante será similar a:
+   https://tudominio.com/relevamiento/
+
+3. Para cada persona externa, generá un token desde Supabase y compartí:
+   https://tudominio.com/relevamiento/?token=PEGAR_TOKEN
+
+4. No compartas la clave secreta de Supabase. El formulario utiliza únicamente la clave pública.
+

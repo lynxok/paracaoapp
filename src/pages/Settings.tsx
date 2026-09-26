@@ -212,7 +212,7 @@ export function Settings() {
   const [editingCategory, setEditingCategory] = useState({ oldName: '', newName: '' });
   const [newBank, setNewBank] = useState<{
     name: string;
-    type: 'Caja Efectivo' | 'Transferencia' | 'Tarjeta de Credito';
+    type: 'Caja Efectivo' | 'Transferencia' | 'Posnet' | 'Tarjeta de Credito';
     cbu: string;
     alias: string;
     accountNumber: string;
@@ -222,7 +222,7 @@ export function Settings() {
   const [editingBank, setEditingBank] = useState<{
     id: string;
     name: string;
-    type: 'Caja Efectivo' | 'Transferencia' | 'Tarjeta de Credito';
+    type: 'Caja Efectivo' | 'Transferencia' | 'Posnet' | 'Tarjeta de Credito';
     cbu: string;
     alias: string;
     accountNumber: string;
@@ -2734,9 +2734,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       className="h-11 px-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 outline-none focus:ring-2 focus:ring-blue-600 text-slate-900 dark:text-white font-medium"
                       required
                     >
-                      <option value="Caja Efectivo">Caja Efectivo</option>
-                      <option value="Transferencia">Transferencia</option>
-                      <option value="Tarjeta de Credito">Tarjeta de Credito</option>
+                      <option value="Transferencia">1. Transferencia (Banco / Billetera)</option>
+                      <option value="Caja Efectivo">2. Caja Efectivo (Físico)</option>
+                      <option value="Posnet">3. Posnet (Terminal de Tarjetas)</option>
                     </select>
                   </div>
                   <div className="flex flex-col gap-1.5">
@@ -2838,11 +2838,11 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       <div className={cn(
                         "p-2.5 rounded-xl",
                         bank.type === 'Caja Efectivo' ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600" :
-                        bank.type === 'Tarjeta de Credito' ? "bg-purple-50 dark:bg-purple-950/20 text-purple-600" :
+                        (bank.type === 'Posnet' || bank.type === 'Tarjeta de Credito') ? "bg-purple-50 dark:bg-purple-950/20 text-purple-600" :
                         "bg-blue-50 dark:bg-blue-900/20 text-blue-600"
                       )}>
                         {bank.type === 'Caja Efectivo' ? <Wallet className="w-5 h-5" /> :
-                         bank.type === 'Tarjeta de Credito' ? <CreditCard className="w-5 h-5" /> :
+                         (bank.type === 'Posnet' || bank.type === 'Tarjeta de Credito') ? <CreditCard className="w-5 h-5" /> :
                          <Building2 className="w-5 h-5" />}
                       </div>
                       <div>
@@ -2850,7 +2850,7 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                         <span className={cn(
                           "px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest mt-1 inline-block",
                           bank.type === 'Caja Efectivo' ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400" :
-                          bank.type === 'Tarjeta de Credito' ? "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400" :
+                          (bank.type === 'Posnet' || bank.type === 'Tarjeta de Credito') ? "bg-purple-100 text-purple-700 dark:bg-purple-950/30 dark:text-purple-400" :
                           "bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400"
                         )}>
                           {bank.type || 'Transferencia'}
@@ -2933,9 +2933,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                           className="h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 w-full focus:ring-2 focus:ring-blue-600 outline-none text-slate-900 dark:text-white font-medium"
                           required
                         >
-                          <option value="Caja Efectivo">Caja Efectivo</option>
-                          <option value="Transferencia">Transferencia</option>
-                          <option value="Tarjeta de Credito">Tarjeta de Credito</option>
+                          <option value="Transferencia">1. Transferencia (Banco / Billetera)</option>
+                          <option value="Caja Efectivo">2. Caja Efectivo (Físico)</option>
+                          <option value="Posnet">3. Posnet (Terminal de Tarjetas)</option>
                         </select>
                       </div>
                       <div className="flex flex-col gap-1.5">

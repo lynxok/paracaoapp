@@ -106,6 +106,17 @@ export interface Transaction {
   clientId?: string;
   clientName?: string;
   reconciled?: boolean;
+  couponNumber?: string;
+  liquidationId?: string;
+  liquidationDate?: string;
+  destinationBoxId?: string;
+  deductions?: {
+    commission?: number;
+    taxes?: number;
+    vat?: number;
+    other?: number;
+  };
+  netAmount?: number;
 }
 
 export interface SupplierTransaction {
@@ -135,7 +146,7 @@ export interface Supplier {
   transactions: SupplierTransaction[];
 }
 
-export type CashBoxType = 'cash' | 'bank' | 'digital' | 'credit_card';
+export type CashBoxType = 'cash' | 'bank' | 'posnet' | 'credit_card' | 'digital';
 
 export interface CashBox {
   id: string;

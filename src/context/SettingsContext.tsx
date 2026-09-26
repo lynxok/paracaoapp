@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 export interface BankEntity {
   id: string;
   name: string;
-  type: 'Caja Efectivo' | 'Transferencia' | 'Tarjeta de Credito';
+  type: 'Caja Efectivo' | 'Transferencia' | 'Posnet' | 'Tarjeta de Credito';
   cbu?: string;
   alias?: string;
   accountNumber?: string;
@@ -114,6 +114,8 @@ const INITIAL_BANKS: BankEntity[] = [
   { id: '1', name: "Banco Galicia", type: 'Transferencia', cbu: "", alias: "", accountNumber: "", associatedBanks: [] },
   { id: '2', name: "Banco Santander", type: 'Transferencia', cbu: "", alias: "", accountNumber: "", associatedBanks: [] },
   { id: '3', name: "Mercado Pago", type: 'Transferencia', cbu: "", alias: "", accountNumber: "", associatedBanks: [] },
+  { id: '4', name: "Caja Efectivo", type: 'Caja Efectivo', cbu: "", alias: "", accountNumber: "", associatedBanks: [] },
+  { id: '5', name: "Posnet Payway", type: 'Posnet', cbu: "", alias: "", accountNumber: "", associatedBanks: [] },
 ];
 
 const INITIAL_PDF_CONFIG: PDFConfig = {
@@ -441,14 +443,17 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         let loadedBanks: BankEntity[] = [];
         if (bankData && bankData.length > 0) {
           loadedBanks = bankData.map((b: any) => {
-            let resolvedType: 'Caja Efectivo' | 'Transferencia' | 'Tarjeta de Credito' = 'Transferencia';
-            if (b.type === 'Caja Efectivo' || b.type === 'Transferencia' || b.type === 'Tarjeta de Credito') {
+            let resolvedType: 'Caja Efectivo' | 'Transferencia' | 'Posnet' | 'Tarjeta de Credito' = 'Transferencia';
+            if (b.type === 'Caja Efectivo' || b.type === 'Transferencia' || b.type === 'Posnet' || b.type === 'Tarjeta de Credito') {
               resolvedType = b.type;
             } else {
-              if (b.name.toLowerCase().includes('efectivo') || b.name.toLowerCase().includes('caja')) {
+              const nameLower = (b.name || '').toLowerCase();
+              if (nameLower.includes('efectivo') || nameLower.includes('caja')) {
                 resolvedType = 'Caja Efectivo';
-              } else if (b.name.toLowerCase().includes('tarjeta') || b.name.toLowerCase().includes('visa') || b.name.toLowerCase().includes('master')) {
-                resolvedType = 'Tarjeta de Credito';
+              } else if (nameLower.includes('posnet') || nameLower.includes('tarjeta') || nameLower.includes('visa') || nameLower.includes('master') || nameLower.includes('payway') || nameLower.includes('clover') || nameLower.includes('lapos')) {
+                resolvedType = 'Posnet';
+              } else {
+                resolvedType = 'Transferencia';
               }
             }
 

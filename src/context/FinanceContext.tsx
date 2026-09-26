@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useMemo, useEffect } from 'react';
 import { CashBox, CashBoxType, Transaction, FinanceCategory, Supplier, SupplierTransaction, Cheque } from '../types';
 import { useNotifications } from './NotificationsContext';
+import { useSettings } from './SettingsContext';
 
 interface FinanceContextType {
   boxes: CashBox[];
@@ -16,6 +17,21 @@ interface FinanceContextType {
   addSupplier: (supplier: Omit<Supplier, 'id' | 'balance' | 'transactions'>) => void;
   linkPaymentToInvoices: (supplierId: string, invoiceIds: string[]) => void;
   toggleTransactionReconciliation: (transactionId: string) => void;
+  updateTransactionCoupon: (transactionId: string, couponNumber: string) => Promise<void>;
+  liquidatePosnetBatch: (params: {
+    sourceBoxId: string;
+    destinationBoxId: string;
+    transactionIds: string[];
+    couponUpdates: Record<string, string>;
+    grossAmount: number;
+    commission: number;
+    taxes: number;
+    vat: number;
+    otherExpenses: number;
+    netAmount: number;
+    notes?: string;
+    date?: string;
+  }) => Promise<void>;
   updateBoxClosingBalance: (boxId: string, balance: number) => void;
   addCheques: (chequesList: Cheque[]) => void;
   updateChequeStatus: (id: string, status: Cheque['status'], boxId?: string) => void;
@@ -37,59 +53,118 @@ const DEFAULT_CASH_BOX: CashBox = {
 };
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { banks: settingsBanks } = useSettings();
   const [boxes, setBoxes] = useState<CashBox[]>([DEFAULT_CASH_BOX]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [cheques, setCheques] = useState<Cheque[]>([]);
 
+  // Helper mapping function for Cajas
+  const mapBankToCashBox = (b: any): CashBox => {
+    let type: CashBoxType = 'bank';
+    const bTypeLower = String(b.type || '').toLowerCase();
+    if (bTypeLower === 'caja efectivo' || bTypeLower === 'cash') {
+      type = 'cash';
+    } else if (
+      bTypeLower === 'posnet' || 
+      bTypeLower === 'tarjeta de credito' || 
+      bTypeLower === 'credit_card' ||
+      bTypeLower === 'tarjeta'
+    ) {
+      type = 'posnet';
+    } else if (bTypeLower === 'transferencia' || bTypeLower === 'bank') {
+      type = 'bank';
+    } else {
+      const nameLower = (b.name || '').toLowerCase();
+      if (nameLower.includes('efectivo') || nameLower.includes('caja')) {
+        type = 'cash';
+      } else if (
+        nameLower.includes('posnet') || 
+        nameLower.includes('tarjeta') || 
+        nameLower.includes('visa') || 
+        nameLower.includes('master') || 
+        nameLower.includes('payway') || 
+        nameLower.includes('pedway') || 
+        nameLower.includes('getnet') || 
+        nameLower.includes('clover') || 
+        nameLower.includes('lapos') ||
+        nameLower.includes('point')
+      ) {
+        type = 'posnet';
+      } else if (nameLower.includes('pago') || nameLower.includes('digital') || nameLower.includes('mp')) {
+        type = 'digital';
+      } else {
+        type = 'bank';
+      }
+    }
+
+    let associated: string[] = [];
+    const rawAssociated = b.associated_banks || b.associatedBanks;
+    if (rawAssociated) {
+      if (Array.isArray(rawAssociated)) {
+        associated = rawAssociated;
+      } else {
+        try {
+          associated = JSON.parse(rawAssociated);
+        } catch (e) {
+          if (typeof rawAssociated === 'string' && rawAssociated.length > 0) {
+            associated = rawAssociated.split(',');
+          }
+        }
+      }
+    }
+
+    const boxId = b.id ? (String(b.id).startsWith('bank-') ? String(b.id) : `bank-${b.id}`) : `bank-${Date.now()}`;
+
+    return {
+      id: boxId,
+      name: b.name,
+      type,
+      initialBalance: b.initialBalance || 0,
+      incomes: 0,
+      expenses: 0,
+      expectedCash: 0,
+      physicalCount: {},
+      lastClosingBalance: 0,
+      associatedBanks: associated.map((id: string) => id.startsWith('bank-') ? id : `bank-${id}`)
+    };
+  };
+
+  // Re-sync boxes whenever settingsBanks or transactions change
+  useEffect(() => {
+    if (!settingsBanks || settingsBanks.length === 0) return;
+
+    const dynamicBankBoxes: CashBox[] = settingsBanks.map(mapBankToCashBox);
+    const hasDefaultId = dynamicBankBoxes.some(box => box.id === DEFAULT_CASH_BOX.id);
+    const allBaseBoxes = hasDefaultId ? dynamicBankBoxes : [DEFAULT_CASH_BOX, ...dynamicBankBoxes];
+
+    setBoxes(prevBoxes => {
+      return allBaseBoxes.map(baseBox => {
+        const existing = prevBoxes.find(b => b.id === baseBox.id);
+        const boxTx = transactions.filter(t => 
+          t.boxId === baseBox.id || 
+          t.boxId === baseBox.id.replace('bank-', '') || 
+          (t.method && baseBox.name.toLowerCase() === t.method.toLowerCase())
+        );
+        const incomes = boxTx.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
+        const expenses = boxTx.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+        return {
+          ...baseBox,
+          initialBalance: existing?.initialBalance || baseBox.initialBalance || 0,
+          incomes,
+          expenses,
+          expectedCash: baseBox.type === 'cash' ? (existing?.initialBalance || 0) + incomes - expenses : undefined,
+          physicalCount: existing?.physicalCount || {},
+          lastClosingBalance: existing?.lastClosingBalance || 0
+        };
+      });
+    });
+  }, [settingsBanks, transactions]);
+
   // Load boxes, transactions, and suppliers directly from Supabase on mount
   useEffect(() => {
     async function loadFinanceData() {
       try {
-        // Helper mapping function for Cajas
-        const mapBankToCashBox = (b: any): CashBox => {
-          let type: CashBoxType = 'bank';
-          if (b.type === 'Caja Efectivo') type = 'cash';
-          else if (b.type === 'Tarjeta de Credito') type = 'credit_card';
-          else if (b.type === 'Transferencia') type = 'bank';
-          else {
-            const nameLower = b.name.toLowerCase();
-            if (nameLower.includes('efectivo') || nameLower.includes('caja')) {
-              type = 'cash';
-            } else if (nameLower.includes('tarjeta') || nameLower.includes('visa') || nameLower.includes('master')) {
-              type = 'credit_card';
-            } else if (nameLower.includes('pago') || nameLower.includes('digital')) {
-              type = 'digital';
-            } else {
-              type = 'bank';
-            }
-          }
-
-          let associated: string[] = [];
-          if (b.associated_banks) {
-            try {
-              associated = JSON.parse(b.associated_banks);
-            } catch (e) {
-              if (typeof b.associated_banks === 'string' && b.associated_banks.length > 0) {
-                associated = b.associated_banks.split(',');
-              }
-            }
-          }
-
-          return {
-            id: `bank-${b.id}`,
-            name: b.name,
-            type,
-            initialBalance: 0,
-            incomes: 0,
-            expenses: 0,
-            expectedCash: 0,
-            physicalCount: {},
-            lastClosingBalance: 0,
-            associatedBanks: associated.map((id: string) => `bank-${id}`)
-          };
-        };
-
         // 1. Fetch Banks to dynamically construct Bank CashBoxes (with local storage fallback)
         let activeBanks: any[] = [];
         try {
@@ -133,7 +208,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             boxId: t.box_id,
             clientId: t.client_id,
             clientName: t.client_name,
-            reconciled: t.reconciled
+            reconciled: t.reconciled,
+            couponNumber: t.coupon_number || t.couponNumber,
+            liquidationId: t.liquidation_id || t.liquidationId,
+            liquidationDate: t.liquidation_date || t.liquidationDate,
+            destinationBoxId: t.destination_box_id || t.destinationBoxId,
+            deductions: typeof t.deductions === 'string' ? JSON.parse(t.deductions) : t.deductions,
+            netAmount: t.net_amount !== undefined && t.net_amount !== null ? Number(t.net_amount) : undefined
           }));
           // Extra defensiveness: guarantee newest first
           loadedTx.sort((a, b) => {
@@ -146,7 +227,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         // Calculate box expected values based on loaded transactions
         const updatedBoxes = initialBoxes.map(box => {
-          const boxTx = loadedTx.filter(t => t.boxId === box.id);
+          const boxTx = loadedTx.filter(t => 
+            t.boxId === box.id || 
+            t.boxId === box.id.replace('bank-', '') || 
+            (t.method && box.name.toLowerCase() === t.method.toLowerCase())
+          );
           const incomes = boxTx.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
           const expenses = boxTx.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
           return {
@@ -259,7 +344,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         box_id: tx.boxId,
         client_id: tx.clientId,
         client_name: tx.clientName,
-        reconciled: tx.reconciled || false
+        reconciled: tx.reconciled || false,
+        coupon_number: tx.couponNumber || null,
+        liquidation_id: tx.liquidationId || null,
+        liquidation_date: tx.liquidationDate || null,
+        destination_box_id: tx.destinationBoxId || null,
+        deductions: tx.deductions ? JSON.stringify(tx.deductions) : null,
+        net_amount: tx.netAmount !== undefined ? tx.netAmount : null
       }]);
     } catch (e) {
       console.error("Supabase addTransaction error:", e);
@@ -409,6 +500,161 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
+  const updateTransactionCoupon = async (transactionId: string, couponNumber: string) => {
+    setTransactions(prev => prev.map(tx => {
+      if (tx.id === transactionId) {
+        return { ...tx, couponNumber };
+      }
+      return tx;
+    }));
+    try {
+      await supabase.from('transactions').update({ coupon_number: couponNumber }).eq('id', transactionId);
+    } catch (e) {
+      console.error("Supabase updateTransactionCoupon error:", e);
+    }
+  };
+
+  const liquidatePosnetBatch = async ({
+    sourceBoxId,
+    destinationBoxId,
+    transactionIds,
+    couponUpdates,
+    grossAmount,
+    commission,
+    taxes,
+    vat,
+    otherExpenses,
+    netAmount,
+    notes,
+    date
+  }: {
+    sourceBoxId: string;
+    destinationBoxId: string;
+    transactionIds: string[];
+    couponUpdates: Record<string, string>;
+    grossAmount: number;
+    commission: number;
+    taxes: number;
+    vat: number;
+    otherExpenses: number;
+    netAmount: number;
+    notes?: string;
+    date?: string;
+  }) => {
+    const liqId = `LIQ-${Date.now().toString().slice(-6)}`;
+    const now = new Date();
+    const dateStr = date || now.toISOString().split('T')[0];
+    const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+
+    const sourceBox = boxes.find(b => b.id === sourceBoxId);
+    const destBox = boxes.find(b => b.id === destinationBoxId);
+    const sourceName = sourceBox?.name || 'Posnet';
+    const destName = destBox?.name || 'Caja Destino';
+
+    const totalDeductions = (commission || 0) + (taxes || 0) + (vat || 0) + (otherExpenses || 0);
+
+    // 1. Update source transactions
+    setTransactions(prev => prev.map(tx => {
+      if (transactionIds.includes(tx.id)) {
+        const coupon = couponUpdates[tx.id] !== undefined ? couponUpdates[tx.id] : (tx.couponNumber || '');
+        return {
+          ...tx,
+          reconciled: true,
+          couponNumber: coupon,
+          liquidationId: liqId,
+          liquidationDate: dateStr,
+          destinationBoxId: destinationBoxId
+        };
+      }
+      return tx;
+    }));
+
+    // Update in Supabase
+    try {
+      await Promise.all(transactionIds.map(txId => {
+        const coupon = couponUpdates[txId] || '';
+        return supabase.from('transactions').update({
+          reconciled: true,
+          coupon_number: coupon || null,
+          liquidation_id: liqId,
+          liquidation_date: dateStr,
+          destination_box_id: destinationBoxId
+        }).eq('id', txId);
+      }));
+    } catch (e) {
+      console.error("Error updating reconciled posnet transactions in Supabase:", e);
+    }
+
+    // 2. Generate Net Income in Destination Box
+    const deductionsSummary = [
+      commission > 0 ? `Comis: $${commission.toLocaleString()}` : '',
+      taxes > 0 ? `Imp: $${taxes.toLocaleString()}` : '',
+      vat > 0 ? `IVA: $${vat.toLocaleString()}` : '',
+      otherExpenses > 0 ? `Otros: $${otherExpenses.toLocaleString()}` : ''
+    ].filter(Boolean).join(', ');
+
+    const incomeConcept = `Acreditación Liquidación ${sourceName} (${liqId})${deductionsSummary ? ` [Bruto: $${grossAmount.toLocaleString()} - Deduc: $${totalDeductions.toLocaleString()} (${deductionsSummary})]` : ''}${notes ? ` - ${notes}` : ''}`;
+
+    const destIncomeTx: Transaction = {
+      id: `tx-liq-inc-${Date.now()}`,
+      date: dateStr,
+      time: timeStr,
+      concept: incomeConcept,
+      method: 'Posnet',
+      amount: netAmount,
+      type: 'income',
+      category: 'Cobros',
+      boxId: destinationBoxId,
+      reconciled: true,
+      liquidationId: liqId,
+      liquidationDate: dateStr,
+      netAmount: netAmount,
+      deductions: {
+        commission,
+        taxes,
+        vat,
+        other: otherExpenses
+      }
+    };
+
+    // 3. Generate Gross Outflow in Source Posnet Box so balance stays balanced
+    const sourceExpenseTx: Transaction = {
+      id: `tx-liq-out-${Date.now()}`,
+      date: dateStr,
+      time: timeStr,
+      concept: `Liquidación y Depósito en ${destName} (${liqId}) [Bruto: $${grossAmount.toLocaleString()}]`,
+      method: 'Posnet',
+      amount: grossAmount,
+      type: 'expense',
+      category: 'transferencia',
+      boxId: sourceBoxId,
+      reconciled: true,
+      liquidationId: liqId,
+      liquidationDate: dateStr,
+      netAmount: netAmount,
+      destinationBoxId: destinationBoxId,
+      deductions: {
+        commission,
+        taxes,
+        vat,
+        other: otherExpenses
+      }
+    };
+
+    addTransaction(sourceExpenseTx);
+    addTransaction(destIncomeTx);
+
+    addNotification({
+      title: "Liquidación Posnet Exitosa",
+      desc: `Se liquidaron ${transactionIds.length} cobros por un neto de $${netAmount.toLocaleString()} acreditados en "${destName}".`,
+      type: "success",
+      category: "Finanzas",
+      iconName: "CreditCard",
+      color: "text-emerald-500",
+      bg: "bg-emerald-50 dark:bg-emerald-900/20"
+    });
+  };
+
   const { addNotification } = useNotifications();
 
   const updateBoxClosingBalance = (boxId: string, balance: number) => {
@@ -441,13 +687,13 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
             // Helper mapping function inline for realtime payload
             const b = payload.new;
             let type: CashBoxType = 'bank';
-            if (b.type === 'Caja Efectivo') type = 'cash';
-            else if (b.type === 'Tarjeta de Credito') type = 'credit_card';
-            else if (b.type === 'Transferencia') type = 'bank';
+            if (b.type === 'Caja Efectivo' || b.type === 'cash') type = 'cash';
+            else if (b.type === 'Posnet' || b.type === 'Tarjeta de Credito' || b.type === 'posnet' || b.type === 'credit_card') type = 'posnet';
+            else if (b.type === 'Transferencia' || b.type === 'bank') type = 'bank';
             else {
-              const nameLower = b.name.toLowerCase();
+              const nameLower = (b.name || '').toLowerCase();
               if (nameLower.includes('efectivo') || nameLower.includes('caja')) type = 'cash';
-              else if (nameLower.includes('tarjeta') || nameLower.includes('visa') || nameLower.includes('master')) type = 'credit_card';
+              else if (nameLower.includes('posnet') || nameLower.includes('tarjeta') || nameLower.includes('visa') || nameLower.includes('master') || nameLower.includes('payway') || nameLower.includes('clover') || nameLower.includes('lapos')) type = 'posnet';
               else if (nameLower.includes('pago') || nameLower.includes('digital')) type = 'digital';
             }
 
@@ -686,6 +932,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       addSupplier,
       linkPaymentToInvoices,
       toggleTransactionReconciliation,
+      updateTransactionCoupon,
+      liquidatePosnetBatch,
       updateBoxClosingBalance,
       addCheques,
       updateChequeStatus

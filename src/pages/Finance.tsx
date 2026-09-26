@@ -37,6 +37,7 @@ import { CashBox, Transaction, Denomination, FinanceCategory, Cheque } from "../
 import { BoxForm } from "../components/finance/BoxForm";
 import { TransactionForm } from "../components/finance/TransactionForm";
 import { BankReconciliation } from "../components/finance/BankReconciliation";
+import { PosnetReconciliation } from "../components/finance/PosnetReconciliation";
 import { TransferForm } from "../components/finance/TransferForm";
 
 const INITIAL_DENOMINATIONS: Denomination[] = [
@@ -73,7 +74,7 @@ const FINANCE_CATEGORIES: FinanceCategory[] = [
   { id: 'transferencia', name: 'Transferencia Int.', type: 'expense' },
 ];
 
-type FinanceTab = 'cajas' | 'ingresos' | 'egresos' | 'transferencias' | 'conciliacion' | 'cheques';
+type FinanceTab = 'cajas' | 'ingresos' | 'egresos' | 'transferencias' | 'posnet' | 'conciliacion' | 'cheques';
 
 export function Finance() {
   const { 
@@ -87,6 +88,8 @@ export function Finance() {
     addSupplierTransaction, 
     linkPaymentToInvoices,
     toggleTransactionReconciliation,
+    updateTransactionCoupon,
+    liquidatePosnetBatch,
     updateBoxClosingBalance,
     voidTransaction,
     updateChequeStatus
@@ -477,6 +480,15 @@ export function Finance() {
             <ArrowLeftRight className="w-4 h-4" /> Transferencias
           </button>
           <button 
+            onClick={() => setActiveTab('posnet')}
+            className={cn(
+              "shrink-0 flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all",
+              activeTab === 'posnet' ? "bg-purple-600 text-white shadow-lg shadow-purple-600/20" : "text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"
+            )}
+          >
+            <CreditCard className="w-4 h-4" /> Posnet / Cupones
+          </button>
+          <button 
             onClick={() => setActiveTab('cheques')}
             className={cn(
               "shrink-0 flex items-center justify-center gap-1.5 px-3.5 sm:px-5 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all",
@@ -530,50 +542,106 @@ export function Finance() {
               </p>
             </button>
 
-            <div className="pt-2">
-              <div className="flex items-center justify-between px-2 mb-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tus Cajas</p>
+            <div className="pt-2 space-y-4">
+              <div className="flex items-center justify-between px-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Tus Cajas y Cuentas</p>
                 <button 
                   onClick={() => setShowAddBox(true)}
                   className="text-blue-600 hover:text-blue-700 p-1 rounded-full hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                  title="Nueva Caja / Cuenta"
                 >
                   <PlusCircle className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="space-y-2">
-                {boxes.map(box => (
-                  <button 
-                    key={box.id}
-                    onClick={() => setSelectedBoxId(box.id)}
-                    className={cn(
-                      "w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group",
-                      selectedBoxId === box.id 
-                        ? "bg-slate-900 border-slate-900 text-white dark:bg-slate-950 dark:text-white dark:border-slate-800 shadow-lg" 
-                        : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
-                    )}
-                  >
-                    <div className={cn(
-                      "p-2 rounded-lg",
-                      selectedBoxId === box.id ? "bg-white/10 dark:bg-white/10" : "bg-slate-50 dark:bg-slate-800"
-                    )}>
-                      {box.type === 'cash' ? <Banknote className="w-4 h-4" /> : 
-                       box.type === 'bank' ? <Building className="w-4 h-4" /> : 
-                       box.type === 'credit_card' ? <CreditCard className="w-4 h-4" /> :
-                       <Wallet className="w-4 h-4" />}
+              {/* Helper box rendering function inline */}
+              {(() => {
+                const renderBoxBtn = (box: CashBox) => {
+                  const bal = box.initialBalance + box.incomes - box.expenses;
+                  const isPosnet = box.type === 'posnet' || box.type === 'credit_card';
+                  const isCash = box.type === 'cash';
+                  const isBank = box.type === 'bank' || box.type === 'digital';
+
+                  return (
+                    <button 
+                      key={box.id}
+                      onClick={() => setSelectedBoxId(box.id)}
+                      className={cn(
+                        "w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group",
+                        selectedBoxId === box.id 
+                          ? "bg-slate-900 border-slate-900 text-white dark:bg-slate-950 dark:text-white dark:border-slate-800 shadow-lg" 
+                          : "bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600"
+                      )}
+                    >
+                      <div className={cn(
+                        "p-2 rounded-lg",
+                        selectedBoxId === box.id ? "bg-white/10 dark:bg-white/10" : "bg-slate-50 dark:bg-slate-800",
+                        isPosnet && selectedBoxId !== box.id && "text-purple-600 dark:text-purple-400 bg-purple-50/50 dark:bg-purple-950/30",
+                        isCash && selectedBoxId !== box.id && "text-amber-600 dark:text-amber-400 bg-amber-50/50 dark:bg-amber-950/30",
+                        isBank && selectedBoxId !== box.id && "text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-950/30"
+                      )}>
+                        {isCash ? <Banknote className="w-4 h-4" /> : 
+                         isBank ? <Building className="w-4 h-4" /> : 
+                         <CreditCard className="w-4 h-4" />}
+                      </div>
+                      <div className="flex-1 overflow-hidden">
+                        <p className="text-sm font-bold truncate">{box.name}</p>
+                        <p className={cn("text-[10px]", selectedBoxId === box.id ? "opacity-70" : "text-slate-400 group-hover:text-slate-500 uppercase tracking-tighter font-medium")}>
+                          {isCash ? 'Caja Efectivo' : isBank ? 'Transferencia' : 'Posnet'}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-bold">${bal.toLocaleString()}</p>
+                      </div>
+                    </button>
+                  );
+                };
+
+                const transferBoxes = boxes.filter(b => b.type === 'bank' || b.type === 'digital');
+                const cashBoxes = boxes.filter(b => b.type === 'cash');
+                const posnetBoxes = boxes.filter(b => b.type === 'posnet' || b.type === 'credit_card');
+
+                return (
+                  <div className="space-y-4">
+                    {/* 1. Transferencias */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                          <Building className="w-3 h-3" /> 1. Transferencias
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400">({transferBoxes.length})</span>
+                      </div>
+                      {transferBoxes.map(renderBoxBtn)}
                     </div>
-                    <div className="flex-1 overflow-hidden">
-                      <p className="text-sm font-bold truncate">{box.name}</p>
-                      <p className={cn("text-[10px]", selectedBoxId === box.id ? "opacity-70" : "text-slate-400 group-hover:text-slate-500 uppercase tracking-tighter font-medium")}>
-                        {box.type === 'cash' ? 'Efectivo' : box.type === 'bank' ? 'Banco' : 'Digital'}
-                      </p>
+
+                    {/* 2. Cajas */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                          <Banknote className="w-3 h-3" /> 2. Cajas
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400">({cashBoxes.length})</span>
+                      </div>
+                      {cashBoxes.map(renderBoxBtn)}
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-bold">${(box.initialBalance + box.incomes - box.expenses).toLocaleString()}</p>
+
+                    {/* 3. Posnet */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between px-1">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1">
+                          <CreditCard className="w-3 h-3" /> 3. Posnet
+                        </span>
+                        <span className="text-[9px] font-bold text-slate-400">({posnetBoxes.length})</span>
+                      </div>
+                      {posnetBoxes.length === 0 ? (
+                        <p className="text-[11px] text-slate-400 italic px-2">Sin cajas de Posnet</p>
+                      ) : (
+                        posnetBoxes.map(renderBoxBtn)
+                      )}
                     </div>
-                  </button>
-                ))}
-              </div>
+                  </div>
+                );
+              })()}
             </div>
 
             {showAddBox && (
@@ -1015,30 +1083,45 @@ export function Finance() {
                       <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
                         <h3 className="font-bold text-slate-900 dark:text-white">Acciones de Cuenta</h3>
                         <div className="grid gap-2">
-                          {selectedBox?.type === 'credit_card' && (
-                            <button 
-                              onClick={() => setShowReconcileModal(true)}
-                              className="flex items-center justify-between p-4 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-600/20 hover:scale-[1.02] transition-all group"
-                            >
-                              <div className="flex items-center gap-3">
-                                <ArrowLeftRight className="w-4 h-4" />
-                                <span className="text-sm font-bold">Conciliar y Transferir</span>
+                          {(selectedBox?.type === 'posnet' || selectedBox?.type === 'credit_card') ? (
+                            <>
+                              <div className="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800/50 rounded-xl text-xs text-purple-900 dark:text-purple-300">
+                                <p className="font-bold">Terminal Posnet / Cobro Tarjeta</p>
+                                <p className="text-[11px] text-purple-700 dark:text-purple-400 mt-0.5">
+                                  Los fondos acumulados deben conciliarse y liquidarse indicando cupones y deducciones (comisiones/impuestos) hacia una cuenta de destino.
+                                </p>
                               </div>
-                              <ChevronRight className="w-4 h-4" />
-                            </button>
+                              <button 
+                                onClick={() => setActiveTab('posnet')}
+                                className="flex items-center justify-between p-4 rounded-xl bg-purple-600 text-white shadow-lg shadow-purple-600/20 hover:scale-[1.02] transition-all group font-bold text-sm"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <CreditCard className="w-5 h-5" />
+                                  <span>Conciliar y Liquidar Cupones</span>
+                                </div>
+                                <ChevronRight className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => setActiveTab('ingresos')} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500 transition-all group">
+                                <div className="flex items-center gap-3"><Plus className="w-4 h-4 text-emerald-500" /><span className="text-sm font-bold text-slate-700 dark:text-slate-300">Registrar Cobro / Ingreso</span></div>
+                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button onClick={() => setActiveTab('ingresos')} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-emerald-500 transition-all group">
+                                <div className="flex items-center gap-3"><Plus className="w-4 h-4 text-emerald-500" /><span className="text-sm font-bold text-slate-700 dark:text-slate-300">Registrar Ingreso</span></div>
+                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                              </button>
+                              <button onClick={() => setActiveTab('egresos')} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-rose-500 transition-all group">
+                                <div className="flex items-center gap-3"><Trash2 className="w-4 h-4 text-rose-500" /><span className="text-sm font-bold text-slate-700 dark:text-slate-300">Registrar Egreso</span></div>
+                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                              </button>
+                              <button onClick={() => setActiveTab('transferencias')} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-500 transition-all group">
+                                <div className="flex items-center gap-3"><ArrowLeftRight className="w-4 h-4 text-indigo-500" /><span className="text-sm font-bold text-slate-700 dark:text-slate-300">Transferir Fondos</span></div>
+                                <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
+                              </button>
+                            </>
                           )}
-                          <button onClick={() => setActiveTab('ingresos')} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-blue-500 transition-all group">
-                            <div className="flex items-center gap-3"><Plus className="w-4 h-4 text-emerald-500" /><span className="text-sm font-bold text-slate-700 dark:text-slate-300">Registrar Ingreso</span></div>
-                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                          </button>
-                          <button onClick={() => setActiveTab('egresos')} className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-rose-500 transition-all group">
-                            <div className="flex items-center gap-3"><Trash2 className="w-4 h-4 text-rose-500" /><span className="text-sm font-bold text-slate-700 dark:text-slate-300">Registrar Egreso</span></div>
-                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                          </button>
-                          <button className="flex items-center justify-between p-3 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-indigo-500 transition-all group">
-                            <div className="flex items-center gap-3"><ArrowLeftRight className="w-4 h-4 text-indigo-500" /><span className="text-sm font-bold text-slate-700 dark:text-slate-300">Transferir Fondos</span></div>
-                            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
-                          </button>
                         </div>
                       </div>
                     </div>
@@ -1047,6 +1130,15 @@ export function Finance() {
               </div>
             )}
           </div>
+        </div>
+      ) : activeTab === 'posnet' ? (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <PosnetReconciliation
+            boxes={boxes}
+            transactions={transactions}
+            onLiquidateBatch={liquidatePosnetBatch}
+            onUpdateCoupon={updateTransactionCoupon}
+          />
         </div>
       ) : activeTab === 'conciliacion' ? (
         <BankReconciliation 

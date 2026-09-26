@@ -56,26 +56,31 @@ export function BoxForm({ onClose, onSubmit }: BoxFormProps) {
           <div>
             <label className="text-xs font-bold text-slate-500 uppercase">Tipo de Caja</label>
             <div className="grid grid-cols-3 gap-2 mt-1">
-              {(['cash', 'bank', 'digital'] as const).map(t => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setType(t)}
-                  className={cn(
-                    "py-3 rounded-xl border flex flex-col items-center gap-1 transition-all",
-                    type === t 
-                      ? "bg-blue-600 border-blue-600 text-white shadow-md" 
-                      : "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-500 hover:border-slate-300"
-                  )}
-                >
-                  {t === 'cash' ? <Banknote className="w-5 h-5" /> : 
-                   t === 'bank' ? <Building className="w-5 h-5" /> : 
-                   <Wallet className="w-5 h-5" />}
-                  <span className="text-[10px] font-bold capitalize">
-                    {t === 'cash' ? 'Efectivo' : t === 'bank' ? 'Banco' : 'Digital'}
-                  </span>
-                </button>
-              ))}
+              {[
+                { id: 'bank', label: '1. Transferencias', icon: Building, desc: 'Bancos / Cuentas' },
+                { id: 'cash', label: '2. Cajas', icon: Banknote, desc: 'Efectivo Físico' },
+                { id: 'posnet', label: '3. Posnet', icon: Wallet, desc: 'Terminal / Tarjetas' },
+              ].map(t => {
+                const IconComponent = t.icon;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setType(t.id as CashBoxType)}
+                    className={cn(
+                      "py-3 px-2 rounded-xl border flex flex-col items-center gap-1 transition-all text-center",
+                      type === t.id 
+                        ? "bg-blue-600 border-blue-600 text-white shadow-md" 
+                        : "bg-slate-50 dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-500 hover:border-slate-300"
+                    )}
+                  >
+                    <IconComponent className="w-5 h-5" />
+                    <span className="text-[11px] font-bold">
+                      {t.label}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 

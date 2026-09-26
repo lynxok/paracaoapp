@@ -24,6 +24,25 @@ const sourceHtml = `<!doctype html>
 
 fs.writeFileSync(path.join(rootDir, 'index.html'), sourceHtml, 'utf8');
 
+// Backup previous dist if exists
+const prevVersionsDir = path.join(rootDir, 'Versiones anteriores');
+if (!fs.existsSync(prevVersionsDir)) {
+  fs.mkdirSync(prevVersionsDir, { recursive: true });
+}
+
+if (fs.existsSync(path.join(rootDir, 'dist'))) {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const backupFolder = path.join(prevVersionsDir, `dist_${dateStr}`);
+  try {
+    fs.cpSync(path.join(rootDir, 'dist'), backupFolder, { recursive: true });
+    console.log(`Versión anterior respaldada en: Versiones anteriores/dist_${dateStr}`);
+  } catch (e) {
+    console.warn('Advertencia al respaldar versión anterior de dist:', e.message);
+  }
+}
+
 if (fs.existsSync(path.join(rootDir, 'assets'))) {
   fs.rmSync(path.join(rootDir, 'assets'), { recursive: true, force: true });
 }

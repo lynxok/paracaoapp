@@ -17,13 +17,28 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
   const [isPaymentOnAccount, setIsPaymentOnAccount] = useState(false);
 
+  const availableBoxes = type === 'expense' 
+    ? boxes.filter(b => b.type !== 'posnet' && b.type !== 'credit_card')
+    : boxes;
+
   const [concept, setConcept] = useState('');
   const [amount, setAmount] = useState<number>(0);
-  const [boxId, setBoxId] = useState(boxes[0]?.id || '');
+  const [boxId, setBoxId] = useState(availableBoxes[0]?.id || '');
   const [category, setCategory] = useState(categories[0]?.id || '');
   const [clientName, setClientName] = useState('');
+  const [couponNumber, setCouponNumber] = useState('');
   const [method, setMethod] = useState('Efectivo');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+
+  // Keep boxId valid if availableBoxes changes
+  React.useEffect(() => {
+    if (!availableBoxes.some(b => b.id === boxId) && availableBoxes.length > 0) {
+      setBoxId(availableBoxes[0].id);
+    }
+  }, [type, availableBoxes, boxId]);
+
+  const selectedBox = boxes.find(b => b.id === boxId);
+  const isPosnetBox = selectedBox?.type === 'posnet' || selectedBox?.type === 'credit_card';
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,8 +55,9 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
       type,
       category: expenseSubtype === 'payment_order' ? 'laboratorios' : category,
       boxId,
-      method,
+      method: isPosnetBox ? 'Posnet' : method,
       clientName: type === 'income' ? clientName : (expenseSubtype === 'payment_order' ? suppliers.find(s => s.id === selectedSupplierId)?.name : undefined),
+      couponNumber: (type === 'income' && isPosnetBox) ? couponNumber.trim() : undefined
     };
 
     const extraData = expenseSubtype === 'payment_order' ? {
@@ -54,6 +70,7 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
     setConcept('');
     setAmount(0);
     setClientName('');
+    setCouponNumber('');
   };
 
   return (
@@ -195,17 +212,33 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
             )}
 
             {type === 'income' && (
-              <div>
-                <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Cliente (Opcional)</label>
-                <div className="relative">
-                  <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input 
-                    className="w-full h-12 pl-11 pr-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600 font-medium"
-                    placeholder="Nombre del cliente..."
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                  />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Cliente (Opcional)</label>
+                  <div className="relative">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input 
+                      className="w-full h-12 pl-11 pr-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600 font-medium"
+                      placeholder="Nombre del cliente..."
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                    />
+                  </div>
                 </div>
+
+                {isPosnetBox && (
+                  <div className="animate-in fade-in duration-200">
+                    <label className="text-xs font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1.5 block flex items-center gap-1.5">
+                      <CreditCard className="w-3.5 h-3.5" /> N° de Cupón Posnet (Opcional)
+                    </label>
+                    <input 
+                      className="w-full h-12 px-4 rounded-2xl border border-purple-200 dark:border-purple-800 bg-purple-50/50 dark:bg-purple-950/30 text-purple-900 dark:text-purple-200 outline-none focus:ring-2 focus:ring-purple-600 font-bold font-mono text-sm placeholder:font-sans placeholder:font-normal"
+                      placeholder="Ej: 004821"
+                      value={couponNumber}
+                      onChange={(e) => setCouponNumber(e.target.value)}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
@@ -240,9 +273,16 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
           {/* Classification */}
           <div className="space-y-4">
             <div>
-              <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 block">Destino / Caja de Impacto</label>
-              <div className="grid grid-cols-1 gap-2">
-                {boxes.map(box => (
+              <div className="flex justify-between items-center mb-1.5">
+                <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Destino / Caja de Impacto</label>
+                {type === 'expense' && (
+                  <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold">
+                    (Posnet excluida de egresos)
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-2 max-h-56 overflow-y-auto pr-1 custom-scrollbar">
+                {availableBoxes.map(box => (
                   <button
                     key={box.id}
                     type="button"
@@ -256,10 +296,18 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
                   >
                     {box.type === 'cash' ? <Banknote className="w-4 h-4" /> : 
                      box.type === 'bank' ? <Building className="w-4 h-4" /> : 
-                     box.type === 'credit_card' ? <CreditCard className="w-4 h-4" /> :
-                     <Wallet className="w-4 h-4" />}
+                     (box.type === 'posnet' || box.type === 'credit_card') ? <CreditCard className="w-4 h-4" /> :
+                     <Wallet className="w-4 h-4 text-purple-400" />}
                     <div className="flex-1">
-                      <p className="text-xs font-bold leading-none">{box.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-bold leading-none">{box.name}</p>
+                        <span className={cn(
+                          "text-[9px] uppercase px-1.5 py-0.2 rounded font-semibold",
+                          boxId === box.id ? "bg-white/20 text-white" : "bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300"
+                        )}>
+                          {box.type === 'cash' ? 'Caja' : box.type === 'bank' ? 'Transferencia' : 'Posnet'}
+                        </span>
+                      </div>
                       <p className={cn("text-[10px] mt-0.5", boxId === box.id ? "text-blue-100" : "text-slate-500")}>
                         Saldo: ${(box.initialBalance + box.incomes - box.expenses).toLocaleString()}
                       </p>
