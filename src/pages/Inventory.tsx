@@ -71,7 +71,7 @@ function calculateFIFOValue(item: InventoryItem, movements: StockMovement[]): nu
 }
 
 export function Inventory() {
-  const { branches } = useAuth();
+  const { branches, currentBranch } = useAuth();
   const availableBranches = (branches && branches.length > 0)
     ? branches.map(b => ({ id: Number(b.id) || b.id, name: b.name }))
     : BRANCHES;
@@ -79,7 +79,13 @@ export function Inventory() {
   const { inventory, stockMovements, addInventoryItem, updateInventoryItem, deleteInventoryItem, registerMovement } = useInventory();
   const { suppliers } = useFinance();
   const [selectedCategory, setSelectedCategory] = useState("Todos");
-  const [selectedBranch, setSelectedBranch] = useState<string>("all");
+  const [selectedBranch, setSelectedBranch] = useState<string>(() => currentBranch?.id ? String(currentBranch.id) : "all");
+
+  useEffect(() => {
+    if (currentBranch?.id) {
+      setSelectedBranch(String(currentBranch.id));
+    }
+  }, [currentBranch]);
   const [searchQuery, setSearchQuery] = useState("");
   const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
   const [activeTab, setActiveTab] = useState<'products' | 'inventory' | 'movements'>('inventory');

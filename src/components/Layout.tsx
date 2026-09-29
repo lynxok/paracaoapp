@@ -41,7 +41,10 @@ import {
   Shield,
   ZoomIn,
   ZoomOut,
-  RotateCcw
+  RotateCcw,
+  MapPin,
+  Check,
+  ChevronDown
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useAuth } from "../context/AuthContext";
@@ -263,10 +266,39 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
       document.addEventListener('mouseover', handleMouseOver);
     }
   };
-  const { currentUser, currentBranch, logout, updateUser } = useAuth();
+  const { currentUser, currentBranch, branches, logout, updateUser, switchBranch } = useAuth();
   const isPathAllowed = hasPermission(currentUser?.role, location.pathname);
   const visibleMenuItems = menuItems.filter(item => hasPermission(currentUser?.role, item.path));
   
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+
+  const canSwitchBranch = React.useMemo(() => {
+    const role = (currentUser?.role || '').toLowerCase();
+    return role === 'superadmin' || role === 'admin' || role === 'administrador';
+  }, [currentUser]);
+
+  const availableBranchesForSelection = React.useMemo(() => {
+    if (canSwitchBranch) {
+      return [
+        { id: 'all', name: 'Consolidado (Todas las Sucursales)', afipPtoVenta: 'Todos', address: 'Vista General de Dueños' },
+        ...branches
+      ];
+    }
+    return branches;
+  }, [canSwitchBranch, branches]);
+
+  useEffect(() => {
+    if (!isBranchDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('#branch-selector-container') && !target.closest('#branch-selector-container-collapsed')) {
+        setIsBranchDropdownOpen(false);
+      }
+    };
+    window.addEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
+  }, [isBranchDropdownOpen]);
+
   const [profileData, setProfileData] = useState({
     name: currentUser?.name || "Usuario",
     role: currentUser?.role || "Administrador",
@@ -601,13 +633,138 @@ export function Layout({ children, title, subtitle }: { children: React.ReactNod
             />
           </div>
           
-          {!isSidebarCollapsed && (
-            <div className="flex items-center gap-2 mt-0 z-10 animate-in fade-in duration-200">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <p className="text-[11px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400">
-                {profileData.branch}
-              </p>
+          {!isSidebarCollapsed ? (
+            <div id="branch-selector-container" className="relative mt-1 z-30 animate-in fade-in duration-200">
+              {canSwitchBranch ? (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
+                    className={cn(
+                      "flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-all text-left group cursor-pointer max-w-[210px]",
+                      isBranchDropdownOpen
+                        ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-900 dark:border-white shadow-md"
+                        : "bg-slate-50/80 dark:bg-slate-900/60 hover:bg-slate-100 dark:hover:bg-slate-800 border-slate-200/80 dark:border-slate-800/80 text-slate-700 dark:text-slate-300"
+                    )}
+                    title="Hacé clic para cambiar de sucursal"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span className="text-[10.5px] uppercase tracking-wider font-black truncate">
+                      {currentBranch?.name || profileData.branch}
+                    </span>
+                    <ChevronDown className={cn(
+                      "w-3.5 h-3.5 shrink-0 opacity-60 group-hover:opacity-100 transition-transform duration-200 ml-auto",
+                      isBranchDropdownOpen && "rotate-180"
+                    )} />
+                  </button>
+
+                  {/* Dropdown flotante */}
+                  {isBranchDropdownOpen && (
+                    <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 w-60 p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150 backdrop-blur-md">
+                      <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-1">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Sucursal Activa</span>
+                        <MapPin className="w-3 h-3 text-blue-500" />
+                      </div>
+                      <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+                        {availableBranchesForSelection.map(b => {
+                          const isSelected = String(b.id) === String(currentBranch?.id);
+                          return (
+                            <button
+                              key={b.id}
+                              type="button"
+                              onClick={() => {
+                                switchBranch(b.id);
+                                setIsBranchDropdownOpen(false);
+                              }}
+                              className={cn(
+                                "w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all group",
+                                isSelected
+                                  ? "bg-blue-600 text-white font-bold shadow-sm"
+                                  : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                              )}
+                            >
+                              <div className="flex flex-col min-w-0 pr-2">
+                                <span className="text-xs font-bold truncate leading-tight">{b.name}</span>
+                                {b.afipPtoVenta && (
+                                  <span className={cn(
+                                    "text-[9px] uppercase tracking-tighter mt-0.5",
+                                    isSelected ? "text-blue-100" : "text-slate-400"
+                                  )}>
+                                    P.V. {b.afipPtoVenta} {b.address ? `• ${b.address}` : ''}
+                                  </span>
+                                )}
+                              </div>
+                              {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-white" />}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 px-2 py-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                  <p className="text-[11px] uppercase tracking-widest font-black text-slate-500 dark:text-slate-400 truncate">
+                    {currentBranch?.name || profileData.branch}
+                  </p>
+                </div>
+              )}
             </div>
+          ) : (
+            canSwitchBranch && (
+              <div id="branch-selector-container-collapsed" className="relative mt-2 z-30">
+                <button
+                  type="button"
+                  onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
+                  className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center justify-center relative"
+                  title={`Sucursal: ${currentBranch?.name || ''} (Clic para cambiar)`}
+                >
+                  <MapPin className="w-4 h-4 text-emerald-500" />
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                </button>
+
+                {isBranchDropdownOpen && (
+                  <div className="absolute left-full ml-2 top-0 w-60 p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="px-3 py-1.5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between mb-1">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Cambiar Sucursal</span>
+                      <MapPin className="w-3 h-3 text-blue-500" />
+                    </div>
+                    <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar">
+                      {availableBranchesForSelection.map(b => {
+                        const isSelected = String(b.id) === String(currentBranch?.id);
+                        return (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => {
+                              switchBranch(b.id);
+                              setIsBranchDropdownOpen(false);
+                            }}
+                            className={cn(
+                              "w-full flex items-center justify-between px-3 py-2 rounded-xl text-left transition-all group",
+                              isSelected
+                                ? "bg-blue-600 text-white font-bold shadow-sm"
+                                : "hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                            )}
+                          >
+                            <div className="flex flex-col min-w-0 pr-2">
+                              <span className="text-xs font-bold truncate leading-tight">{b.name}</span>
+                              {b.afipPtoVenta && (
+                                <span className={cn("text-[9px]", isSelected ? "text-blue-100" : "text-slate-400")}>
+                                  P.V. {b.afipPtoVenta}
+                                </span>
+                              )}
+                            </div>
+                            {isSelected && <Check className="w-3.5 h-3.5 shrink-0 text-white" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
           )}
         </div>
         

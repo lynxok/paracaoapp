@@ -187,7 +187,35 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const hasDefaultId = dynamicBankBoxes.some(box => box.id === DEFAULT_CASH_BOX.id);
         const initialBoxes = hasDefaultId ? dynamicBankBoxes : [DEFAULT_CASH_BOX, ...dynamicBankBoxes];
 
-        // 2. Fetch Transactions (ordered by date and time descending)
+        // 2. Fetch Branches & Orders to cross-reference transactions with branches
+        let dbBranches: any[] = [];
+        try {
+          const { data } = await supabase.from('branches').select('*');
+          if (data) dbBranches = data;
+        } catch (e) {}
+
+        let dbOrders: any[] = [];
+        try {
+          const { data } = await supabase.from('orders').select('id, branch_id, client_id');
+          if (data) dbOrders = data;
+        } catch (e) {}
+
+        const branchMap: Record<string, string> = {
+          '1': 'Paracáo Av. de las Americas',
+          '2': 'Paracáo Oro Verde'
+        };
+        dbBranches.forEach(b => {
+          branchMap[String(b.id)] = b.name;
+        });
+
+        const orderBranchMap: Record<string, string> = {};
+        dbOrders.forEach(o => {
+          if (o.id && o.branch_id) {
+            orderBranchMap[String(o.id).toLowerCase()] = String(o.branch_id);
+          }
+        });
+
+        // 3. Fetch Transactions (ordered by date and time descending)
         const { data: dbTx } = await supabase
           .from('transactions')
           .select('*')
@@ -196,26 +224,53 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
         let loadedTx: Transaction[] = [];
         if (dbTx && dbTx.length > 0) {
-          loadedTx = dbTx.map((t: any) => ({
-            id: t.id,
-            date: t.date,
-            time: t.time,
-            concept: t.concept,
-            method: t.method,
-            amount: Number(t.amount),
-            type: t.type,
-            category: t.category,
-            boxId: t.box_id,
-            clientId: t.client_id,
-            clientName: t.client_name,
-            reconciled: t.reconciled,
-            couponNumber: t.coupon_number || t.couponNumber,
-            liquidationId: t.liquidation_id || t.liquidationId,
-            liquidationDate: t.liquidation_date || t.liquidationDate,
-            destinationBoxId: t.destination_box_id || t.destinationBoxId,
-            deductions: typeof t.deductions === 'string' ? JSON.parse(t.deductions) : t.deductions,
-            netAmount: t.net_amount !== undefined && t.net_amount !== null ? Number(t.net_amount) : undefined
-          }));
+          loadedTx = dbTx.map((t: any) => {
+            let rawConcept = t.concept || '';
+            let branchId = '';
+            let branchName = '';
+
+            const sucMatch = rawConcept.match(/\[Suc:([^\|\]]+)(?:\|([^\]]+))?\]/);
+            if (sucMatch) {
+              branchId = sucMatch[1].trim();
+              branchName = sucMatch[2]?.trim() || branchMap[branchId] || `Sucursal ${branchId}`;
+              rawConcept = rawConcept.replace(/\s*\[Suc:[^\]]+\]/, '').trim();
+            } else {
+              const orderMatch = rawConcept.match(/#([a-zA-Z0-9_-]+)/);
+              if (orderMatch && orderBranchMap[orderMatch[1].toLowerCase()]) {
+                branchId = orderBranchMap[orderMatch[1].toLowerCase()];
+                branchName = branchMap[branchId] || `Sucursal ${branchId}`;
+              } else if (orderMatch && orderBranchMap[`ord-${orderMatch[1]}`.toLowerCase()]) {
+                branchId = orderBranchMap[`ord-${orderMatch[1]}`.toLowerCase()];
+                branchName = branchMap[branchId] || `Sucursal ${branchId}`;
+              } else {
+                branchId = '1';
+                branchName = branchMap['1'] || 'Paracáo Av. de las Americas';
+              }
+            }
+
+            return {
+              id: t.id,
+              date: t.date,
+              time: t.time,
+              concept: rawConcept,
+              method: t.method,
+              amount: Number(t.amount),
+              type: t.type,
+              category: t.category,
+              boxId: t.box_id,
+              clientId: t.client_id,
+              clientName: t.client_name,
+              reconciled: t.reconciled,
+              couponNumber: t.coupon_number || t.couponNumber,
+              liquidationId: t.liquidation_id || t.liquidationId,
+              liquidationDate: t.liquidation_date || t.liquidationDate,
+              destinationBoxId: t.destination_box_id || t.destinationBoxId,
+              deductions: typeof t.deductions === 'string' ? JSON.parse(t.deductions) : t.deductions,
+              netAmount: t.net_amount !== undefined && t.net_amount !== null ? Number(t.net_amount) : undefined,
+              branchId,
+              branchName
+            };
+          });
           // Extra defensiveness: guarantee newest first
           loadedTx.sort((a, b) => {
             const timeA = `${a.date || ''} ${a.time || '00:00:00'}`;
@@ -318,7 +373,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const addTransaction = async (tx: Transaction) => {
-    setTransactions(prev => [tx, ...prev]);
+    const effectiveBranchId = tx.branchId || '1';
+    const effectiveBranchName = tx.branchName || (effectiveBranchId === '2' ? 'Paracáo Oro Verde' : 'Paracáo Av. de las Americas');
+    const txWithBranch: Transaction = {
+      ...tx,
+      branchId: effectiveBranchId,
+      branchName: effectiveBranchName
+    };
+
+    setTransactions(prev => [txWithBranch, ...prev]);
     setBoxes(prev => prev.map(b => {
       if (b.id === tx.boxId) {
         return {
@@ -332,11 +395,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }));
 
     try {
+      const persistedConcept = tx.concept.includes('[Suc:')
+        ? tx.concept
+        : `${tx.concept} [Suc:${effectiveBranchId}|${effectiveBranchName}]`;
+
       await supabase.from('transactions').upsert([{
         id: tx.id,
         date: tx.date,
         time: tx.time,
-        concept: tx.concept,
+        concept: persistedConcept,
         method: tx.method,
         amount: tx.amount,
         type: tx.type,

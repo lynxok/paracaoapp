@@ -16,6 +16,7 @@ export function Clients() {
   const { insurances, opticaLogo, opticaName, opticaPhone, opticaAddress } = useSettings();
   const { boxes, addTransaction, voidTransaction, transactions } = useFinance();
   const { jobs } = useLabs();
+  const { currentBranch } = useAuth();
 
   // Helper para buscar la receta más reciente del cliente si la orden no la tiene directamente
   const getClientFallbackRx = React.useCallback((clientName?: string, clientDni?: string, clientId?: string) => {
@@ -1493,7 +1494,9 @@ export function Clients() {
                       category: 'Cobro Cliente',
                       boxId: selectedBoxId,
                       clientId: contextItem.id,
-                      clientName: contextItem.name
+                      clientName: contextItem.name,
+                      branchId: currentBranch?.id && currentBranch.id !== 'all' ? currentBranch.id : '1',
+                      branchName: currentBranch?.name && currentBranch.id !== 'all' ? currentBranch.name : 'Paracáo Av. de las Americas'
                     });
 
                     // Update client balance

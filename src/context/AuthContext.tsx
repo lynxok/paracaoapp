@@ -35,6 +35,8 @@ interface AuthContextType {
   isLoading: boolean;
   currentUser: User | null;
   currentBranch: Branch | null;
+  setCurrentBranch: (branch: Branch | null) => void;
+  switchBranch: (branchId: string) => void;
   users: User[];
   branches: Branch[];
   login: (usernameOrEmail: string, pass: string, branchId: string) => Promise<{ success: boolean; error?: string }>;
@@ -49,6 +51,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export const CONSOLIDATED_BRANCH: Branch = {
+  id: 'all',
+  name: 'Consolidado (Todas las Sucursales)',
+  afipPtoVenta: 'Todos',
+  afipEnv: 'produccion',
+  address: 'Vista General de Dueños'
+};
+
+export const isUserAdmin = (user: User | null): boolean => {
+  if (!user) return false;
+  const r = (user.role || '').toLowerCase();
+  return r === 'superadmin' || r === 'admin' || r === 'administrador';
+};
+
 const INITIAL_BRANCHES: Branch[] = [
   { id: '1', name: 'Casa Central', afipPtoVenta: '0001', afipEnv: 'homologacion' },
   { id: '2', name: 'Shopping', afipPtoVenta: '0002', afipEnv: 'homologacion' }
@@ -58,7 +74,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [branches, setBranches] = useState<Branch[]>(INITIAL_BRANCHES);
   const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [currentBranch, setCurrentBranch] = useState<Branch | null>(INITIAL_BRANCHES[0]);
+  const [currentBranch, setCurrentBranch] = useState<Branch | null>(() => {
+    const savedId = localStorage.getItem('optica_active_branch_id');
+    if (savedId === 'all') return CONSOLIDATED_BRANCH;
+    if (savedId) {
+      const found = INITIAL_BRANCHES.find(b => String(b.id) === String(savedId));
+      if (found) return found;
+    }
+    return INITIAL_BRANCHES[0];
+  });
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Load session & user profile on mount
@@ -102,7 +126,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             afipKeyContent: b.afip_key_content
           }));
           setBranches(mappedBranches);
-          setCurrentBranch(mappedBranches[0]);
+          const savedBranchId = localStorage.getItem('optica_active_branch_id');
+          let targetBranch: Branch | null = mappedBranches[0];
+          if (savedBranchId === 'all') {
+            targetBranch = CONSOLIDATED_BRANCH;
+          } else if (savedBranchId) {
+            targetBranch = mappedBranches.find(b => String(b.id) === String(savedBranchId)) || mappedBranches[0];
+          }
+          setCurrentBranch(targetBranch);
         }
       } catch (e) {
         console.error("Error loading branches from Supabase:", e);
@@ -130,6 +161,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           };
 
           setCurrentUser(activeUser);
+
+          // If user is not admin, force their assigned default branch
+          if (!isUserAdmin(activeUser)) {
+            const userBranch = branches.find(b => String(b.id) === activeUser.defaultBranchId) || branches[0];
+            setCurrentBranch(userBranch);
+            localStorage.setItem('optica_active_branch_id', String(userBranch.id));
+          }
         }
       } catch (e) {
         console.error("Error fetching Supabase session:", e);
@@ -149,7 +187,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('id', session.user.id)
           .single();
 
-        setCurrentUser({
+        const activeUser: User = {
           id: session.user.id,
           username: profile?.username || email?.split('@')[0] || 'usuario',
           name: profile?.name || session.user.user_metadata?.name || 'Administrador',
@@ -157,7 +195,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: profile?.role || 'superadmin',
           defaultBranchId: String(profile?.default_branch_id || '1'),
           status: 'Activo'
-        });
+        };
+
+        setCurrentUser(activeUser);
+
+        if (!isUserAdmin(activeUser)) {
+          const userBranch = branches.find(b => String(b.id) === activeUser.defaultBranchId) || branches[0];
+          setCurrentBranch(userBranch);
+          localStorage.setItem('optica_active_branch_id', String(userBranch.id));
+        }
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
       }
@@ -167,6 +213,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  const switchBranch = (branchId: string) => {
+    if (!isUserAdmin(currentUser)) {
+      return;
+    }
+    if (branchId === 'all') {
+      setCurrentBranch(CONSOLIDATED_BRANCH);
+      localStorage.setItem('optica_active_branch_id', 'all');
+      return;
+    }
+    const foundBranch = branches.find(b => String(b.id) === String(branchId));
+    if (foundBranch) {
+      setCurrentBranch(foundBranch);
+      localStorage.setItem('optica_active_branch_id', String(foundBranch.id));
+    }
+  };
 
   const login = async (usernameOrEmail: string, pass: string, branchId: string): Promise<{ success: boolean; error?: string }> => {
     try {
@@ -199,9 +261,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, error: error.message };
       }
 
-      const foundBranch = branches.find(b => b.id === branchId);
+      const foundBranch = branches.find(b => String(b.id) === String(branchId));
       if (foundBranch) {
         setCurrentBranch(foundBranch);
+        localStorage.setItem('optica_active_branch_id', String(foundBranch.id));
       }
 
       return { success: true };
@@ -347,6 +410,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isLoading,
       currentUser,
       currentBranch,
+      setCurrentBranch,
+      switchBranch,
       users,
       branches,
       login,

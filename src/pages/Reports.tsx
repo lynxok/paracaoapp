@@ -12,10 +12,25 @@ type PeriodType = 'all' | 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custo
 export function Reports() {
   const { transactions } = useFinance();
   const { orders } = useClients();
-  const { branches } = useAuth();
+  const { branches, currentUser, currentBranch } = useAuth();
+
+  const isAdmin = useMemo(() => {
+    const r = (currentUser?.role || '').toLowerCase();
+    return r === 'superadmin' || r === 'admin' || r === 'administrador';
+  }, [currentUser]);
 
   // Filters State
-  const [selectedBranchId, setSelectedBranchId] = useState<string>("all");
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
+    if (currentBranch?.id) return currentBranch.id;
+    return isAdmin ? "all" : (currentUser?.defaultBranchId || "1");
+  });
+
+  useEffect(() => {
+    if (currentBranch?.id) {
+      setSelectedBranchId(currentBranch.id);
+    }
+  }, [currentBranch]);
+
   const [periodType, setPeriodType] = useState<PeriodType>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -104,8 +119,8 @@ export function Reports() {
   // Filtered Transactions & Orders
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      // Filter by branch if transaction has branchId or box matches branch
-      const matchesBranch = selectedBranchId === 'all' || !t.boxId || t.boxId.includes(selectedBranchId);
+      const branchId = t.branchId || '1';
+      const matchesBranch = selectedBranchId === 'all' || branchId === selectedBranchId;
       const matchesPeriod = isDateInPeriod(t.date);
       return matchesBranch && matchesPeriod;
     });
@@ -123,7 +138,8 @@ export function Reports() {
   const modalTransactions = useMemo(() => {
     if (!detailModal) return [];
     return transactions.filter(t => {
-      const matchesBranch = selectedBranchId === 'all' || !t.boxId || t.boxId.includes(selectedBranchId);
+      const branchId = t.branchId || '1';
+      const matchesBranch = selectedBranchId === 'all' || branchId === selectedBranchId;
       const matchesType = t.type === detailModal.type;
 
       let matchesRange = true;
@@ -529,9 +545,10 @@ export function Reports() {
             <select
               value={selectedBranchId}
               onChange={(e) => setSelectedBranchId(e.target.value)}
-              className="h-10 px-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none transition-all"
+              disabled={!isAdmin}
+              className="h-10 px-3 w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none transition-all disabled:opacity-75 disabled:cursor-not-allowed"
             >
-              <option value="all">Todas las sucursales</option>
+              {isAdmin && <option value="all">🏢 Todas las sucursales (Consolidado)</option>}
               {branches.map(b => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}

@@ -260,14 +260,16 @@ export function ClientProvider({ children }: { children: ReactNode }) {
         id: `tx-balance-pay-${Date.now()}`,
         date: new Date().toISOString().split('T')[0],
         time: new Date().toTimeString().slice(0, 5),
-        concept: `Cobro Saldo Pedido ${targetOrder.id} - Cliente: ${targetOrder.clientName}`,
+        concept: `Cobro Saldo Pedido ${(targetOrder as Order).id} - Cliente: ${(targetOrder as Order).clientName}`,
         method: boxName,
         amount: amount,
         type: 'income',
         category: 'ventas',
         boxId: boxId,
-        clientId: targetOrder.clientId,
-        clientName: targetOrder.clientName
+        clientId: (targetOrder as Order).clientId,
+        clientName: (targetOrder as Order).clientName,
+        branchId: (targetOrder as Order).branchId || '1',
+        branchName: (targetOrder as Order).branchId === '2' ? 'Paracáo Oro Verde' : 'Paracáo Av. de las Americas'
       });
     }, 100);
 

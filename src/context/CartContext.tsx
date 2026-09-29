@@ -412,7 +412,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       category: 'ventas',
       boxId: paidAmount !== undefined ? (senaMethodId || paymentMethodId) : paymentMethodId,
       clientId: targetClientId,
-      clientName: targetClientName
+      clientName: targetClientName,
+      branchId: currentBranch?.id && currentBranch.id !== 'all' ? currentBranch.id : '1',
+      branchName: currentBranch?.name && currentBranch.id !== 'all' ? currentBranch.name : 'Paracáo Av. de las Americas'
     });
 
     // Registrar en Borradores de Facturación

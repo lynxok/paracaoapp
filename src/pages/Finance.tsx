@@ -29,11 +29,13 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  FileText
+  FileText,
+  MapPin
 } from "lucide-react";
 import { cn } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 import { CashBox, Transaction, Denomination, FinanceCategory, Cheque } from "../types";
+import { useAuth } from "../context/AuthContext";
 import { BoxForm } from "../components/finance/BoxForm";
 import { TransactionForm } from "../components/finance/TransactionForm";
 import { BankReconciliation } from "../components/finance/BankReconciliation";
@@ -94,7 +96,24 @@ export function Finance() {
     voidTransaction,
     updateChequeStatus
   } = useFinance();
+  const { currentUser, currentBranch, branches, switchBranch } = useAuth();
   const [activeTab, setActiveTab] = useState<FinanceTab>('cajas');
+
+  const isAdmin = useMemo(() => {
+    const r = (currentUser?.role || '').toLowerCase();
+    return r === 'superadmin' || r === 'admin' || r === 'administrador';
+  }, [currentUser]);
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
+    if (currentBranch?.id) return currentBranch.id;
+    return isAdmin ? 'all' : (currentUser?.defaultBranchId || '1');
+  });
+
+  useEffect(() => {
+    if (currentBranch?.id) {
+      setSelectedBranchId(currentBranch.id);
+    }
+  }, [currentBranch]);
 
   // Cheques specific states
   const [chequeStatusFilter, setChequeStatusFilter] = useState('Pendiente');
@@ -212,20 +231,53 @@ export function Finance() {
     loadTodayClaims();
   }, []);
 
+  // Branch filtered transactions
+  const branchFilteredTransactions = useMemo(() => {
+    if (!isAdmin) {
+      const userBranch = currentUser?.defaultBranchId || '1';
+      return transactions.filter(t => (t.branchId || '1') === userBranch);
+    }
+    if (selectedBranchId === 'all') {
+      return transactions;
+    }
+    return transactions.filter(t => (t.branchId || '1') === selectedBranchId);
+  }, [transactions, selectedBranchId, isAdmin, currentUser]);
+
+  // Scoped boxes calculating incomes/expenses strictly for current selected branch
+  const branchScopedBoxes = useMemo(() => {
+    return boxes.map(baseBox => {
+      const boxTx = branchFilteredTransactions.filter(t => 
+        t.boxId === baseBox.id || 
+        t.boxId === baseBox.id.replace('bank-', '') || 
+        (t.method && baseBox.name.toLowerCase() === t.method.toLowerCase())
+      );
+      const incomes = boxTx.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
+      const expenses = boxTx.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+      const initial = (selectedBranchId === 'all' || selectedBranchId === '1') ? (baseBox.initialBalance || 0) : 0;
+      return {
+        ...baseBox,
+        initialBalance: initial,
+        incomes,
+        expenses,
+        expectedCash: baseBox.type === 'cash' ? initial + incomes - expenses : undefined,
+      };
+    });
+  }, [boxes, branchFilteredTransactions, selectedBranchId]);
+
   const selectedBox = useMemo(() => 
-    boxes.find(b => b.id === selectedBoxId)
-  , [boxes, selectedBoxId]);
+    branchScopedBoxes.find(b => b.id === selectedBoxId)
+  , [branchScopedBoxes, selectedBoxId]);
 
   // Helper function to resolve box label reliably
   const getBoxName = (boxId?: string, method?: string) => {
     if (boxId === 'caja-efectivo' || method?.toLowerCase() === 'efectivo') {
-      const cashBox = boxes.find(b => b.id === 'caja-efectivo' || b.type === 'cash');
+      const cashBox = branchScopedBoxes.find(b => b.id === 'caja-efectivo' || b.type === 'cash');
       return cashBox?.name || 'Caja Efectivo';
     }
 
     if (!boxId && !method) return 'Caja Efectivo';
 
-    const found = boxes.find(b => 
+    const found = branchScopedBoxes.find(b => 
       b.id === boxId || 
       b.id === `bank-${boxId}` || 
       (boxId && b.id.replace('bank-', '') === boxId.replace('bank-', '')) ||
@@ -238,7 +290,7 @@ export function Finance() {
 
   // Filtered and sorted transactions for consolidated view
   const processedTransactions = useMemo(() => {
-    let list = [...transactions];
+    let list = [...branchFilteredTransactions];
 
     if (minAmount.trim() !== '') {
       const min = parseFloat(minAmount);
@@ -262,12 +314,12 @@ export function Finance() {
     });
 
     return list;
-  }, [transactions, sortOrder, minAmount, maxAmount]);
+  }, [branchFilteredTransactions, sortOrder, minAmount, maxAmount]);
 
   const boxTransactions = useMemo(() => {
     let list = selectedBoxId === 'consolidated' 
-      ? transactions 
-      : transactions.filter(t => t.boxId === selectedBoxId || t.boxId === `bank-${selectedBoxId}` || (t.method && boxes.find(b => b.id === selectedBoxId)?.name.toLowerCase() === t.method.toLowerCase()));
+      ? branchFilteredTransactions 
+      : branchFilteredTransactions.filter(t => t.boxId === selectedBoxId || t.boxId === `bank-${selectedBoxId}` || (t.method && branchScopedBoxes.find(b => b.id === selectedBoxId)?.name.toLowerCase() === t.method.toLowerCase()));
     
     list.sort((a, b) => {
       const timeA = `${a.date || ''} ${a.time || '00:00:00'}`;
@@ -275,16 +327,21 @@ export function Finance() {
       return timeB.localeCompare(timeA); // Most recent first
     });
     return list;
-  }, [transactions, selectedBoxId, boxes]);
+  }, [branchFilteredTransactions, selectedBoxId, branchScopedBoxes]);
 
   const consolidatedStats = useMemo(() => {
-    return boxes.reduce((acc, box) => ({
-      balance: acc.balance + (box.initialBalance + box.incomes - box.expenses),
-      incomes: acc.incomes + box.incomes,
-      expenses: acc.expenses + box.expenses,
-      initial: acc.initial + box.initialBalance
-    }), { balance: 0, incomes: 0, expenses: 0, initial: 0 });
-  }, [boxes]);
+    const incomes = branchFilteredTransactions.filter(t => t.type === 'income').reduce((acc, curr) => acc + curr.amount, 0);
+    const expenses = branchFilteredTransactions.filter(t => t.type === 'expense').reduce((acc, curr) => acc + curr.amount, 0);
+    const initial = branchScopedBoxes.reduce((acc, box) => acc + (box.initialBalance || 0), 0);
+    const balance = initial + incomes - expenses;
+
+    return {
+      balance,
+      incomes,
+      expenses,
+      initial
+    };
+  }, [branchFilteredTransactions, branchScopedBoxes]);
 
   const totalPhysical = useMemo(() => {
     if (!selectedBox || !selectedBox.physicalCount) return 0;
@@ -439,6 +496,67 @@ export function Finance() {
           </button>
         </div>
       )}
+
+      {/* Branch Scope Header */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+            <MapPin className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Ámbito Financiero</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            </div>
+            <h2 className="text-base font-black text-slate-900 dark:text-white flex items-center gap-1.5">
+              {selectedBranchId === 'all' 
+                ? '🏢 Consolidado Global (Todas las Sucursales)' 
+                : branches.find(b => String(b.id) === String(selectedBranchId))?.name || `Sucursal ${selectedBranchId}`}
+            </h2>
+          </div>
+        </div>
+
+        {isAdmin ? (
+          <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-xl self-stretch md:self-auto overflow-x-auto custom-scrollbar">
+            <button
+              type="button"
+              onClick={() => setSelectedBranchId('all')}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                selectedBranchId === 'all'
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-700"
+              )}
+            >
+              🏢 Consolidado
+            </button>
+            {branches.map(b => {
+              const isSel = String(b.id) === String(selectedBranchId);
+              return (
+                <button
+                  key={b.id}
+                  type="button"
+                  onClick={() => setSelectedBranchId(String(b.id))}
+                  className={cn(
+                    "px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5",
+                    isSel
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-slate-600 dark:text-slate-300 hover:bg-white/60 dark:hover:bg-slate-700"
+                  )}
+                >
+                  <span className={cn("w-1.5 h-1.5 rounded-full", b.id === '1' ? "bg-blue-400" : "bg-emerald-400")} />
+                  {b.name}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-2">
+            <MapPin className="w-3.5 h-3.5 text-emerald-500" />
+            <span>Sucursal: {branches.find(b => String(b.id) === String(currentUser?.defaultBranchId))?.name || 'Casa Central'}</span>
+          </div>
+        )}
+      </div>
 
       {/* Module Navigation */}
       <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3 bg-white dark:bg-slate-900 p-2 sm:p-2.5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
@@ -597,9 +715,9 @@ export function Finance() {
                   );
                 };
 
-                const transferBoxes = boxes.filter(b => b.type === 'bank' || b.type === 'digital');
-                const cashBoxes = boxes.filter(b => b.type === 'cash');
-                const posnetBoxes = boxes.filter(b => b.type === 'posnet' || b.type === 'credit_card');
+                const transferBoxes = branchScopedBoxes.filter(b => b.type === 'bank' || b.type === 'digital');
+                const cashBoxes = branchScopedBoxes.filter(b => b.type === 'cash');
+                const posnetBoxes = branchScopedBoxes.filter(b => b.type === 'posnet' || b.type === 'credit_card');
 
                 return (
                   <div className="space-y-4">
@@ -697,7 +815,7 @@ export function Finance() {
                   </div>
                   <div className="p-6">
                     <div className="space-y-4">
-                      {boxes.map(box => {
+                      {branchScopedBoxes.map(box => {
                         const balance = box.initialBalance + box.incomes - box.expenses;
                         const percentage = consolidatedStats.balance > 0 ? (balance / consolidatedStats.balance) * 100 : 0;
                         return (
@@ -832,6 +950,7 @@ export function Finance() {
                       <thead className="bg-slate-50 dark:bg-slate-800/30 text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-widest">
                         <tr>
                           <th className="px-6 py-3 font-black">Fecha/Hora</th>
+                          <th className="px-6 py-3 font-black">Sucursal</th>
                           <th className="px-6 py-3 font-black">Caja / Medio</th>
                           <th className="px-6 py-3 font-black">Concepto</th>
                           <th className="px-6 py-3 font-black">Categoría</th>
@@ -841,7 +960,7 @@ export function Finance() {
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                         {processedTransactions.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">
+                            <td colSpan={6} className="px-6 py-12 text-center text-slate-400 italic">
                               No se encontraron transacciones que coincidan con los criterios.
                             </td>
                           </tr>
@@ -853,6 +972,17 @@ export function Finance() {
                                   <span className="text-slate-900 dark:text-white font-medium">{tx.date}</span>
                                   <span className="text-[10px] text-slate-400">{tx.time}</span>
                                 </div>
+                              </td>
+                              <td className="px-6 py-4">
+                                <span className={cn(
+                                  "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border",
+                                  (tx.branchId === '2' || tx.branchName?.includes('Oro Verde'))
+                                    ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                    : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                                )}>
+                                  <MapPin className="w-3 h-3 shrink-0" />
+                                  <span className="truncate max-w-[140px]">{tx.branchName || (tx.branchId === '2' ? 'Paracáo Oro Verde' : 'Paracáo Av. de las Americas')}</span>
+                                </span>
                               </td>
                               <td className="px-6 py-4">
                                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
@@ -933,6 +1063,7 @@ export function Finance() {
                         <thead className="bg-slate-50 dark:bg-slate-800/30 text-[10px] uppercase text-slate-500 dark:text-slate-400 tracking-widest">
                           <tr>
                             <th className="px-6 py-3 font-black">Fecha/Hora</th>
+                            <th className="px-6 py-3 font-black">Sucursal</th>
                             <th className="px-6 py-3 font-black">Concepto</th>
                             <th className="px-6 py-3 font-black text-right">Monto</th>
                             <th className="px-6 py-3 font-black text-center">Acciones</th>
@@ -941,7 +1072,7 @@ export function Finance() {
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                           {boxTransactions.length === 0 ? (
                             <tr>
-                              <td colSpan={4} className="px-6 py-12 text-center text-slate-400 italic">No hay movimientos registrados hoy</td>
+                              <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">No hay movimientos registrados hoy</td>
                             </tr>
                           ) : (
                             boxTransactions.map(tx => (
@@ -951,6 +1082,17 @@ export function Finance() {
                                     <span className="text-slate-900 dark:text-white font-medium">{tx.date}</span>
                                     <span className="text-[10px] text-slate-400">{tx.time}</span>
                                   </div>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className={cn(
+                                    "inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold border",
+                                    (tx.branchId === '2' || tx.branchName?.includes('Oro Verde'))
+                                      ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800"
+                                      : "bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
+                                  )}>
+                                    <MapPin className="w-3 h-3 shrink-0" />
+                                    <span className="truncate max-w-[130px]">{tx.branchName || (tx.branchId === '2' ? 'Paracáo Oro Verde' : 'Paracáo Av. de las Americas')}</span>
+                                  </span>
                                 </td>
                                 <td className="px-6 py-4 flex flex-col">
                                   <span className="font-bold text-slate-900 dark:text-white">{tx.concept}</span>
@@ -1134,16 +1276,16 @@ export function Finance() {
       ) : activeTab === 'posnet' ? (
         <div className="space-y-6 animate-in fade-in duration-300">
           <PosnetReconciliation
-            boxes={boxes}
-            transactions={transactions}
+            boxes={branchScopedBoxes}
+            transactions={branchFilteredTransactions}
             onLiquidateBatch={liquidatePosnetBatch}
             onUpdateCoupon={updateTransactionCoupon}
           />
         </div>
       ) : activeTab === 'conciliacion' ? (
         <BankReconciliation 
-          boxes={boxes} 
-          transactions={transactions} 
+          boxes={branchScopedBoxes} 
+          transactions={branchFilteredTransactions} 
           onToggleReconciliation={toggleTransactionReconciliation} 
           onUpdateClosing={updateBoxClosingBalance} 
         />

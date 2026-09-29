@@ -10,6 +10,7 @@ import { supabase } from "../lib/supabase";
 export function Suppliers() {
   const { suppliers, addSupplierTransaction, updateSupplier, addSupplier, addCheques, boxes, addTransaction, cheques } = useFinance();
   const { nextChequeNumber, setNextChequeNumber } = useSettings();
+  const { currentBranch } = useAuth();
   const [activeTab, setActiveTab] = useState<'list' | 'purchases' | 'pending'>('list');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
@@ -828,6 +829,9 @@ export function Suppliers() {
                   const now = new Date();
                   const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
 
+                  const effectiveBranchId = currentBranch?.id && currentBranch.id !== 'all' ? currentBranch.id : '1';
+                  const effectiveBranchName = currentBranch?.name && currentBranch.id !== 'all' ? currentBranch.name : 'Paracáo Av. de las Americas';
+
                   if (payCash > 0 && cashBoxId) {
                     const cashBox = boxes.find(b => b.id === cashBoxId);
                     addTransaction({
@@ -839,7 +843,9 @@ export function Suppliers() {
                       amount: payCash,
                       type: 'expense',
                       category: 'Gastos Administrativos',
-                      boxId: cashBoxId
+                      boxId: cashBoxId,
+                      branchId: effectiveBranchId,
+                      branchName: effectiveBranchName
                     });
                   }
 
@@ -854,7 +860,9 @@ export function Suppliers() {
                       amount: payBank,
                       type: 'expense',
                       category: 'Gastos Administrativos',
-                      boxId: bankBoxId
+                      boxId: bankBoxId,
+                      branchId: effectiveBranchId,
+                      branchName: effectiveBranchName
                     });
                   }
 
@@ -869,7 +877,9 @@ export function Suppliers() {
                       amount: payCard,
                       type: 'expense',
                       category: 'Gastos Administrativos',
-                      boxId: cardBoxId
+                      boxId: cardBoxId,
+                      branchId: effectiveBranchId,
+                      branchName: effectiveBranchName
                     });
                   }
 

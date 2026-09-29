@@ -16,3 +16,15 @@ Versiones anteriores/
 output/
 tmp/
 .pnpm-store/
+graphify-out/
+qa_report/
+manual_usuario/
+Pedidos de correcciónes/
+Pedidos*
+dist-formulario-procesos/
+formularios/
+*.docx
+*.xlsx
+screenshot*.png
+test_*.py
+scratch/

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useFinance } from '../context/FinanceContext';
 import { useSettings } from '../context/SettingsContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   Shield, 
   Search, 
@@ -41,6 +42,7 @@ interface InsuranceClaim {
 export function InsuranceClaims() {
   const { boxes, addTransaction } = useFinance();
   const { insurances } = useSettings();
+  const { currentBranch } = useAuth();
 
   const [claims, setClaims] = useState<InsuranceClaim[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,7 +136,9 @@ export function InsuranceClaims() {
         boxId: destinationBoxId,
         clientId: selectedClaim.clientId,
         clientName: selectedClaim.clientName,
-        reconciled: true
+        reconciled: true,
+        branchId: currentBranch?.id && currentBranch.id !== 'all' ? currentBranch.id : '1',
+        branchName: currentBranch?.name && currentBranch.id !== 'all' ? currentBranch.name : 'Paracáo Av. de las Americas'
       };
 
       await addTransaction(newTx);

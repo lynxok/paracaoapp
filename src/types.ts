@@ -117,6 +117,8 @@ export interface Transaction {
     other?: number;
   };
   netAmount?: number;
+  branchId?: string;
+  branchName?: string;
 }
 
 export interface SupplierTransaction {

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { PlusCircle, User, FileText, CreditCard, Banknote, Building, Wallet } from 'lucide-react';
+import { PlusCircle, User, FileText, CreditCard, Banknote, Building, Wallet, MapPin } from 'lucide-react';
 import { CashBox, Transaction, FinanceCategory, Supplier } from '../../types';
+import { useAuth } from '../../context/AuthContext';
 import { cn } from '../../lib/utils';
 
 interface TransactionFormProps {
@@ -12,6 +13,7 @@ interface TransactionFormProps {
 }
 
 export function TransactionForm({ type, boxes, categories, suppliers = [], onSubmit }: TransactionFormProps) {
+  const { currentBranch, branches, currentUser } = useAuth();
   const [expenseSubtype, setExpenseSubtype] = useState<'simple' | 'payment_order'>('simple');
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<string[]>([]);
@@ -21,6 +23,10 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
     ? boxes.filter(b => b.type !== 'posnet' && b.type !== 'credit_card')
     : boxes;
 
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(() => {
+    if (currentBranch?.id && currentBranch.id !== 'all') return currentBranch.id;
+    return currentUser?.defaultBranchId || '1';
+  });
   const [concept, setConcept] = useState('');
   const [amount, setAmount] = useState<number>(0);
   const [boxId, setBoxId] = useState(availableBoxes[0]?.id || '');
@@ -44,6 +50,8 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
     e.preventDefault();
     if (!concept || amount <= 0 || !boxId) return;
 
+    const targetBranch = branches.find(b => String(b.id) === String(selectedBranchId)) || branches[0];
+
     const newTransaction: Transaction = {
       id: `tx-${Date.now()}`,
       date,
@@ -57,7 +65,9 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
       boxId,
       method: isPosnetBox ? 'Posnet' : method,
       clientName: type === 'income' ? clientName : (expenseSubtype === 'payment_order' ? suppliers.find(s => s.id === selectedSupplierId)?.name : undefined),
-      couponNumber: (type === 'income' && isPosnetBox) ? couponNumber.trim() : undefined
+      couponNumber: (type === 'income' && isPosnetBox) ? couponNumber.trim() : undefined,
+      branchId: targetBranch?.id || '1',
+      branchName: targetBranch?.name || 'Paracáo Av. de las Americas'
     };
 
     const extraData = expenseSubtype === 'payment_order' ? {
@@ -241,6 +251,21 @@ export function TransactionForm({ type, boxes, categories, suppliers = [], onSub
                 )}
               </div>
             )}
+
+            <div>
+              <label className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 block flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-blue-500" /> Sucursal de Origen / Impacto
+              </label>
+              <select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                className="w-full h-12 px-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600 font-bold"
+              >
+                {branches.map(b => (
+                  <option key={b.id} value={b.id}>{b.name} (P.V. {b.afipPtoVenta || '0001'})</option>
+                ))}
+              </select>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
