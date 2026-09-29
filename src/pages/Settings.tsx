@@ -8,9 +8,9 @@ import { useAuth } from "../context/AuthContext";
 import { useLabs } from "../context/LabContext";
 import { generateInvoicePDF } from "../utils/pdfGenerator";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../components/ui/card";
-import { RadioGroup, RadioGroupItem } from "../../components/ui/radio-group";
-import { Label } from "../../components/ui/label";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
+import { RadioGroup, RadioGroupItem } from "../components/ui/radio-group";
+import { Label } from "../components/ui/label";
 
 const tabs = [
   { id: 'general', label: 'General', icon: Building2 },
