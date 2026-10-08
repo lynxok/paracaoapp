@@ -193,7 +193,7 @@ export function Suppliers() {
     }
 
     text += `\nQuedamos a tu disposición. ¡Muchas gracias!`;
-    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?phone=${phone}&text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const handlePrintVoucher = (tx: SupplierTransaction, supplier: Supplier) => {
@@ -2005,7 +2005,7 @@ export function Suppliers() {
           <button 
             onClick={() => {
               const message = encodeURIComponent(`Hola ${contextItem.contact}, te contactamos de la Óptica por un pedido...`);
-              window.open(`https://wa.me/${contextItem.phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+              window.open(`https://api.whatsapp.com/send?phone=${contextItem.phone.replace(/\D/g, '')}&text=${message}`, '_blank');
               closeMenu();
             }}
             className="w-full flex items-center gap-3 px-4 py-2 text-sm text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"

@@ -149,7 +149,7 @@ export function Dashboard() {
       return;
     }
     const message = encodeURIComponent(`¡Hola ${customer.name}! Te escribimos de la Óptica. Notamos que tu último control para tus ${customer.product} fue en ${new Date(customer.lastPurchase).toLocaleDateString('es-ES')}. ¿Te gustaría agendar una cita para revisar tu graduación visual? 👓`);
-    window.open(`https://wa.me/${customer.phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?phone=${customer.phone.replace(/\D/g, '')}&text=${message}`, '_blank');
   };
 
   const handleWhatsApp = (client: any) => {
@@ -163,7 +163,7 @@ export function Dashboard() {
       return;
     }
     const message = encodeURIComponent(`¡Hola ${client.name}! Te escribimos de la Óptica para desearte un muy feliz cumpleaños. 🎂👓`);
-    window.open(`https://wa.me/${cleanPhone}?text=${message}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?phone=${cleanPhone}&text=${message}`, '_blank');
   };
 
   return (

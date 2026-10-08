@@ -136,7 +136,7 @@ Enviado desde el Centro de Ayuda del Sistema.`;
 
     const encodedText = encodeURIComponent(text);
     const targetPhone = opticaPhone ? opticaPhone.replace(/\D/g, '') : '5493434200000';
-    window.open(`https://wa.me/${targetPhone}?text=${encodedText}`, "_blank");
+    window.open(`https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodedText}`, "_blank");
   };
 
   const articles: HelpArticle[] = [

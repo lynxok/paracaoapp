@@ -299,7 +299,7 @@ export function Marketing() {
       .replace(/{fecha_hoy}/g, new Date().toLocaleDateString('es-ES'));
 
     const message = encodeURIComponent(text);
-    window.open(`https://wa.me/${customer.contact.replace(/\D/g, '')}?text=${message}`, '_blank');
+    window.open(`https://api.whatsapp.com/send?phone=${customer.contact.replace(/\D/g, '')}&text=${message}`, '_blank');
   };
 
   const handleNewCampaign = () => {
@@ -435,7 +435,7 @@ export function Marketing() {
                               {campaign.status}
                             </span>
                             <span className="text-slate-400">•</span>
-                            <span className="text-slate-500 font-medium">Envío manual (wa.me)</span>
+                            <span className="text-slate-500 font-medium">Envío manual (WhatsApp)</span>
                             <span className="text-slate-400">•</span>
                             <span className="text-slate-400 italic text-[10px]">Sin métricas automáticas</span>
                           </div>

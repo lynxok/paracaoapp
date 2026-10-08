@@ -798,7 +798,7 @@ export function Clients() {
           <button 
             onClick={() => {
               const message = encodeURIComponent(`Hola ${contextItem.name}, te contactamos de la Óptica...`);
-              window.open(`https://wa.me/${contextItem.phone.replace(/\D/g, '')}?text=${message}`, '_blank');
+              window.open(`https://api.whatsapp.com/send?phone=${contextItem.phone.replace(/\D/g, '')}&text=${message}`, '_blank');
               closeMenu();
             }}
             className="w-full flex items-center gap-3 px-4 py-2 text-sm text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"

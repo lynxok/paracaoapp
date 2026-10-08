@@ -291,7 +291,7 @@ export function StatusLookup() {
         {/* Action Contacts */}
         <div className="grid md:grid-cols-2 gap-4">
           <a 
-            href={`https://wa.me/${targetPhone}?text=${encodeURIComponent(`Hola ${opticaName || 'Óptica Paracao'}, me comunico para consultar sobre mi pedido.`)}`}
+            href={`https://api.whatsapp.com/send?phone=${targetPhone}&text=${encodeURIComponent(`Hola ${opticaName || 'Óptica Paracao'}, me comunico para consultar sobre mi pedido.`)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center justify-center gap-3 bg-[#25D366] hover:bg-[#20bd5a] text-white p-4 rounded-xl font-bold shadow-sm hover:shadow-lg transition-all text-sm"
