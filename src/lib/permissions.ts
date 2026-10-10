@@ -28,5 +28,6 @@ export function hasPermission(role: UserRole = 'standard', path: string): boolea
     return !isRestricted;
   }
 
-  return true;
+  // Deny access by default for any unknown role (Principle of Least Privilege)
+  return false;
 }

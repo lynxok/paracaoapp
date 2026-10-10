@@ -977,10 +977,10 @@ function InvoiceSimulationModal({
     const configData = {
       razonSocial: opticaName,
       nombreFantasia: opticaName,
-      afipCuit: localStorage.getItem('optica_afip_cuit') || "30-71234567-8",
+      afipCuit: localStorage.getItem('optica_afip_cuit') || "",
       afipPtoVta: details.pv,
-      ingresosBrutos: localStorage.getItem('optica_iibb') || "30-71234567-8",
-      inicioActividad: localStorage.getItem('optica_inicio_actividad') || "01/05/2026",
+      ingresosBrutos: localStorage.getItem('optica_iibb') || "",
+      inicioActividad: localStorage.getItem('optica_inicio_actividad') || "",
       domicilioComercial: opticaAddress,
       invoiceLogo: opticaLogo,
       ...pdfConfig

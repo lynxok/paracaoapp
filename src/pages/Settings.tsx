@@ -393,14 +393,7 @@ export function Settings() {
     URL.revokeObjectURL(url);
   };
 
-  // Initial mock logs if empty
-  useEffect(() => {
-    if (auditLogs.length === 0) {
-      logger.log("Inicio de sesión", "info", "Auth", undefined, "Ignacio Valente");
-      logger.log("Error en sincronización AFIP", "error", "Facturación", "Token de acceso expirado (Auth 401)", "Sistema");
-      logger.log("Ingreso de stock", "info", "Inventario", undefined, "Juana Pérez");
-    }
-  }, []);
+
 
   const handleExportLocalDB = () => {
     const data: Record<string, string> = {};
@@ -443,11 +436,11 @@ export function Settings() {
     sql += `-- Instrucciones: Copiá y pegá este código completo en el SQL Editor de tu consola de Supabase y hacé clic en RUN.\n\n`;
 
     sql += `-- OTORGAR PERMISOS GLOBALES DE LECTURA Y ESCRITURA EN EL ESQUEMA PUBLIC\n`;
-    sql += `GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;\n`;
-    sql += `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;\n`;
-    sql += `GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;\n`;
-    sql += `GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;\n`;
-    sql += `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;\n\n`;
+    sql += `GRANT USAGE ON SCHEMA public TO authenticated, service_role;\n`;
+    sql += `GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, service_role;\n`;
+    sql += `GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated, service_role;\n`;
+    sql += `GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO authenticated, service_role;\n`;
+    sql += `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated, service_role;\n\n`;
 
 
     sql += `-- 1. Tabla de Perfiles de Usuario\n`;
@@ -463,7 +456,7 @@ export function Settings() {
 );\n`;
     sql += `ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en profiles" ON profiles;\n`;
-    sql += `CREATE POLICY "Permitir todo en profiles" ON profiles FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en profiles" ON profiles FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 2. Tabla de Clientes\n`;
     sql += `CREATE TABLE IF NOT EXISTS clients (
@@ -477,7 +470,7 @@ export function Settings() {
 );\n`;
     sql += `ALTER TABLE clients ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en clients" ON clients;\n`;
-    sql += `CREATE POLICY "Permitir todo en clients" ON clients FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en clients" ON clients FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 3. Tabla de Inventario / Productos\n`;
     sql += `CREATE TABLE IF NOT EXISTS inventory (
@@ -492,7 +485,7 @@ export function Settings() {
 );\n`;
     sql += `ALTER TABLE inventory ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en inventory" ON inventory;\n`;
-    sql += `CREATE POLICY "Permitir todo en inventory" ON inventory FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en inventory" ON inventory FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 4. Tabla de Órdenes y Pedidos\n`;
     sql += `CREATE TABLE IF NOT EXISTS orders (
@@ -508,7 +501,7 @@ export function Settings() {
 );\n`;
     sql += `ALTER TABLE orders ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en orders" ON orders;\n`;
-    sql += `CREATE POLICY "Permitir todo en orders" ON orders FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en orders" ON orders FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 5. Tabla de Campañas de Marketing / Promociones\n`;
     sql += `CREATE TABLE IF NOT EXISTS campaigns (
@@ -526,7 +519,7 @@ export function Settings() {
 );\n`;
     sql += `ALTER TABLE campaigns ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en campaigns" ON campaigns;\n`;
-    sql += `CREATE POLICY "Permitir todo en campaigns" ON campaigns FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en campaigns" ON campaigns FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 6. Tabla de Médicos / Oftalmólogos\n`;
     sql += `CREATE TABLE IF NOT EXISTS doctors (
@@ -541,7 +534,7 @@ export function Settings() {
 );\n`;
     sql += `ALTER TABLE doctors ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en doctors" ON doctors;\n`;
-    sql += `CREATE POLICY "Permitir todo en doctors" ON doctors FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en doctors" ON doctors FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 7. Tabla de Bancos y Entidades Financieras\n`;
     sql += `CREATE TABLE IF NOT EXISTS banks (
@@ -556,7 +549,7 @@ export function Settings() {
 );\n`;
     sql += `ALTER TABLE banks ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en banks" ON banks;\n`;
-    sql += `CREATE POLICY "Permitir todo en banks" ON banks FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en banks" ON banks FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 8. Tabla de Obras Sociales y Mutuas\n`;
     sql += `CREATE TABLE IF NOT EXISTS insurances (
@@ -568,7 +561,7 @@ export function Settings() {
 );\n`;
     sql += `ALTER TABLE insurances ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en insurances" ON insurances;\n`;
-    sql += `CREATE POLICY "Permitir todo en insurances" ON insurances FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en insurances" ON insurances FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 9. Tabla de Proveedores\n`;
     sql += `CREATE TABLE IF NOT EXISTS suppliers (
@@ -582,7 +575,7 @@ export function Settings() {
 );\n`;
     sql += `ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en suppliers" ON suppliers;\n`;
-    sql += `CREATE POLICY "Permitir todo en suppliers" ON suppliers FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en suppliers" ON suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 10. Tabla de Laboratorios Ópticos
 CREATE TABLE IF NOT EXISTS labs (
@@ -595,7 +588,7 @@ CREATE TABLE IF NOT EXISTS labs (
 );
 ALTER TABLE labs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir todo en labs" ON labs;
-CREATE POLICY "Permitir todo en labs" ON labs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Permitir todo en labs" ON labs FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- 10.1 Tabla de Trabajos de Laboratorio (lab_jobs)
 CREATE TABLE IF NOT EXISTS lab_jobs (
@@ -620,7 +613,7 @@ CREATE TABLE IF NOT EXISTS lab_jobs (
 );
 ALTER TABLE lab_jobs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir todo en lab_jobs" ON lab_jobs;
-CREATE POLICY "Permitir todo en lab_jobs" ON lab_jobs FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Permitir todo en lab_jobs" ON lab_jobs FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- 10.2 Tabla de Pagos a Laboratorio (lab_payments)
 CREATE TABLE IF NOT EXISTS lab_payments (
@@ -633,7 +626,7 @@ CREATE TABLE IF NOT EXISTS lab_payments (
 );
 ALTER TABLE lab_payments ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Permitir todo en lab_payments" ON lab_payments;
-CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 `;
 
@@ -658,7 +651,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE crystal_items ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en crystal_items" ON crystal_items;\n`;
-    sql += `CREATE POLICY "Permitir todo en crystal_items" ON crystal_items FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en crystal_items" ON crystal_items FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 12. Tabla de Reglas de Precio de Cristales\n`;
     sql += `CREATE TABLE IF NOT EXISTS crystal_rules (
@@ -672,7 +665,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE crystal_rules ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en crystal_rules" ON crystal_rules;\n`;
-    sql += `CREATE POLICY "Permitir todo en crystal_rules" ON crystal_rules FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en crystal_rules" ON crystal_rules FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 13. Tabla de Tratamientos de Cristales\n`;
     sql += `CREATE TABLE IF NOT EXISTS crystal_treatments (
@@ -683,7 +676,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE crystal_treatments ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en crystal_treatments" ON crystal_treatments;\n`;
-    sql += `CREATE POLICY "Permitir todo en crystal_treatments" ON crystal_treatments FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en crystal_treatments" ON crystal_treatments FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 14. Tabla de Maestros de Cristales (Marcas, Materiales, Índices, Diseños, Colores)\n`;
     sql += `CREATE TABLE IF NOT EXISTS crystal_masters (
@@ -694,7 +687,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE crystal_masters ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en crystal_masters" ON crystal_masters;\n`;
-    sql += `CREATE POLICY "Permitir todo en crystal_masters" ON crystal_masters FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en crystal_masters" ON crystal_masters FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 15. Tabla de Sucursales y Bocas de Venta\n`;
     sql += `CREATE TABLE IF NOT EXISTS branches (
@@ -706,7 +699,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE branches ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en branches" ON branches;\n`;
-    sql += `CREATE POLICY "Permitir todo en branches" ON branches FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en branches" ON branches FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 16. Tabla de Categorías de Inventario\n`;
     sql += `CREATE TABLE IF NOT EXISTS inventory_categories (
@@ -716,7 +709,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE inventory_categories ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en inventory_categories" ON inventory_categories;\n`;
-    sql += `CREATE POLICY "Permitir todo en inventory_categories" ON inventory_categories FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en inventory_categories" ON inventory_categories FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 17. Tabla de Ajustes del Sistema y Datos Corporativos\n`;
     sql += `CREATE TABLE IF NOT EXISTS system_settings (
@@ -726,7 +719,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en system_settings" ON system_settings;\n`;
-    sql += `CREATE POLICY "Permitir todo en system_settings" ON system_settings FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en system_settings" ON system_settings FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 18. Tabla de Logs de Auditoría\n`;
     sql += `CREATE TABLE IF NOT EXISTS audit_logs (
@@ -741,7 +734,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en audit_logs" ON audit_logs;\n`;
-    sql += `CREATE POLICY "Permitir todo en audit_logs" ON audit_logs FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en audit_logs" ON audit_logs FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 19. Tabla de Transacciones Financieras de Caja\n`;
     sql += `CREATE TABLE IF NOT EXISTS transactions (
@@ -761,7 +754,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en transactions" ON transactions;\n`;
-    sql += `CREATE POLICY "Permitir todo en transactions" ON transactions FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en transactions" ON transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 20. Tabla de Proveedores\n`;
     sql += `CREATE TABLE IF NOT EXISTS suppliers (
@@ -780,7 +773,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en suppliers" ON suppliers;\n`;
-    sql += `CREATE POLICY "Permitir todo en suppliers" ON suppliers FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en suppliers" ON suppliers FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 21. Tabla de Transacciones de Proveedores (Cuentas Corrientes)\n`;
     sql += `CREATE TABLE IF NOT EXISTS supplier_transactions (
@@ -798,7 +791,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE supplier_transactions ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en supplier_transactions" ON supplier_transactions;\n`;
-    sql += `CREATE POLICY "Permitir todo en supplier_transactions" ON supplier_transactions FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en supplier_transactions" ON supplier_transactions FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- 22. Tabla de Borradores de Facturación (Billing Drafts)\n`;
     sql += `CREATE TABLE IF NOT EXISTS billing_drafts (
@@ -815,7 +808,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE billing_drafts ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en billing_drafts" ON billing_drafts;\n`;
-    sql += `CREATE POLICY "Permitir todo en billing_drafts" ON billing_drafts FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en billing_drafts" ON billing_drafts FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- Alteraciones para Seña/Saldo en Orders\n`;
     sql += `ALTER TABLE orders ADD COLUMN IF NOT EXISTS sena_method_id text;\n`;
@@ -841,7 +834,7 @@ CREATE POLICY "Permitir todo en lab_payments" ON lab_payments FOR ALL USING (tru
 );\n`;
     sql += `ALTER TABLE cheques ENABLE ROW LEVEL SECURITY;\n`;
     sql += `DROP POLICY IF EXISTS "Permitir todo en cheques" ON cheques;\n`;
-    sql += `CREATE POLICY "Permitir todo en cheques" ON cheques FOR ALL USING (true) WITH CHECK (true);\n\n`;
+    sql += `CREATE POLICY "Permitir todo en cheques" ON cheques FOR ALL TO authenticated USING (true) WITH CHECK (true);\n\n`;
 
     sql += `-- DATOS INICIALES PREDETERMINADOS (SEED DATA)\n\n`;
 
@@ -926,9 +919,20 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
 ('m-14', 'design', 'Multifocal')
 ON CONFLICT (id) DO NOTHING;\n\n`;
 
+    sql += `-- 24. Función RPC para listado de sucursales en pantalla de Login\n`;
+    sql += `CREATE OR REPLACE FUNCTION public.get_login_branches()
+RETURNS TABLE (id text, name text)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT id::text, name FROM public.branches ORDER BY id ASC;
+$$;\n`;
+    sql += `GRANT EXECUTE ON FUNCTION public.get_login_branches() TO anon, authenticated;\n\n`;
+
     sql += `-- REAFIRMAR PERMISOS FINALES DE ACCESO\n`;
-    sql += `GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;\n`;
-    sql += `GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;\n\n`;
+    sql += `GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, service_role;\n`;
+    sql += `GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated, service_role;\n\n`;
 
     const blob = new Blob([sql], { type: 'text/sql' });
     const url = URL.createObjectURL(blob);
@@ -3700,8 +3704,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       />
                       <button 
                         onClick={() => {
-                          if (masterInputValues.brand.trim() && !brands.includes(masterInputValues.brand.trim())) {
-                            setBrands([...brands, masterInputValues.brand.trim()]);
+                          const val = masterInputValues.brand.trim();
+                          if (val && !brands.some(b => b.trim().toLowerCase() === val.toLowerCase())) {
+                            setBrands([...brands, val]);
                             setMasterInputValues({...masterInputValues, brand: ''});
                           }
                         }}
@@ -3731,8 +3736,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       />
                       <button 
                         onClick={() => {
-                          if (masterInputValues.material.trim() && !materials.includes(masterInputValues.material.trim())) {
-                            setMaterials([...materials, masterInputValues.material.trim()]);
+                          const val = masterInputValues.material.trim();
+                          if (val && !materials.some(b => b.trim().toLowerCase() === val.toLowerCase())) {
+                            setMaterials([...materials, val]);
                             setMasterInputValues({...masterInputValues, material: ''});
                           }
                         }}
@@ -3762,8 +3768,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       />
                       <button 
                         onClick={() => {
-                          if (masterInputValues.index.trim() && !indices.includes(masterInputValues.index.trim())) {
-                            setIndices([...indices, masterInputValues.index.trim()]);
+                          const val = masterInputValues.index.trim();
+                          if (val && !indices.some(b => b.trim().toLowerCase() === val.toLowerCase())) {
+                            setIndices([...indices, val]);
                             setMasterInputValues({...masterInputValues, index: ''});
                           }
                         }}
@@ -3793,8 +3800,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       />
                       <button 
                         onClick={() => {
-                          if (masterInputValues.design.trim() && !designs.includes(masterInputValues.design.trim())) {
-                            setDesigns([...designs, masterInputValues.design.trim()]);
+                          const val = masterInputValues.design.trim();
+                          if (val && !designs.some(b => b.trim().toLowerCase() === val.toLowerCase())) {
+                            setDesigns([...designs, val]);
                             setMasterInputValues({...masterInputValues, design: ''});
                           }
                         }}
@@ -3824,8 +3832,9 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                       />
                       <button 
                         onClick={() => {
-                          if (masterInputValues.color.trim() && !colors.includes(masterInputValues.color.trim())) {
-                            setColors([...colors, masterInputValues.color.trim()]);
+                          const val = masterInputValues.color.trim();
+                          if (val && !colors.some(b => b.trim().toLowerCase() === val.toLowerCase())) {
+                            setColors([...colors, val]);
                             setMasterInputValues({...masterInputValues, color: ''});
                           }
                         }}
@@ -4628,10 +4637,18 @@ ON CONFLICT (id) DO NOTHING;\n\n`;
                 }
                 if (selectedUser) {
                   try {
-                    await supabase.rpc('reset_user_password', { target_user_id: selectedUser.id, new_plain_password: passwordForm.new });
+                    const { error } = await supabase.rpc('reset_user_password', { 
+                      target_user_id: selectedUser.id, 
+                      new_plain_password: passwordForm.new 
+                    });
+                    if (error) {
+                      alert(`⚠️ Error al resetear contraseña: ${error.message || JSON.stringify(error)}`);
+                      return;
+                    }
                     alert(`Contraseña de ${selectedUser.name} actualizada correctamente en Supabase Auth.`);
                   } catch (err: any) {
                     alert(`Error al resetear contraseña: ${err.message}`);
+                    return;
                   }
                 } else {
                   alert("Tu contraseña ha sido actualizada.");

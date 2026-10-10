@@ -32,7 +32,7 @@ import {
   FileText,
   MapPin
 } from "lucide-react";
-import { cn } from "../lib/utils";
+import { cn, formatMoney } from "../lib/utils";
 import { supabase } from "../lib/supabase";
 import { CashBox, Transaction, Denomination, FinanceCategory, Cheque } from "../types";
 import { useAuth } from "../context/AuthContext";
@@ -398,6 +398,11 @@ export function Finance() {
   };
 
   const handleAddBox = (box: CashBox) => {
+    const exists = boxes.some(b => b.name.trim().toLowerCase() === box.name.trim().toLowerCase());
+    if (exists) {
+      alert(`Ya existe una caja o cuenta con el nombre "${box.name}".`);
+      return;
+    }
     addBox(box);
     setShowAddBox(false);
     setSelectedBoxId(box.id);
@@ -709,7 +714,12 @@ export function Finance() {
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold">${bal.toLocaleString()}</p>
+                        <p className={cn(
+                          "text-sm font-bold",
+                          bal < 0 ? "text-rose-500 dark:text-rose-400 font-black" : ""
+                        )}>
+                          {formatMoney(bal)}
+                        </p>
                       </div>
                     </button>
                   );
@@ -771,37 +781,42 @@ export function Finance() {
           <div className="flex-1 space-y-6 w-full">
             {selectedBoxId === 'consolidated' ? (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
                   <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
                       <PieChart className="w-4 h-4 text-blue-500" /> Capital Total
                     </p>
-                    <p className="text-3xl font-black text-slate-900 dark:text-white">${consolidatedStats.balance.toLocaleString()}</p>
+                    <p className={cn(
+                      "text-2xl sm:text-3xl font-black",
+                      consolidatedStats.balance >= 0 ? "text-slate-900 dark:text-white" : "text-rose-600 dark:text-rose-400"
+                    )}>
+                      {formatMoney(consolidatedStats.balance)}
+                    </p>
                     <p className="text-[10px] text-slate-400 mt-1">Suma de todas las cajas activas</p>
                   </div>
                   <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
                       <Banknote className="w-4 h-4 text-slate-400" /> Saldo Inicial
                     </p>
-                    <p className="text-2xl font-black text-slate-700 dark:text-slate-300">${consolidatedStats.initial.toLocaleString()}</p>
+                    <p className="text-2xl font-black text-slate-700 dark:text-slate-300">{formatMoney(consolidatedStats.initial)}</p>
                   </div>
                   <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
                       <TrendingUp className="w-4 h-4 text-emerald-500" /> Ingresos Totales
                     </p>
-                    <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">+${consolidatedStats.incomes.toLocaleString()}</p>
+                    <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">+{formatMoney(consolidatedStats.incomes)}</p>
                   </div>
                   <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
                       <TrendingDown className="w-4 h-4 text-rose-500" /> Egresos Totales
                     </p>
-                    <p className="text-2xl font-black text-rose-600 dark:text-rose-400">-${consolidatedStats.expenses.toLocaleString()}</p>
+                    <p className="text-2xl font-black text-rose-600 dark:text-rose-400">-{formatMoney(consolidatedStats.expenses)}</p>
                   </div>
                   <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
                     <p className="text-xs text-slate-500 font-black uppercase tracking-widest mb-2 flex items-center gap-2">
                       <Shield className="w-4 h-4 text-indigo-500" /> Obras Sociales Hoy
                     </p>
-                    <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">${todayInsuranceClaims.toLocaleString()}</p>
+                    <p className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{formatMoney(todayInsuranceClaims)}</p>
                     <p className="text-[10px] text-slate-400 mt-1">Reintegros emitidos hoy</p>
                   </div>
                 </div>

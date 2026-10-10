@@ -50,3 +50,26 @@ export function formatMoney(val: number | string | null | undefined, includeDeci
     maximumFractionDigits: includeDecimals ? 2 : 0
   })}`;
 }
+
+/**
+ * Retorna la fecha en formato ISO YYYY-MM-DD según la zona horaria de Argentina (America/Argentina/Buenos_Aires).
+ * Evita que ventas registradas después de las 21:00 hs queden con la fecha del día siguiente por culpa de UTC.
+ */
+export function localDateISO(dateInput?: Date | string | number): string {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  if (isNaN(d.getTime())) {
+    return new Date().toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+  }
+  return d.toLocaleDateString('en-CA', { timeZone: 'America/Argentina/Buenos_Aires' });
+}
+
+/**
+ * Retorna la hora en formato HH:mm:ss según la zona horaria de Argentina.
+ */
+export function localTimeISO(dateInput?: Date | string | number): string {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  if (isNaN(d.getTime())) {
+    return new Date().toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false });
+  }
+  return d.toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires', hour12: false });
+}

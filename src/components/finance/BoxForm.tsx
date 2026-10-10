@@ -15,11 +15,12 @@ export function BoxForm({ onClose, onSubmit }: BoxFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const cleanName = name.trim();
+    if (!cleanName) return;
 
     const newBox: CashBox = {
       id: `box-${Date.now()}`,
-      name,
+      name: cleanName,
       type,
       initialBalance,
       incomes: 0,

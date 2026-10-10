@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { useParams, Link, useNavigate, useLocation, useSearchParams } from "react-router-dom";
-import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ChevronUp, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays, AlertTriangle, UserPlus, ShieldCheck, Settings, Edit2, Trash2, RotateCcw, Wrench } from "lucide-react";
+import { User, Eye, Check, ArrowLeft, Search, X, Plus, Banknote, Building, CreditCard, Wallet, ChevronDown, ChevronUp, ArrowDownToLine, ArrowUpFromLine, FlaskConical, Printer, CalendarDays, AlertTriangle, UserPlus, ShieldCheck, Settings, Edit2, Trash2, RotateCcw, Wrench, Info } from "lucide-react";
 import { cn, parseCurrency, formatMoney } from "../lib/utils";
 import { useFinance } from "../context/FinanceContext";
 import { useClients } from "../context/ClientContext";
@@ -12,6 +12,103 @@ import { CrystalPricingCondition } from "../types";
 import { AddClientModal } from "../components/AddClientModal";
 import { useAuth } from "../context/AuthContext";
 import { supabase } from "../lib/supabase";
+
+// Utilidades para graduación técnica (pasos de 0.25)
+const formatDiopter = (raw: string): string => {
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  const clean = trimmed.replace(',', '.');
+  const num = parseFloat(clean);
+  if (isNaN(num)) return raw;
+  const rounded = Math.round(num * 4) / 4;
+  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(2)}`;
+};
+
+const isValidQuarterStep = (raw: string): boolean => {
+  const trimmed = raw.trim();
+  if (!trimmed) return true;
+  const clean = trimmed.replace(',', '.');
+  const num = parseFloat(clean);
+  if (isNaN(num)) return false;
+  const cents = Math.round(Math.abs(num) * 100);
+  return cents % 25 === 0;
+};
+
+const stepDiopter = (currentVal: string, delta: number, allowNegative: boolean = true): string => {
+  const clean = (currentVal || "0").trim().replace(',', '.');
+  let num = parseFloat(clean);
+  if (isNaN(num)) num = 0;
+  let next = Math.round((num + delta) * 4) / 4;
+  if (!allowNegative && next < 0) next = 0;
+  if (next === 0) return "0.00";
+  return `${next > 0 ? '+' : ''}${next.toFixed(2)}`;
+};
+
+interface DiopterStepperInputProps {
+  value: string;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+  placeholder?: string;
+  allowNegative?: boolean;
+  className?: string;
+}
+
+function DiopterStepperInput({
+  value,
+  onChange,
+  disabled = false,
+  placeholder = "0.00",
+  allowNegative = true,
+  className
+}: DiopterStepperInputProps) {
+  const isInvalid = value.trim() !== "" && !isValidQuarterStep(value);
+  return (
+    <div className="relative flex items-center w-full">
+      <input
+        type="text"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onBlur={() => {
+          if (value.trim()) {
+            onChange(formatDiopter(value));
+          }
+        }}
+        disabled={disabled}
+        placeholder={placeholder}
+        className={cn(
+          "h-11 px-3 pr-8 w-full rounded-lg bg-white dark:bg-slate-950 text-center font-medium outline-none border transition-all focus:ring-2",
+          isInvalid
+            ? "border-amber-500 text-amber-600 dark:text-amber-400 focus:ring-amber-500 bg-amber-50/20"
+            : "border-slate-200 dark:border-slate-800 focus:ring-blue-600",
+          disabled && "opacity-55 bg-slate-100 dark:bg-slate-900",
+          className
+        )}
+      />
+      {!disabled && (
+        <div className="absolute right-1 inset-y-1 flex flex-col justify-center gap-0.5 border-l border-slate-200 dark:border-slate-800 pl-1 pr-0.5">
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => onChange(stepDiopter(value, 0.25, allowNegative))}
+            title="Aumentar +0.25"
+            className="p-0.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+          >
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => onChange(stepDiopter(value, -0.25, allowNegative))}
+            title="Disminuir -0.25"
+            className="p-0.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+          >
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function NewOrder() {
   const { boxes, addTransaction } = useFinance();
@@ -235,27 +332,17 @@ export function NewOrder() {
     }
   }, [effectiveType, selBrand, availableMaterialsForSelect]);
 
-  // Mantener sincronizado el cristal seleccionado de Lejos / Principal
+  // Mantener sincronizado el cristal seleccionado de Lejos / Principal sin autoseleccionar a ciegas
   useEffect(() => {
-    if (availableCrystals.length > 0) {
-      const exists = availableCrystals.some(c => c.id === selectedCrystalId);
-      if (!exists) {
-        setSelectedCrystalId(availableCrystals[0].id);
-      }
-    } else if (crystalsOfType.length > 0) {
+    if (selectedCrystalId) {
       const exists = crystalsOfType.some(c => c.id === selectedCrystalId);
       if (!exists) {
-        setSelectedCrystalId(crystalsOfType[0].id);
+        setSelectedCrystalId("");
       }
-    } else {
-      setSelectedCrystalId("");
     }
-  }, [selBrand, selMaterial, effectiveType, crystalItems]);
+  }, [effectiveType, crystalItems, selectedCrystalId]);
 
-  const selectedCrystal = crystalsOfType.find(c => c.id === selectedCrystalId) 
-    || availableCrystals[0] 
-    || crystalsOfType[0] 
-    || null;
+  const selectedCrystal = crystalsOfType.find(c => c.id === selectedCrystalId) || null;
 
   // Limpiar tratamientos incompatibles al cambiar de cristal
   useEffect(() => {
@@ -277,25 +364,15 @@ export function NewOrder() {
   );
 
   useEffect(() => {
-    if (availableCrystalsCerca.length > 0) {
-      const exists = availableCrystalsCerca.some(c => c.id === selectedCrystalIdCerca);
-      if (!exists) {
-        setSelectedCrystalIdCerca(availableCrystalsCerca[0].id);
-      }
-    } else if (crystalsOfTypeCerca.length > 0) {
+    if (selectedCrystalIdCerca) {
       const exists = crystalsOfTypeCerca.some(c => c.id === selectedCrystalIdCerca);
       if (!exists) {
-        setSelectedCrystalIdCerca(crystalsOfTypeCerca[0].id);
+        setSelectedCrystalIdCerca("");
       }
-    } else {
-      setSelectedCrystalIdCerca("");
     }
-  }, [selBrandCerca, selMaterialCerca, crystalItems]);
+  }, [crystalItems, selectedCrystalIdCerca]);
 
-  const selectedCrystalCerca = crystalsOfTypeCerca.find(c => c.id === selectedCrystalIdCerca) 
-    || availableCrystalsCerca[0] 
-    || crystalsOfTypeCerca[0] 
-    || null;
+  const selectedCrystalCerca = crystalsOfTypeCerca.find(c => c.id === selectedCrystalIdCerca) || null;
 
   useEffect(() => {
     if (selectedCrystalCerca) {
@@ -383,100 +460,7 @@ export function NewOrder() {
   const [alturaOI, setAlturaOI] = useState("");
   const [medico, setMedico] = useState("");
   
-  // Utilidades para graduación técnica (pasos de 0.25)
-  const formatDiopter = (raw: string): string => {
-    const trimmed = raw.trim();
-    if (!trimmed) return "";
-    const clean = trimmed.replace(',', '.');
-    const num = parseFloat(clean);
-    if (isNaN(num)) return raw;
-    const rounded = Math.round(num * 4) / 4;
-    return `${rounded > 0 ? '+' : ''}${rounded.toFixed(2)}`;
-  };
 
-  const isValidQuarterStep = (raw: string): boolean => {
-    const trimmed = raw.trim();
-    if (!trimmed) return true;
-    const clean = trimmed.replace(',', '.');
-    const num = parseFloat(clean);
-    if (isNaN(num)) return false;
-    const cents = Math.round(Math.abs(num) * 100);
-    return cents % 25 === 0;
-  };
-
-  const stepDiopter = (currentVal: string, delta: number, allowNegative: boolean = true): string => {
-    const clean = (currentVal || "0").trim().replace(',', '.');
-    let num = parseFloat(clean);
-    if (isNaN(num)) num = 0;
-    let next = Math.round((num + delta) * 4) / 4;
-    if (!allowNegative && next < 0) next = 0;
-    if (next === 0) return "0.00";
-    return `${next > 0 ? '+' : ''}${next.toFixed(2)}`;
-  };
-
-  const DiopterStepperInput = ({
-    value,
-    onChange,
-    disabled = false,
-    placeholder = "0.00",
-    allowNegative = true,
-    className
-  }: {
-    value: string;
-    onChange: (val: string) => void;
-    disabled?: boolean;
-    placeholder?: string;
-    allowNegative?: boolean;
-    className?: string;
-  }) => {
-    const isInvalid = value.trim() !== "" && !isValidQuarterStep(value);
-    return (
-      <div className="relative flex items-center w-full">
-        <input
-          type="text"
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          onBlur={() => {
-            if (value.trim()) {
-              onChange(formatDiopter(value));
-            }
-          }}
-          disabled={disabled}
-          placeholder={placeholder}
-          className={cn(
-            "h-11 px-3 pr-8 w-full rounded-lg bg-white dark:bg-slate-950 text-center font-medium outline-none border transition-all focus:ring-2",
-            isInvalid
-              ? "border-amber-500 text-amber-600 dark:text-amber-400 focus:ring-amber-500 bg-amber-50/20"
-              : "border-slate-200 dark:border-slate-800 focus:ring-blue-600",
-            disabled && "opacity-55 bg-slate-100 dark:bg-slate-900",
-            className
-          )}
-        />
-        {!disabled && (
-          <div className="absolute right-1 inset-y-1 flex flex-col justify-center gap-0.5 border-l border-slate-200 dark:border-slate-800 pl-1 pr-0.5">
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={() => onChange(stepDiopter(value, 0.25, allowNegative))}
-              title="Aumentar +0.25"
-              className="p-0.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-            >
-              <ChevronUp className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              tabIndex={-1}
-              onClick={() => onChange(stepDiopter(value, -0.25, allowNegative))}
-              title="Disminuir -0.25"
-              className="p-0.5 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
   
   // Doctor Database State & Handlers
   const [doctors, setDoctors] = useState<any[]>(() => {
@@ -2117,9 +2101,9 @@ export function NewOrder() {
                 )}
                 
                 {selectedCrystal === null && (
-                  <div className="p-4 bg-amber-50 dark:bg-amber-955/30 rounded-xl border border-amber-200 dark:border-amber-900/40 flex items-center gap-2 text-amber-700 dark:text-amber-400 font-bold text-xs animate-in fade-in">
-                    <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                    <span>La combinación de Modelo y Material elegida no existe en el catálogo de cristales de administración.</span>
+                  <div className="p-4 bg-blue-50/50 dark:bg-blue-950/20 rounded-xl border border-blue-200 dark:border-blue-900/40 flex items-center gap-2 text-blue-700 dark:text-blue-400 font-bold text-xs animate-in fade-in">
+                    <Info className="w-4 h-4 flex-shrink-0" />
+                    <span>Seleccione un cristal del catálogo en el panel lateral derecho para calcular el presupuesto.</span>
                   </div>
                 )}
               </div>
@@ -2192,6 +2176,10 @@ export function NewOrder() {
                         <select
                           value={selectedCrystal?.id || ""}
                           onChange={e => {
+                            if (!e.target.value) {
+                              setSelectedCrystalId("");
+                              return;
+                            }
                             const chosen = crystalsOfType.find(c => c.id === e.target.value);
                             if (chosen) {
                               setSelectedCrystalId(chosen.id);
@@ -2201,6 +2189,7 @@ export function NewOrder() {
                           }}
                           className="h-9 px-2.5 w-full rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none shadow-sm"
                         >
+                          <option value="">-- Seleccionar Cristal Lejos --</option>
                           {availableCrystals.map(c => (
                             <option key={c.id} value={c.id}>
                               {c.name} — ${c.basePrice.toLocaleString('es-AR')} ({c.brand} | {c.material})
@@ -2353,6 +2342,10 @@ export function NewOrder() {
                         <select
                           value={selectedCrystalCerca?.id || ""}
                           onChange={e => {
+                            if (!e.target.value) {
+                              setSelectedCrystalIdCerca("");
+                              return;
+                            }
                             const chosen = crystalsOfTypeCerca.find(c => c.id === e.target.value);
                             if (chosen) {
                               setSelectedCrystalIdCerca(chosen.id);
@@ -2362,6 +2355,7 @@ export function NewOrder() {
                           }}
                           className="h-9 px-2.5 w-full rounded-lg border-2 border-emerald-300 dark:border-emerald-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-emerald-600 outline-none shadow-sm"
                         >
+                          <option value="">-- Seleccionar Cristal Cerca --</option>
                           {availableCrystalsCerca.map(c => (
                             <option key={c.id} value={c.id}>
                               {c.name} — ${c.basePrice.toLocaleString('es-AR')} ({c.brand} | {c.material})
@@ -2509,6 +2503,10 @@ export function NewOrder() {
                         <select
                           value={selectedCrystal?.id || ""}
                           onChange={e => {
+                            if (!e.target.value) {
+                              setSelectedCrystalId("");
+                              return;
+                            }
                             const chosen = crystalsOfType.find(c => c.id === e.target.value);
                             if (chosen) {
                               setSelectedCrystalId(chosen.id);
@@ -2518,6 +2516,7 @@ export function NewOrder() {
                           }}
                           className="h-10 px-2.5 w-full rounded-lg border-2 border-blue-300 dark:border-blue-700 bg-blue-50/40 dark:bg-slate-950 text-slate-900 dark:text-white text-xs font-bold focus:ring-2 focus:ring-blue-600 outline-none shadow-sm"
                         >
+                          <option value="">-- Seleccionar Cristal del Catálogo --</option>
                           {availableCrystals.map(c => (
                             <option key={c.id} value={c.id}>
                               {c.name} — ${c.basePrice.toLocaleString('es-AR')} ({c.brand} | {c.material} {c.index ? `índ ${c.index}` : ''}{c.esfPlusCilMax ? ` | Suma máx ±${c.esfPlusCilMax}` : ''})

@@ -1,10 +1,10 @@
 {
-  "name": "react-example",
+  "name": "optica-paracao",
   "private": true,
-  "version": "2.4.8",
+  "version": "2.5.0",
   "type": "module",
   "scripts": {
-    "dev": "vite --port=3005 --host=0.0.0.0",
+    "dev": "node scripts/ensure_dev_index.cjs && vite --port=3005 --host=0.0.0.0",
     "build": "node scripts/deploy_build.cjs",
     "deploy": "node scripts/deploy_production.cjs",
     "preview": "vite preview",

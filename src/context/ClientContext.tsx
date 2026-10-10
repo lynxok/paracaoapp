@@ -3,6 +3,7 @@ import { useNotifications } from './NotificationsContext';
 import { supabase } from '../lib/supabase';
 import { Client, Order, Transaction } from '../types';
 import { useFinance } from './FinanceContext';
+import { useAuth } from './AuthContext';
 
 interface ClientContextType {
   clients: Client[];
@@ -38,6 +39,7 @@ const ensureMostradorFirst = (list: Client[]): Client[] => {
 
 export function ClientProvider({ children }: { children: ReactNode }) {
   const { boxes, addTransaction, transactions } = useFinance();
+  const { currentUser, isAuthenticated } = useAuth();
   const [clients, setClients] = useState<Client[]>([CLIENT_MOSTRADOR]);
   const [orders, setOrders] = useState<Order[]>([]);
 
@@ -81,9 +83,14 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     balance: c.balance
   });
 
-  // Fetch initial data from Supabase
+  // Fetch data from Supabase only when authenticated
   useEffect(() => {
     async function loadSupabaseData() {
+      if (!isAuthenticated || !currentUser) {
+        setClients([CLIENT_MOSTRADOR]);
+        setOrders([]);
+        return;
+      }
       try {
         const { data: dbClients, error: cErr } = await supabase.from('clients').select('*');
         if (!cErr && dbClients) {
@@ -99,7 +106,7 @@ export function ClientProvider({ children }: { children: ReactNode }) {
       }
     }
     loadSupabaseData();
-  }, []);
+  }, [isAuthenticated, currentUser?.id]);
 
   const addClient = async (clientData: Omit<Client, 'id' | 'balance'>): Promise<Client> => {
     const existing = clients.find(c => c.dni.trim() === clientData.dni.trim());
@@ -193,7 +200,8 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     branchId: o.branch_id || o.branchId || '',
     prescriptionDetails: o.prescription_details || o.prescriptionDetails || null,
     senaMethodId: o.sena_method_id || '',
-    previstoMethodId: o.previsto_method_id || ''
+    previstoMethodId: o.previsto_method_id || '',
+    saleGroupId: o.sale_group_id || o.saleGroupId || ''
   });
 
   // Helper de mapeo de Order (camelCase) a Supabase (snake_case)
@@ -211,17 +219,30 @@ export function ClientProvider({ children }: { children: ReactNode }) {
     branch_id: o.branchId,
     prescription_details: o.prescriptionDetails || null,
     sena_method_id: o.senaMethodId || null,
-    previsto_method_id: o.previstoMethodId || null
+    previsto_method_id: o.previstoMethodId || null,
+    sale_group_id: o.saleGroupId || null
   });
 
   const addOrder = async (orderData: Omit<Order, 'id'> & { id?: string }) => {
     const newOrder: Order = {
       ...orderData,
-      id: orderData.id || `ORD-${Date.now().toString().slice(-6)}`,
+      id: orderData.id || `ORD-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
     };
     setOrders(prev => [newOrder, ...prev]);
     try {
-      await supabase.from('orders').upsert([mapOrderToDbOrder(newOrder)]);
+      const payload: any = mapOrderToDbOrder(newOrder);
+      const { error } = await supabase.from('orders').upsert([payload]);
+      if (error) {
+        console.warn("Supabase order insert warning:", error.message);
+        // Fallback: si la columna sale_group_id todavía no fue creada en Supabase, reintentar sin ella
+        if (error.code === 'PGRST204' || error.message?.includes('sale_group_id')) {
+          delete payload.sale_group_id;
+          const { error: retryErr } = await supabase.from('orders').upsert([payload]);
+          if (retryErr) {
+            console.error("Supabase order insert retry error:", retryErr);
+          }
+        }
+      }
     } catch (e) {
       console.error("Supabase order insert error:", e);
     }
@@ -230,7 +251,10 @@ export function ClientProvider({ children }: { children: ReactNode }) {
   const updateOrderStatus = async (orderId: string, status: string) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status } : o));
     try {
-      await supabase.from('orders').update({ status }).eq('id', orderId);
+      const { error } = await supabase.from('orders').update({ status }).eq('id', orderId);
+      if (error) {
+        console.error("Supabase order update status error:", error);
+      }
     } catch (e) {
       console.error("Supabase order update status error:", e);
     }

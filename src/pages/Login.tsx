@@ -98,7 +98,7 @@ export function Login() {
                     value={username}
                     onChange={handleUsernameChange}
                     className="w-full h-12 pl-12 pr-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-950/50 text-slate-900 dark:text-white outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white dark:focus:bg-slate-950 transition-all font-medium"
-                    placeholder="ej: admin@visionclara.com"
+                    placeholder="ej: admin@opticaparacao.com"
                   />
                 </div>
               </div>

@@ -89,6 +89,7 @@ export interface Order {
   prescriptionDetails?: any;
   senaMethodId?: string;
   previstoMethodId?: string;
+  saleGroupId?: string;
 }
 
 export type TransactionType = 'income' | 'expense';

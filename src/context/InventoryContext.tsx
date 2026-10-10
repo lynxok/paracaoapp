@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { useNotifications } from './NotificationsContext';
 import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
+import { localDateISO, localTimeISO } from '../lib/utils';
 
 export interface InventoryItem {
   name: string;
@@ -45,12 +47,18 @@ interface InventoryContextType {
 const InventoryContext = createContext<InventoryContextType | undefined>(undefined);
 
 export function InventoryProvider({ children }: { children: ReactNode }) {
+  const { currentUser, isAuthenticated, branches } = useAuth();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
 
-  // Load from Supabase on mount
+  // Load from Supabase on session
   useEffect(() => {
     async function loadDataFromSupabase() {
+      if (!isAuthenticated || !currentUser) {
+        setInventory([]);
+        setStockMovements([]);
+        return;
+      }
       try {
         // Load inventory products
         const { data: invData, error: invError } = await supabase.from('inventory').select('*');
@@ -97,7 +105,7 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
     }
 
     loadDataFromSupabase();
-  }, []);
+  }, [isAuthenticated, currentUser?.id]);
 
   const addInventoryItem = async (item: InventoryItem) => {
     try {
@@ -171,7 +179,8 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   const deductStock = async (sku: string, branchId: number, quantity: number) => {
     const item = inventory.find(i => i.sku === sku);
     if (item) {
-      const branchName = branchId === 1 ? "Casa Central" : "Shopping";
+      const foundBranch = branches.find(b => String(b.id) === String(branchId));
+      const branchName = foundBranch ? foundBranch.name : (branchId === 1 ? "Casa Central" : `Sucursal ${branchId}`);
       await registerMovement({
         sku,
         productName: item.name,
@@ -185,13 +194,12 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
   };
 
   const registerMovement = async (movData: Omit<StockMovement, 'id' | 'date' | 'time'>) => {
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('es-AR');
-    const timeStr = now.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = localDateISO();
+    const timeStr = localTimeISO();
 
     const newMovement: StockMovement = {
       ...movData,
-      id: `mov-${Date.now()}`,
+      id: crypto.randomUUID ? crypto.randomUUID() : `mov-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       date: dateStr,
       time: timeStr
     };
@@ -257,10 +265,24 @@ export function InventoryProvider({ children }: { children: ReactNode }) {
 
     if (updatedStocksForTarget) {
       try {
-        await supabase.from('inventory').update({
-          stocks: updatedStocksForTarget,
-          ...(movData.type === 'ingreso' && movData.buyPrice !== undefined ? { buy_price: movData.buyPrice } : {})
-        }).eq('sku', movData.sku);
+        const delta = movData.type === 'ingreso' ? movData.quantity : -movData.quantity;
+        const { error: rpcError } = await supabase.rpc('adjust_stock', {
+          p_sku: movData.sku,
+          p_branch_id: String(movData.branchId),
+          p_delta: delta
+        });
+
+        if (rpcError) {
+          // Fallback to direct update if RPC is not installed yet
+          await supabase.from('inventory').update({
+            stocks: updatedStocksForTarget,
+            ...(movData.type === 'ingreso' && movData.buyPrice !== undefined ? { buy_price: movData.buyPrice } : {})
+          }).eq('sku', movData.sku);
+        } else if (movData.type === 'ingreso' && movData.buyPrice !== undefined) {
+          await supabase.from('inventory').update({
+            buy_price: movData.buyPrice
+          }).eq('sku', movData.sku);
+        }
       } catch (e) {
         console.error("Error updating inventory stocks in Supabase:", e);
       }

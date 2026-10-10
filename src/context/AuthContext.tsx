@@ -85,127 +85,152 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Load session & user profile on mount
+  // Helper to load minimal branches for login screen
+  const loadLoginBranches = async (): Promise<Branch[]> => {
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_login_branches');
+      if (!rpcError && Array.isArray(rpcData) && rpcData.length > 0) {
+        return rpcData.map((b: any) => ({
+          id: String(b.id),
+          name: b.name
+        }));
+      }
+    } catch (e) {
+      // RPC might not exist yet before migration
+    }
+
+    try {
+      const { data: dbBranches, error: bErr } = await supabase.from('branches').select('id, name');
+      if (!bErr && dbBranches && dbBranches.length > 0) {
+        return dbBranches.map((b: any) => ({
+          id: String(b.id),
+          name: b.name
+        }));
+      }
+    } catch (e) {
+      console.warn("Could not load branches via fallback:", e);
+    }
+
+    return INITIAL_BRANCHES;
+  };
+
+  // Helper to load authenticated data (full branches + all user profiles)
+  const loadAuthenticatedData = async (userSessionId: string, userEmail?: string) => {
+    // 1. Fetch full branches (including AFIP configs)
+    try {
+      const { data: dbBranches } = await supabase.from('branches').select('*');
+      if (dbBranches && dbBranches.length > 0) {
+        const mappedBranches: Branch[] = dbBranches.map(b => ({
+          id: String(b.id),
+          name: b.name,
+          address: b.address,
+          phone: b.phone,
+          afipCuit: b.afip_cuit,
+          afipPtoVenta: b.afip_pto_venta,
+          afipEnv: b.afip_env || 'homologacion',
+          afipCertName: b.afip_cert_name,
+          afipCertContent: b.afip_cert_content,
+          afipKeyName: b.afip_key_name,
+          afipKeyContent: b.afip_key_content
+        }));
+        setBranches(mappedBranches);
+
+        const savedBranchId = localStorage.getItem('optica_active_branch_id');
+        let targetBranch: Branch | null = mappedBranches[0];
+        if (savedBranchId === 'all') {
+          targetBranch = CONSOLIDATED_BRANCH;
+        } else if (savedBranchId) {
+          targetBranch = mappedBranches.find(b => String(b.id) === String(savedBranchId)) || mappedBranches[0];
+        }
+        setCurrentBranch(targetBranch);
+      }
+    } catch (e) {
+      console.error("Error loading full branches post-login:", e);
+    }
+
+    // 2. Fetch all user profiles for admin user management
+    try {
+      const { data: dbUsers, error } = await supabase.from('profiles').select('*');
+      if (!error && dbUsers) {
+        const mappedUsers: User[] = dbUsers.map(u => ({
+          id: u.id,
+          username: u.username || u.email?.split('@')[0] || 'usuario',
+          name: u.name || u.full_name || 'Usuario',
+          email: u.email,
+          role: u.role || 'standard',
+          defaultBranchId: String(u.default_branch_id || '1'),
+          avatar: u.avatar_url,
+          status: u.status || 'Activo'
+        }));
+        setUsers(mappedUsers);
+      }
+    } catch (e) {
+      console.error("Error loading profiles post-login:", e);
+    }
+
+    // 3. Set active current user
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userSessionId)
+        .single();
+
+      const activeUser: User = {
+        id: userSessionId,
+        username: profile?.username || userEmail?.split('@')[0] || 'usuario',
+        name: profile?.name || userEmail?.split('@')[0] || 'Usuario',
+        email: userEmail,
+        role: profile?.role || 'standard',
+        defaultBranchId: String(profile?.default_branch_id || '1'),
+        status: profile?.status || 'Activo'
+      };
+
+      setCurrentUser(activeUser);
+
+      if (!isUserAdmin(activeUser)) {
+        const userBranch = branches.find(b => String(b.id) === activeUser.defaultBranchId) || branches[0];
+        setCurrentBranch(userBranch);
+        localStorage.setItem('optica_active_branch_id', String(userBranch.id));
+      }
+    } catch (e) {
+      console.error("Error setting current user:", e);
+    }
+  };
+
+  // Check initial Supabase Auth Session
   useEffect(() => {
-    async function loadSessionAndUsers() {
-      // 1. Fetch Users Profile Table
+    async function initAuth() {
       try {
-        const { data: dbUsers, error } = await supabase.from('profiles').select('*');
-        if (!error && dbUsers) {
-          const mappedUsers: User[] = dbUsers.map(u => ({
-            id: u.id,
-            username: u.username || u.email?.split('@')[0] || 'usuario',
-            name: u.name || u.full_name || 'Usuario',
-            email: u.email,
-            role: u.role || 'Vendedor',
-            defaultBranchId: String(u.default_branch_id || '1'),
-            avatar: u.avatar_url,
-            status: u.status || 'Activo'
-          }));
-          setUsers(mappedUsers);
-        }
-      } catch (e) {
-        console.error("Error loading profiles from Supabase:", e);
-      }
+        // Load public/login branch list first
+        const loginBranches = await loadLoginBranches();
+        setBranches(loginBranches);
 
-      // 2. Fetch Branches Table
-      try {
-        const { data: dbBranches } = await supabase.from('branches').select('*');
-        if (dbBranches && dbBranches.length > 0) {
-          const mappedBranches: Branch[] = dbBranches.map(b => ({
-            id: b.id,
-            name: b.name,
-            address: b.address,
-            phone: b.phone,
-            afipCuit: b.afip_cuit,
-            afipPtoVenta: b.afip_pto_venta,
-            afipEnv: b.afip_env || 'homologacion',
-            afipCertName: b.afip_cert_name,
-            afipCertContent: b.afip_cert_content,
-            afipKeyName: b.afip_key_name,
-            afipKeyContent: b.afip_key_content
-          }));
-          setBranches(mappedBranches);
-          const savedBranchId = localStorage.getItem('optica_active_branch_id');
-          let targetBranch: Branch | null = mappedBranches[0];
-          if (savedBranchId === 'all') {
-            targetBranch = CONSOLIDATED_BRANCH;
-          } else if (savedBranchId) {
-            targetBranch = mappedBranches.find(b => String(b.id) === String(savedBranchId)) || mappedBranches[0];
-          }
-          setCurrentBranch(targetBranch);
-        }
-      } catch (e) {
-        console.error("Error loading branches from Supabase:", e);
-      }
-
-      // 3. Check current Supabase Auth Session
-      try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
-          const email = session.user.email;
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-
-          const activeUser: User = {
-            id: session.user.id,
-            username: profile?.username || email?.split('@')[0] || 'usuario',
-            name: profile?.name || session.user.user_metadata?.name || 'Administrador',
-            email: email,
-            role: profile?.role || 'superadmin',
-            defaultBranchId: String(profile?.default_branch_id || '1'),
-            status: 'Activo'
-          };
-
-          setCurrentUser(activeUser);
-
-          // If user is not admin, force their assigned default branch
-          if (!isUserAdmin(activeUser)) {
-            const userBranch = branches.find(b => String(b.id) === activeUser.defaultBranchId) || branches[0];
-            setCurrentBranch(userBranch);
-            localStorage.setItem('optica_active_branch_id', String(userBranch.id));
-          }
+          await loadAuthenticatedData(session.user.id, session.user.email);
+        } else {
+          setCurrentUser(null);
+          setUsers([]);
         }
       } catch (e) {
-        console.error("Error fetching Supabase session:", e);
+        console.error("Error during initial auth setup:", e);
       } finally {
         setIsLoading(false);
       }
     }
 
-    loadSessionAndUsers();
+    initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session?.user) {
-        const email = session.user.email;
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
-        const activeUser: User = {
-          id: session.user.id,
-          username: profile?.username || email?.split('@')[0] || 'usuario',
-          name: profile?.name || session.user.user_metadata?.name || 'Administrador',
-          email: email,
-          role: profile?.role || 'superadmin',
-          defaultBranchId: String(profile?.default_branch_id || '1'),
-          status: 'Activo'
-        };
-
-        setCurrentUser(activeUser);
-
-        if (!isUserAdmin(activeUser)) {
-          const userBranch = branches.find(b => String(b.id) === activeUser.defaultBranchId) || branches[0];
-          setCurrentBranch(userBranch);
-          localStorage.setItem('optica_active_branch_id', String(userBranch.id));
-        }
+      if ((event === 'SIGNED_IN' || event === 'USER_UPDATED') && session?.user) {
+        await loadAuthenticatedData(session.user.id, session.user.email);
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
+        setUsers([]);
+        const loginBranches = await loadLoginBranches();
+        setBranches(loginBranches);
+        setCurrentBranch(loginBranches[0] || INITIAL_BRANCHES[0]);
       }
     });
 
@@ -238,17 +263,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (match && match.email) {
           loginEmail = match.email;
         } else {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('email')
-            .ilike('username', loginEmail)
-            .single();
-
-          if (profile && profile.email) {
-            loginEmail = profile.email;
-          } else {
-            loginEmail = `${loginEmail}@visionclara.com`;
-          }
+          loginEmail = `${loginEmail}@opticaparacao.com`;
         }
       }
 
@@ -276,12 +291,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
+    setUsers([]);
   };
 
   const addUser = async (newUser: User): Promise<{ success: boolean; error?: string }> => {
     try {
-      const email = newUser.email || `${newUser.username}@visionclara.com`;
-      const password = newUser.password || '123456';
+      if (!newUser.password || newUser.password.length < 6) {
+        return { success: false, error: "La contraseña debe tener al menos 6 caracteres" };
+      }
+
+      const email = newUser.email || `${newUser.username.toLowerCase()}@opticaparacao.com`;
+      const password = newUser.password;
 
       const tempClient = createTempClient();
       const { data: authData, error: authError } = await tempClient.auth.signUp({

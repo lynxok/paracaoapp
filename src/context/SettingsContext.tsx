@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Insurance, CrystalPricingRule, CrystalItem } from '../types';
 import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 export interface BankEntity {
   id: string;
@@ -294,6 +295,7 @@ const INITIAL_COLORS_MASTERS = ['Blanco', 'Gris', 'Marrón', 'Verde', 'Azul', 'R
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
+  const { currentUser, isAuthenticated } = useAuth();
   const [insurances, setInsurances] = useState<Insurance[]>(() => {
     const saved = localStorage.getItem('optica_insurances');
     if (saved) {
@@ -431,9 +433,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return saved ? JSON.parse(saved) : INITIAL_COLORS_MASTERS;
   });
 
-  // Load everything from Supabase on mount
+  // Load everything from Supabase on session
   useEffect(() => {
     async function loadAllFromSupabase() {
+      if (!isAuthenticated || !currentUser) {
+        return;
+      }
       try {
         // 1. Banks
         const { data: bankData } = await supabase.from('banks').select('*');
@@ -591,7 +596,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
     }
     loadAllFromSupabase();
-  }, []);
+  }, [isAuthenticated, currentUser?.id]);
 
   // Helper to sync to system_settings table
   const syncSetting = async (key: string, value: any) => {

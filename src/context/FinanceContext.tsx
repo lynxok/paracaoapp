@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useMemo, useEffect } from '
 import { CashBox, CashBoxType, Transaction, FinanceCategory, Supplier, SupplierTransaction, Cheque } from '../types';
 import { useNotifications } from './NotificationsContext';
 import { useSettings } from './SettingsContext';
+import { useAuth } from './AuthContext';
+import { localDateISO, localTimeISO } from '../lib/utils';
 
 interface FinanceContextType {
   boxes: CashBox[];
@@ -54,6 +56,7 @@ const DEFAULT_CASH_BOX: CashBox = {
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { banks: settingsBanks } = useSettings();
+  const { currentUser, isAuthenticated } = useAuth();
   const [boxes, setBoxes] = useState<CashBox[]>([DEFAULT_CASH_BOX]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -161,9 +164,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     });
   }, [settingsBanks, transactions]);
 
-  // Load boxes, transactions, and suppliers directly from Supabase on mount
+  // Load boxes, transactions, and suppliers directly from Supabase on session
   useEffect(() => {
     async function loadFinanceData() {
+      if (!isAuthenticated || !currentUser) {
+        setTransactions([]);
+        setSuppliers([]);
+        setCheques([]);
+        return;
+      }
       try {
         // 1. Fetch Banks to dynamically construct Bank CashBoxes (with local storage fallback)
         let activeBanks: any[] = [];
@@ -370,7 +379,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     }
     loadFinanceData();
-  }, []);
+  }, [isAuthenticated, currentUser?.id]);
 
   const addTransaction = async (tx: Transaction) => {
     const effectiveBranchId = tx.branchId || '1';
@@ -399,7 +408,11 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         ? tx.concept
         : `${tx.concept} [Suc:${effectiveBranchId}|${effectiveBranchName}]`;
 
-      await supabase.from('transactions').upsert([{
+      // Si el client_id es "cliente-mostrador" o no es UUID, guardamos null en client_id para no romper la FK
+      const isUUID = tx.clientId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tx.clientId);
+      const safeClientId = isUUID ? tx.clientId : null;
+
+      const payload: any = {
         id: tx.id,
         date: tx.date,
         time: tx.time,
@@ -409,16 +422,38 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         type: tx.type,
         category: tx.category,
         box_id: tx.boxId,
-        client_id: tx.clientId,
-        client_name: tx.clientName,
-        reconciled: tx.reconciled || false,
-        coupon_number: tx.couponNumber || null,
-        liquidation_id: tx.liquidationId || null,
-        liquidation_date: tx.liquidationDate || null,
-        destination_box_id: tx.destinationBoxId || null,
-        deductions: tx.deductions ? JSON.stringify(tx.deductions) : null,
-        net_amount: tx.netAmount !== undefined ? tx.netAmount : null
-      }]);
+        client_id: safeClientId,
+        client_name: tx.clientName || null,
+        reconciled: tx.reconciled || false
+      };
+
+      if (tx.couponNumber) payload.coupon_number = tx.couponNumber;
+      if (tx.liquidationId) payload.liquidation_id = tx.liquidationId;
+      if (tx.liquidationDate) payload.liquidation_date = tx.liquidationDate;
+      if (tx.destinationBoxId) payload.destination_box_id = tx.destinationBoxId;
+      if (tx.deductions) payload.deductions = JSON.stringify(tx.deductions);
+      if (tx.netAmount !== undefined) payload.net_amount = tx.netAmount;
+
+      const { error } = await supabase.from('transactions').upsert([payload]);
+      if (error) {
+        console.warn("Supabase addTransaction initial error:", error.message);
+        // Fallback básico con solo las columnas indispensables
+        const minimalPayload = {
+          id: tx.id,
+          date: tx.date,
+          time: tx.time,
+          concept: persistedConcept,
+          method: tx.method,
+          amount: tx.amount,
+          type: tx.type,
+          category: tx.category,
+          box_id: tx.boxId
+        };
+        const { error: minErr } = await supabase.from('transactions').upsert([minimalPayload]);
+        if (minErr) {
+          console.error("Supabase addTransaction minimal fallback error:", minErr);
+        }
+      }
     } catch (e) {
       console.error("Supabase addTransaction error:", e);
     }
@@ -609,9 +644,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     date?: string;
   }) => {
     const liqId = `LIQ-${Date.now().toString().slice(-6)}`;
-    const now = new Date();
-    const dateStr = date || now.toISOString().split('T')[0];
-    const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+    const dateStr = date || localDateISO();
+    const timeStr = localTimeISO();
 
     const sourceBox = boxes.find(b => b.id === sourceBoxId);
     const destBox = boxes.find(b => b.id === destinationBoxId);
@@ -825,9 +859,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const transferFunds = (fromId: string, toId: string, amount: number, concept: string) => {
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+    const dateStr = localDateISO();
+    const timeStr = localTimeISO();
 
     const expenseTx: Transaction = {
       id: `tx-${Date.now()}-exp`,
@@ -937,8 +970,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           // Cheque we gave to supplier -> debited from our account -> Expense
           addTransaction({
             id: `tx-cheque-deb-${Date.now()}`,
-            date: new Date().toISOString().split('T')[0],
-            time: new Date().toTimeString().slice(0, 5),
+            date: localDateISO(),
+            time: localTimeISO(),
             concept: `Débito Cheque Nº ${affectedCheque.number} - Banco: ${affectedCheque.bank} (Proveedor: ${affectedCheque.supplierName || 'Proveedor'})`,
             method: boxName,
             amount: affectedCheque.amount,
@@ -951,7 +984,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           // Also reduce supplier debt in Cuenta Corriente
           if (affectedCheque.supplierId) {
             addSupplierTransaction(affectedCheque.supplierId, {
-              date: new Date().toISOString().split('T')[0],
+              date: localDateISO(),
               voucherNumber: `CHQ-${affectedCheque.number}`,
               amount: affectedCheque.amount,
               type: 'payment',
@@ -963,8 +996,8 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
           // Cheque we received from client -> deposited/cashed -> Income
           addTransaction({
             id: `tx-cheque-dep-${Date.now()}`,
-            date: new Date().toISOString().split('T')[0],
-            time: new Date().toTimeString().slice(0, 5),
+            date: localDateISO(),
+            time: localTimeISO(),
             concept: `Depósito Cheque Nº ${affectedCheque.number} - Banco: ${affectedCheque.bank} (Cliente: ${affectedCheque.clientName || 'Cliente'})`,
             method: boxName,
             amount: affectedCheque.amount,

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { useNotifications } from './NotificationsContext';
 import { useClients } from './ClientContext';
 import { supabase } from '../lib/supabase';
+import { useAuth } from './AuthContext';
 
 export interface Lab {
   id: string;
@@ -84,13 +85,20 @@ const LabContext = createContext<LabContextType | undefined>(undefined);
 export function LabProvider({ children }: { children: ReactNode }) {
   const { addNotification } = useNotifications();
   const { updateOrderStatus } = useClients();
+  const { currentUser, isAuthenticated } = useAuth();
   const [labs, setLabs] = useState<Lab[]>([]);
   const [jobs, setJobs] = useState<LabJob[]>([]);
   const [payments, setPayments] = useState<LabPayment[]>([]);
 
-  // Load 100% from Supabase on mount
+  // Load 100% from Supabase on session
   useEffect(() => {
     async function loadLabDataFromSupabase() {
+      if (!isAuthenticated || !currentUser) {
+        setLabs([]);
+        setJobs([]);
+        setPayments([]);
+        return;
+      }
       try {
         const { data: dbLabs, error: lErr } = await supabase.from('labs').select('*');
         if (!lErr && dbLabs) setLabs(dbLabs);
@@ -138,7 +146,7 @@ export function LabProvider({ children }: { children: ReactNode }) {
       }
     }
     loadLabDataFromSupabase();
-  }, []);
+  }, [isAuthenticated, currentUser?.id]);
 
   const addLab = async (lab: Omit<Lab, 'id'>) => {
     const newLab: Lab = { ...lab, id: Date.now().toString() };

@@ -6,6 +6,7 @@ import { useInventory } from "./InventoryContext";
 import { useLabs } from "./LabContext";
 import { useAuth } from "./AuthContext";
 import { supabase } from "../lib/supabase";
+import { localDateISO, localTimeISO } from "../lib/utils";
 
 export interface CartItem {
   id: string;
@@ -224,10 +225,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const targetClientId = targetClient?.id || 'cliente-mostrador';
     const targetClientName = targetClient?.name || 'Cliente Mostrador';
 
-    const orderIdGenerated = `ORD-${Date.now().toString().slice(-6)}`;
+    const saleGroupId = `SALE-${Date.now().toString().slice(-6)}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
 
     // Process each item in the cart
-    cart.forEach(item => {
+    cart.forEach((item, index) => {
+      const itemOrderId = `ORD-${Date.now().toString().slice(-6)}-${index + 1}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
       const itemRawTotal = item.price * item.quantity;
       const itemTotal = subtotal > 0 ? (itemRawTotal * totalAmount) / subtotal : 0;
       const itemPaid = totalAmount > 0 ? (itemTotal * effectivePaid) / totalAmount : 0;
@@ -243,10 +245,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
         // 1. Add order to client orders list (del titular de la receta)
         addOrder({
-          id: orderIdGenerated,
+          id: itemOrderId,
           clientId: rxClientId,
           clientName: rxClientName,
-          date: new Date().toISOString().split('T')[0],
+          date: localDateISO(),
           type: details.prescriptionType || 'monofocal',
           service: item.name,
           status: 'En Taller',
@@ -256,7 +258,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           branchId: currentBranch?.id || undefined,
           prescriptionDetails: details,
           senaMethodId: senaMethodId,
-          previstoMethodId: previstoMethodId
+          previstoMethodId: previstoMethodId,
+          saleGroupId: saleGroupId
         });
 
         // 2. Deduct stock for frame and crystal
@@ -283,8 +286,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         if (details.assignedLab) {
           addJob({
             labId: details.assignedLab.id,
-            date: new Date().toISOString().split('T')[0],
-            orderId: orderIdGenerated,
+            date: localDateISO(),
+            orderId: itemOrderId,
             concept: `${item.name} - ${rxClientName}`,
             cost: details.labCost || 0,
             status: 'Pendiente',
@@ -349,7 +352,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           const claimId = `claim-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
           const claimData = {
             id: claimId,
-            order_id: orderIdGenerated,
+            order_id: itemOrderId,
             client_id: rxClientId,
             client_name: rxClientName,
             client_dni: rxClientDni,
@@ -361,7 +364,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             crystal_coverage: details.crystalCoverage || 0,
             total_amount: (details.frameCoverage || 0) + (details.crystalCoverage || 0),
             status: 'Pendiente',
-            date: new Date().toISOString().split('T')[0]
+            date: localDateISO()
           };
 
           supabase.from('insurance_claims').upsert([claimData]).then(({ error }) => {
@@ -371,10 +374,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       } else {
         // Record product sale in client purchase history
         addOrder({
-          id: orderIdGenerated,
+          id: itemOrderId,
           clientId: targetClientId,
           clientName: targetClientName,
-          date: new Date().toISOString().split('T')[0],
+          date: localDateISO(),
           type: 'producto',
           service: `${item.quantity}x ${item.name}`,
           status: itemPaid === itemTotal ? 'Entregado' : 'Pendiente Entrega',
@@ -382,7 +385,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           paid: itemPaid,
           branchId: currentBranch?.id || undefined,
           senaMethodId: senaMethodId,
-          previstoMethodId: previstoMethodId
+          previstoMethodId: previstoMethodId,
+          saleGroupId: saleGroupId
         });
 
         // Simple product stock deduction (optional, if catalog SKUs match inventory)
@@ -394,9 +398,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Register single consolidated transaction in Finance
-    const now = new Date();
-    const dateStr = now.toISOString().split('T')[0];
-    const timeStr = now.toTimeString().split(' ')[0].substring(0, 5);
+    const dateStr = localDateISO();
+    const timeStr = localTimeISO();
 
     const descSuffix = validDiscountPercent > 0 ? ` (Desc. ${validDiscountPercent}%)` : '';
     const partialSuffix = isPartial ? ` [Seña: $${effectivePaid.toLocaleString('es-AR')} - Saldo: $${remainingBalance.toLocaleString('es-AR')}]` : '';
@@ -480,7 +483,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
 
     const [y, m, d] = dateStr.split('-');
-    const displayDate = (y && m && d) ? `${d}/${m}/${y}` : now.toLocaleDateString('es-AR');
+    const displayDate = (y && m && d) ? `${d}/${m}/${y}` : dateStr;
 
     clearCart();
     return { 
